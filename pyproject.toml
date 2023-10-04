@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "ein"
+version = "0.0.0"
+description = "Embedding Pointful Array Programming in Python"
+authors = ["jbachurski <kbachurski@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "3.11.*"
+numpy = "^1.26.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.2"
+ipython = "^8.16.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
