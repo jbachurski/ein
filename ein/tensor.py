@@ -100,5 +100,5 @@ class TensorComprehension:
         return Tensor(body)
 
 
-tensor = TensorComprehension(application=calculus.Vec)
+array = TensorComprehension(application=calculus.Vec)
 sum = TensorComprehension(application=calculus.Sum)

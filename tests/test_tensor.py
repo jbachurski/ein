@@ -2,14 +2,14 @@ import numpy
 
 from ein.calculus import Var, Variable, VarShape
 from ein.interpret import interpret
-from ein.tensor import Tensor, sum, tensor
+from ein.tensor import Tensor, array, sum
 
 
 def test_mul_grid():
     n0 = Variable()
     n = Var(n0)
     # FIXME: This should have proper casting behaviour.
-    grid = tensor[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
+    grid = array[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
     numpy.testing.assert_allclose(
         interpret(
             grid.expr,
@@ -24,7 +24,7 @@ def test_matmul():
     n, k = VarShape(a0, 0), VarShape(a0, 1)
     _k, m = VarShape(b0, 0), VarShape(b0, 1)
     a, b = Tensor(Var(a0)), Tensor(Var(b0))
-    matmul = tensor[n, m](lambda i, j: sum[k](lambda t: a[i, t] * b[t, j]))
+    matmul = array[n, m](lambda i, j: sum[k](lambda t: a[i, t] * b[t, j]))
     first = numpy.array([[1, 2, 3], [4, 5, 6]])
     second = numpy.array([[1], [0], [-1]])
     numpy.testing.assert_allclose(
