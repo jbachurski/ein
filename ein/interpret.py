@@ -16,6 +16,7 @@ from .calculus import (
     Value,
     Var,
     Variable,
+    VarShape,
     Vec,
 )
 
@@ -25,14 +26,6 @@ def _interpret(
     env: dict[Variable, Value],
     idx: dict[Index, int],
 ) -> Value:
-    value: Value
-    index: Index
-    var: Variable
-    size: Expr
-    body: Expr
-    target: Expr
-    item: Expr
-
     operands: tuple[Expr, ...]
     match program:
         case Vec(index, size, body):
@@ -69,6 +62,8 @@ def _interpret(
             return Value(numpy.array(idx[index]))
         case Var(var):
             return env[var]
+        case VarShape(var, axis):
+            return Value(numpy.array(env[var].array.shape[axis]))
         case Negate(operands):
             (target,) = operands
             return Value(numpy.negative(_interpret(target, env, idx).array))

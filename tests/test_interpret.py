@@ -13,6 +13,7 @@ from ein.calculus import (
     Value,
     Var,
     Variable,
+    VarShape,
     Vec,
 )
 from ein.interpret import interpret
@@ -63,17 +64,16 @@ def test_basic_reduction_and_get():
 
 def test_matmul():
     a, b = Variable(), Variable()
-    n, m, k = Variable(), Variable(), Variable()
     i, j, t = Index(), Index(), Index()
     matmul = Vec(
         i,
-        Var(n),
+        VarShape(a, 0),
         Vec(
             j,
-            Var(m),
+            VarShape(b, 1),
             Sum(
                 t,
-                Var(k),
+                VarShape(a, 1),  # == VarShape(b, 0)
                 Multiply(
                     (Get(Get(Var(a), At(i)), At(t)), Get(Get(Var(b), At(t)), At(j)))
                 ),
@@ -88,9 +88,6 @@ def test_matmul():
             {
                 a: first,
                 b: second,
-                n: first.shape[0],
-                m: second.shape[1],
-                k: first.shape[1],
             },
         ),
         first @ second,

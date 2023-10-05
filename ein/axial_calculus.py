@@ -2,15 +2,7 @@ import abc
 from dataclasses import dataclass
 from typing import TypeAlias
 
-import numpy
-
-
-class Index:
-    pass
-
-
-class Variable:
-    pass
+from .calculus import Index, Value, Variable
 
 
 @dataclass(frozen=True, eq=False)
@@ -18,25 +10,14 @@ class AbstractExpr(abc.ABC):
     pass
 
 
-Expr: TypeAlias = "Vec | Sum | Get | Const | At | Var | VarShape | Negate | Reciprocal | Add | Multiply"
-
-
-@dataclass(frozen=True)
-class Value:
-    array: numpy.ndarray
-
-
-@dataclass(frozen=True, eq=False)
-class Vec(AbstractExpr):
-    index: Index
-    size: Expr
-    body: Expr
+Expr: TypeAlias = (
+    "Sum | Get | Const | Range | Var | VarShape | Negate | Reciprocal | Add | Multiply"
+)
 
 
 @dataclass(frozen=True, eq=False)
 class Sum(AbstractExpr):
     index: Index
-    size: Expr
     body: Expr
 
 
@@ -44,6 +25,7 @@ class Sum(AbstractExpr):
 class Get(AbstractExpr):
     target: Expr
     item: Expr
+    axis: Index
 
 
 @dataclass(frozen=True, eq=False)
@@ -52,8 +34,9 @@ class Const(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class At(AbstractExpr):
+class Range(AbstractExpr):
     index: Index
+    size: Expr
 
 
 @dataclass(frozen=True, eq=False)
@@ -97,11 +80,10 @@ __all__ = [
     "Variable",
     "Value",
     "Expr",
-    "Vec",
     "Sum",
     "Get",
     "Const",
-    "At",
+    "Range",
     "Var",
     "VarShape",
     "Negate",
