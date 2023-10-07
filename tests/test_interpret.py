@@ -20,12 +20,12 @@ from ein.calculus import (
 from ein.interpret import interpret as interpret_with_baseline
 from ein.to_numpy import interpret as interpret_with_numpy
 
+with_interpret = pytest.mark.parametrize(
+    "interpret", [interpret_with_baseline, interpret_with_numpy], ids=["base", "numpy"]
+)
 
-@pytest.fixture(scope="module", params=[interpret_with_baseline, interpret_with_numpy])
-def interpret(request):
-    return request.param
 
-
+@with_interpret
 def test_basic_arithmetic(interpret):
     two = Const(Value(numpy.array(2.0)))
     numpy.testing.assert_allclose(interpret(two, {}), 2)
@@ -39,6 +39,7 @@ def test_basic_arithmetic(interpret):
     numpy.testing.assert_allclose(interpret(minus_one_twelfth, {}), -1 / 12)
 
 
+@with_interpret
 def test_basic_indices(interpret):
     i = Index()
     j = Index()
@@ -51,6 +52,7 @@ def test_basic_indices(interpret):
     )
 
 
+@with_interpret
 def test_basic_variables(interpret):
     x = Variable()
     y = Variable()
@@ -61,6 +63,7 @@ def test_basic_variables(interpret):
     )
 
 
+@with_interpret
 def test_basic_reduction_and_get(interpret):
     n = 5
     i = Index()
@@ -69,6 +72,7 @@ def test_basic_reduction_and_get(interpret):
     numpy.testing.assert_allclose(interpret(the_sum, {}), numpy.arange(n).sum())
 
 
+@with_interpret
 def test_matmul(interpret):
     a, b = Variable(), Variable()
     i, j, t = Index(), Index(), Index()

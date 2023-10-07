@@ -6,12 +6,12 @@ from ein.interpret import interpret as interpret_with_baseline
 from ein.tensor import Tensor, array, sum
 from ein.to_numpy import interpret as interpret_with_numpy
 
+with_interpret = pytest.mark.parametrize(
+    "interpret", [interpret_with_baseline, interpret_with_numpy], ids=["base", "numpy"]
+)
 
-@pytest.fixture(scope="module", params=[interpret_with_baseline, interpret_with_numpy])
-def interpret(request):
-    return request.param
 
-
+@with_interpret
 def test_mul_grid(interpret):
     n0 = Variable()
     n = Var(n0)
@@ -26,6 +26,7 @@ def test_mul_grid(interpret):
     )
 
 
+@with_interpret
 def test_matmul(interpret):
     a0, b0 = Variable(), Variable()
     n, k = VarShape(a0, 0), VarShape(a0, 1)
