@@ -45,3 +45,21 @@ def test_matmul(interpret):
         ),
         first @ second,
     )
+
+
+@with_interpret
+def test_uv_loss(interpret):
+    m, k, n = 16, 8, 12
+    x_values = numpy.random.randn(m, n)
+    u_values = numpy.random.randn(m, k)
+    v_values = numpy.random.randn(n, k)
+    x, u, v = Tensor(x_values), Tensor(u_values), Tensor(v_values)
+
+    def square(a):
+        return a * a
+
+    loss = sum[m, n](lambda i, j: square(x[i, j] - sum[k](lambda t: u[i, t] * v[j, t])))
+
+    numpy.testing.assert_allclose(
+        interpret(loss.expr, {}), ((x_values - u_values @ v_values.T) ** 2).sum()
+    )
