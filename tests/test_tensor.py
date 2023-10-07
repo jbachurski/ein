@@ -1,39 +1,18 @@
-from typing import Any
-
 import numpy
+import pytest
 
 from ein.calculus import Var, Variable, VarShape
-from ein.interpret import interpret
+from ein.interpret import interpret as interpret_with_baseline
 from ein.tensor import Tensor, array, sum
+from ein.to_numpy import interpret as interpret_with_numpy
 
 
-def repr_node(nodes, i):
-    node = nodes[i]
-    args, kwargs = node.mapped_args(
-        lambda var: str(var), lambda arg: f"%{nodes.index(arg)}", lambda x: str(x)
-    )
-    return f"%{i} = {node.fun.__name__}({', '.join(map(str, args))}, {', '.join(f'{k}={v}' for k, v in kwargs.items())})"
+@pytest.fixture(scope="module", params=[interpret_with_baseline, interpret_with_numpy])
+def interpret(request):
+    return request.param
 
 
-def interpret_with_numpy(program, env: dict[Variable, numpy.ndarray]):
-    from ein import to_axial, to_numpy
-
-    ranks = {var: array.ndim for var, array in env.items()}
-    axial_program, axial_program_axes = to_axial.transform(program, ranks)
-    numpy_program = to_numpy.transform(axial_program, axial_program_axes, ranks)
-    nodes = list(numpy_program.linearize())
-    results: list[Any] = []
-    for i, node in enumerate(nodes):
-        print(repr_node(nodes, i))
-        args, kwargs = node.mapped_args(
-            lambda var: env[var], lambda arg: results[nodes.index(arg)], lambda x: x
-        )
-        results.append(node.fun(*args, **kwargs))
-        print(results[-1])
-    return results[-1]
-
-
-def test_mul_grid():
+def test_mul_grid(interpret):
     n0 = Variable()
     n = Var(n0)
     # FIXME: This should have proper casting behaviour.
@@ -47,7 +26,7 @@ def test_mul_grid():
     )
 
 
-def test_matmul():
+def test_matmul(interpret):
     a0, b0 = Variable(), Variable()
     n, k = VarShape(a0, 0), VarShape(a0, 1)
     _k, m = VarShape(b0, 0), VarShape(b0, 1)
@@ -57,16 +36,6 @@ def test_matmul():
     second = numpy.array([[1], [0], [-1]])
     numpy.testing.assert_allclose(
         interpret(
-            matmul.expr,
-            {
-                a0: first,
-                b0: second,
-            },
-        ),
-        first @ second,
-    )
-    numpy.testing.assert_allclose(
-        interpret_with_numpy(
             matmul.expr,
             {
                 a0: first,

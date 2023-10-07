@@ -1,9 +1,9 @@
 from functools import cache
-from typing import assert_never
+from typing import Any, assert_never
 
 import numpy
 
-from . import axial, axial_calculus
+from . import axial, axial_calculus, to_axial
 from .axial_calculus import ValueAxis, VariableAxis
 from .calculus import Index, Variable
 from .node import Node
@@ -25,7 +25,7 @@ def transform(
                 value_axes = tuple(
                     ValueAxis(value, rank) for rank in range(value.array.ndim)
                 )
-                return axial.Constant(value, value_axes)
+                return axial.Constant(value.array, value_axes)
             case axial_calculus.Range(axis, size):
                 return axial.Range(axis, go(size))
             case axial_calculus.Var(var):
@@ -49,6 +49,31 @@ def transform(
             case _:
                 assert_never(expr)
 
-    # FIXME: Broadcast result into its full shape
     result = axial.Expand(go(program), program_axes)
     return result.graph
+
+
+def repr_node(nodes, i):
+    node = nodes[i]
+    args, kwargs = node.mapped_args(
+        lambda var: str(var), lambda arg: f"%{nodes.index(arg)}", lambda x: str(x)
+    )
+    return f"%{i} = {node.fun.__name__}({', '.join(map(str, args))}, {', '.join(f'{k}={v}' for k, v in kwargs.items())})"
+
+
+def interpret(program, env: dict[Variable, numpy.ndarray], debug: bool = False):
+    ranks = {var: array.ndim for var, array in env.items()}
+    axial_program, axial_program_axes = to_axial.transform(program, ranks)
+    numpy_program = transform(axial_program, axial_program_axes, ranks)
+    nodes = list(numpy_program.linearize())
+    results: list[Any] = []
+    for i, node in enumerate(nodes):
+        if debug:
+            print(repr_node(nodes, i))
+        args, kwargs = node.mapped_args(
+            lambda var: env[var], lambda arg: results[nodes.index(arg)], lambda x: x
+        )
+        results.append(node.fun(*args, **kwargs))
+        if debug:
+            print(results[-1])
+    return results[-1]
