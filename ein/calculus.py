@@ -21,7 +21,7 @@ class AbstractExpr(abc.ABC):
 Expr: TypeAlias = "Vec | Sum | Get | Const | At | Var | VarShape | Negate | Reciprocal | Add | Multiply"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Value:
     array: numpy.ndarray
 

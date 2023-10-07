@@ -5,6 +5,18 @@ from typing import TypeAlias
 from .calculus import Index, Value, Variable
 
 
+@dataclass(frozen=True)
+class ValueAxis(Index):
+    value: Value
+    rank: int
+
+
+@dataclass(frozen=True)
+class VariableAxis(Index):
+    variable: Variable
+    rank: int
+
+
 @dataclass(frozen=True, eq=False)
 class AbstractExpr(abc.ABC):
     pass
@@ -17,7 +29,7 @@ Expr: TypeAlias = (
 
 @dataclass(frozen=True, eq=False)
 class Sum(AbstractExpr):
-    index: Index
+    axis: Index
     body: Expr
 
 
@@ -35,7 +47,7 @@ class Const(AbstractExpr):
 
 @dataclass(frozen=True, eq=False)
 class Range(AbstractExpr):
-    index: Index
+    axis: Index
     size: Expr
 
 
