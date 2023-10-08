@@ -1,9 +1,9 @@
 import numpy
 import pytest
 
+from ein import Tensor, array, sum
 from ein.calculus import Var, Variable
 from ein.interpret import interpret as interpret_with_baseline
-from ein.tensor import Tensor, array, sum
 from ein.to_numpy import interpret as interpret_with_numpy
 
 with_interpret = pytest.mark.parametrize(
