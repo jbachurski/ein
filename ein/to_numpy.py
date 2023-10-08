@@ -31,8 +31,8 @@ def transform(
             case axial_calculus.Var(var):
                 var_axes = tuple(VariableAxis(var, rank) for rank in range(ranks[var]))
                 return axial.FromVariable(var, var_axes)
-            case axial_calculus.Shape(operand, axis):
-                return axial.Shape(go(operand), axis)
+            case axial_calculus.Dim(operand, axis):
+                return axial.Dim(go(operand), axis)
             case axial_calculus.Negate(operands):
                 (operand,) = operands
                 return axial.Ufunc(numpy.negative, (go(operand),))

@@ -30,7 +30,7 @@ def transform(
                 return ()
             case calculus.Var(var):
                 return tuple(VariableAxis(var, i) for i in range(ranks[var]))
-            case calculus.Shape(target, axis):
+            case calculus.Dim(target, axis):
                 assert 0 <= axis < len(implied_axes(target))
                 return ()
             case calculus.Negate(operands):
@@ -80,8 +80,8 @@ def transform(
                 return axial_calculus.Range(index, sizes[index])
             case calculus.Var(var):
                 return axial_calculus.Var(var)
-            case calculus.Shape(operand, axis):
-                return axial_calculus.Shape(
+            case calculus.Dim(operand, axis):
+                return axial_calculus.Dim(
                     go(operand, sizes), implied_axes(operand)[axis]
                 )
             case calculus.Negate(operands):

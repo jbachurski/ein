@@ -63,6 +63,9 @@ class Tensor:
     def __rtruediv__(self, other: TensorLike) -> "Tensor":
         return Tensor(other) / self
 
+    def dim(self, axis: int) -> "Tensor":
+        return Tensor(calculus.Dim(self.expr, axis))
+
 
 class _TensorConstructor(Protocol):
     def __call__(self, *args: Index) -> TensorLike:
@@ -86,17 +89,17 @@ class TensorComprehension:
         return type(self)(application=self.application, sizes=sizes)
 
     @staticmethod
-    def _size_of(expr: calculus.Expr) -> calculus.Shape:
+    def _size_of(expr: calculus.Expr) -> calculus.Dim:
         match expr:
             case calculus.Get(operand):
                 sub = TensorComprehension._size_of(operand)
-                return calculus.Shape(sub.operand, sub.axis + 1)
+                return calculus.Dim(sub.operand, sub.axis + 1)
             case calculus.Vec() | calculus.Const() | calculus.Var():
-                return calculus.Shape(expr, 0)
+                return calculus.Dim(expr, 0)
             case (
                 calculus.At()
                 | calculus.Sum()
-                | calculus.Shape()
+                | calculus.Dim()
                 | calculus.Negate()
                 | calculus.Reciprocal()
                 | calculus.Add()

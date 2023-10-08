@@ -5,12 +5,12 @@ from ein.calculus import (
     Add,
     At,
     Const,
+    Dim,
     Get,
     Index,
     Multiply,
     Negate,
     Reciprocal,
-    Shape,
     Sum,
     Value,
     Var,
@@ -78,13 +78,13 @@ def test_matmul(interpret):
     i, j, t = Index(), Index(), Index()
     matmul = Vec(
         i,
-        Shape(Var(a), 0),
+        Dim(Var(a), 0),
         Vec(
             j,
-            Shape(Var(b), 1),
+            Dim(Var(b), 1),
             Sum(
                 t,
-                Shape(Var(a), 1),  # == Shape(Var(b), 0)
+                Dim(Var(a), 1),  # == Dim(Var(b), 0)
                 Multiply(
                     (Get(Get(Var(a), At(i)), At(t)), Get(Get(Var(b), At(t)), At(j)))
                 ),

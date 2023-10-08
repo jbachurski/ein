@@ -6,13 +6,13 @@ from .calculus import (
     Add,
     At,
     Const,
+    Dim,
     Expr,
     Get,
     Index,
     Multiply,
     Negate,
     Reciprocal,
-    Shape,
     Sum,
     Value,
     Var,
@@ -62,7 +62,7 @@ def _interpret(
             return Value(numpy.array(idx[index]))
         case Var(var):
             return env[var]
-        case Shape(operand, axis):
+        case Dim(operand, axis):
             return Value(_interpret(operand, env, idx).array.shape[axis])
         case Negate(operands):
             (target,) = operands

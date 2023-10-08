@@ -1,7 +1,7 @@
 import numpy
 import pytest
 
-from ein.calculus import Shape, Var, Variable
+from ein.calculus import Var, Variable
 from ein.interpret import interpret as interpret_with_baseline
 from ein.tensor import Tensor, array, sum
 from ein.to_numpy import interpret as interpret_with_numpy
@@ -32,9 +32,9 @@ def test_mul_grid(interpret):
 )
 def test_matmul(interpret, with_bounds_inference):
     a0, b0 = Variable(), Variable()
-    n, k = Shape(Var(a0), 0), Shape(Var(a0), 1)
-    _k, m = Shape(Var(b0), 0), Shape(Var(b0), 1)
     a, b = Tensor(Var(a0)), Tensor(Var(b0))
+    n, k = a.dim(0), a.dim(1)
+    _k, m = b.dim(0), b.dim(1)
     array_ = array if with_bounds_inference else array[n, m]
     sum_ = sum if with_bounds_inference else sum[k]
     matmul = array_(lambda i, j: sum_(lambda t: a[i, t] * b[t, j]))

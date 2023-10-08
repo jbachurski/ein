@@ -20,7 +20,7 @@ class Value:
 
 
 Expr: TypeAlias = (
-    "Vec | Sum | Get | Const | At | Var | Shape | Negate | Reciprocal | Add | Multiply"
+    "Vec | Sum | Get | Const | At | Var | Dim | Negate | Reciprocal | Add | Multiply"
 )
 
 
@@ -145,7 +145,7 @@ class Var(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class Shape(AbstractExpr):
+class Dim(AbstractExpr):
     operand: Expr
     axis: int
 
@@ -194,7 +194,7 @@ __all__ = [
     "Const",
     "At",
     "Var",
-    "Shape",
+    "Dim",
     "Negate",
     "Reciprocal",
     "Add",

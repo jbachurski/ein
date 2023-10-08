@@ -10,7 +10,7 @@ from .calculus import Index, Variable
 from .node import Node, identity, node
 
 Axial: TypeAlias = (
-    "Constant | FromVariable | Shape | Range | Ufunc | UfuncReduce | Gather"
+    "Constant | FromVariable | Dim | Range | Ufunc | UfuncReduce | Gather"
 )
 
 
@@ -57,14 +57,14 @@ class FromVariable(AbstractAxial):
     def __init__(self, var: Variable, axes: tuple[Index, ...]):
         self.var = var
         self.axes = axes
-        self.shape = {axis: Shape(self, axis) for axis in axes}
+        self.shape = {axis: Dim(self, axis) for axis in axes}
 
     @cached_property
     def graph(self) -> Node:
         return node(identity)(self.var)
 
 
-class Shape(AbstractAxial):
+class Dim(AbstractAxial):
     operand: Axial
     axis: Index
 

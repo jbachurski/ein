@@ -23,7 +23,7 @@ class AbstractExpr(abc.ABC):
 
 
 Expr: TypeAlias = (
-    "Sum | Get | Const | Range | Var | Shape | Negate | Reciprocal | Add | Multiply"
+    "Sum | Get | Const | Range | Var | Dim | Negate | Reciprocal | Add | Multiply"
 )
 
 
@@ -57,7 +57,7 @@ class Var(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class Shape(AbstractExpr):
+class Dim(AbstractExpr):
     operand: Expr
     axis: Index
 
@@ -97,7 +97,7 @@ __all__ = [
     "Const",
     "Range",
     "Var",
-    "Shape",
+    "Dim",
     "Negate",
     "Reciprocal",
     "Add",
