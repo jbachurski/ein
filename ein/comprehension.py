@@ -1,15 +1,10 @@
 import inspect
 from dataclasses import dataclass
-from typing import Callable, Protocol, Self, assert_never
+from typing import Callable, Self, assert_never
 
 from . import calculus
-from .calculus import Expr, Index
+from .calculus import Expr, Index, Var, Variable
 from .tensor import Tensor, TensorLike
-
-
-class _TensorConstructor(Protocol):
-    def __call__(self, *args: Index) -> TensorLike:
-        ...
 
 
 @dataclass
@@ -49,7 +44,7 @@ class TensorComprehension:
             case _:
                 assert_never(expr)
 
-    def __call__(self, constructor: _TensorConstructor) -> Tensor:
+    def __call__(self, constructor: Callable[..., TensorLike]) -> Tensor:
         n = (
             len(inspect.signature(constructor).parameters)
             if self.sizes is None
@@ -91,3 +86,19 @@ class TensorComprehension:
 
 array = TensorComprehension(application=calculus.Vec)
 sum = TensorComprehension(application=calculus.Sum)
+
+
+class VariableTensor(Tensor):
+    expr: Var
+
+    def __init__(self):
+        super().__init__(Var(Variable()))
+
+    @property
+    def var(self) -> Variable:
+        return self.expr.var
+
+
+def function(fun: Callable[..., TensorLike]) -> tuple[tuple[Variable, ...], Expr]:
+    args = [VariableTensor() for _ in range(len(inspect.signature(fun).parameters))]
+    return tuple(arg.var for arg in args), Tensor(fun(*args)).expr

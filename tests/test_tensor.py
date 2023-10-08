@@ -1,8 +1,7 @@
 import numpy
 import pytest
 
-from ein import Tensor, array, sum
-from ein.calculus import Var, Variable
+from ein import Tensor, array, function, sum
 from ein.interpret import interpret as interpret_with_baseline
 from ein.to_numpy import interpret as interpret_with_numpy
 
@@ -13,13 +12,14 @@ with_interpret = pytest.mark.parametrize(
 
 @with_interpret
 def test_mul_grid(interpret):
-    n0 = Variable()
-    n = Var(n0)
     # FIXME: This should have proper casting behaviour.
-    grid = array[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
+    (n0,), grid_expr = function(
+        lambda n: array[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
+    )
+
     numpy.testing.assert_allclose(
         interpret(
-            grid.expr,
+            grid_expr,
             {n0: numpy.array(5)},
         ),
         numpy.array([[i / j for j in range(1, 6)] for i in range(1, 6)]),
@@ -31,18 +31,19 @@ def test_mul_grid(interpret):
     "with_bounds_inference", [False, True], ids=["give-sizes", "infer-sizes"]
 )
 def test_matmul(interpret, with_bounds_inference):
-    a0, b0 = Variable(), Variable()
-    a, b = Tensor(Var(a0)), Tensor(Var(b0))
-    n, k = a.dim(0), a.dim(1)
-    _k, m = b.dim(0), b.dim(1)
-    array_ = array if with_bounds_inference else array[n, m]
-    sum_ = sum if with_bounds_inference else sum[k]
-    matmul = array_(lambda i, j: sum_(lambda t: a[i, t] * b[t, j]))
+    def matmul(a, b):
+        n, k = a.dim(0), a.dim(1)
+        _k, m = b.dim(0), b.dim(1)
+        array_ = array if with_bounds_inference else array[n, m]
+        sum_ = sum if with_bounds_inference else sum[k]
+        return array_(lambda i, j: sum_(lambda t: a[i, t] * b[t, j]))
+
+    (a0, b0), matmul_expr = function(matmul)
     first = numpy.array([[1, 2, 3], [4, 5, 6]])
     second = numpy.array([[1], [0], [-1]])
     numpy.testing.assert_allclose(
         interpret(
-            matmul.expr,
+            matmul_expr,
             {
                 a0: first,
                 b0: second,

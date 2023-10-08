@@ -60,10 +60,13 @@ def repr_node(nodes, i):
     return f"%{i} = {node.fun.__name__}({', '.join(map(str, args))}, {', '.join(f'{k}={v}' for k, v in kwargs.items())})"
 
 
-def interpret(program, env: dict[Variable, numpy.ndarray], debug: bool = False):
-    ranks = {var: array.ndim for var, array in env.items()}
+def stage(program, ranks: dict[Variable, int]):
     axial_program, axial_program_axes = to_axial.transform(program, ranks)
-    numpy_program = transform(axial_program, axial_program_axes, ranks)
+    return transform(axial_program, axial_program_axes, ranks)
+
+
+def interpret(program, env: dict[Variable, numpy.ndarray], debug: bool = False):
+    numpy_program = stage(program, {var: array.ndim for var, array in env.items()})
     nodes = list(numpy_program.linearize())
     results: list[Any] = []
     for i, node in enumerate(nodes):

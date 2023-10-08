@@ -1,4 +1,4 @@
-from ein.comprehension import array, sum
+from ein.comprehension import array, function, sum
 from ein.tensor import Tensor
 
-__all__ = ["Tensor", "array", "sum"]
+__all__ = ["Tensor", "array", "sum", "function"]
