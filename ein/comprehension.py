@@ -1,19 +1,29 @@
 import inspect
 from dataclasses import dataclass
-from typing import Callable, Self, assert_never
+from typing import Callable, Self, TypeVar, assert_never
 
 from . import calculus
 from .calculus import Expr, Index, Var, Variable
 from .tensor import Tensor, TensorLike
 
+T = TypeVar("T")
+
+
+def identity(x: T) -> T:
+    return x
+
 
 @dataclass
 class TensorComprehension:
     application: Callable[[Index, Expr, Expr], Expr]
+    pre: Callable[[Expr], Expr]
+    post: Callable[[Expr], Expr]
     sizes: tuple[TensorLike, ...] | None
 
-    def __init__(self, *, application, sizes=None):
+    def __init__(self, *, application, pre=identity, post=identity, sizes=None):
         self.application = application
+        self.pre = pre
+        self.post = post
         self.sizes = sizes
 
     def __getitem__(self, sizes) -> Self:
@@ -21,7 +31,9 @@ class TensorComprehension:
             raise TypeError("Already specified the sizes for the tensor comprehension.")
         if not isinstance(sizes, tuple):
             sizes = (sizes,)
-        return type(self)(application=self.application, sizes=sizes)
+        return type(self)(
+            application=self.application, pre=self.pre, post=self.post, sizes=sizes
+        )
 
     @staticmethod
     def _size_of(expr: calculus.Expr) -> calculus.Dim:
@@ -50,7 +62,7 @@ class TensorComprehension:
         indices = [Index() for _ in range(n)]
         wrapped_indices = [Tensor(calculus.At(index)) for index in indices]
         base_body = constructor(*wrapped_indices)  # type: ignore
-        body = Tensor(base_body).expr
+        body = self.pre(Tensor(base_body).expr)
         if self.sizes is None:
             size_of: dict[Index, Expr] = {}
             for rank, index in enumerate(indices):
@@ -78,11 +90,17 @@ class TensorComprehension:
             }
         for index in reversed(indices):
             body = self.application(index, size_of[index], body)
-        return Tensor(body)
+        return Tensor(self.post(Tensor(body).expr))
 
 
 array = TensorComprehension(application=calculus.Vec)
 sum = TensorComprehension(application=calculus.Sum)
+max = TensorComprehension(application=calculus.Maximum)
+min = TensorComprehension(
+    application=calculus.Maximum,
+    pre=lambda expr: calculus.Negate((expr,)),
+    post=lambda expr: calculus.Negate((expr,)),
+)
 
 
 class VariableTensor(Tensor):

@@ -24,9 +24,7 @@ class AbstractExpr(abc.ABC):
     pass
 
 
-Expr: TypeAlias = (
-    "Sum | Get | Const | Range | Var | Dim | Negate | Reciprocal | Add | Multiply"
-)
+Expr: TypeAlias = "Sum | Maximum | Get | Const | Range | Var | Dim | Negate | Reciprocal | Add | Multiply"
 
 
 @dataclass(frozen=True, eq=False)
@@ -45,6 +43,13 @@ class Sum(AbstractScalarReduction):
     @property
     def ufunc(self) -> numpy.ufunc:
         return numpy.add
+
+
+@dataclass(frozen=True, eq=False)
+class Maximum(AbstractScalarReduction):
+    @property
+    def ufunc(self) -> numpy.ufunc:
+        return numpy.maximum
 
 
 @dataclass(frozen=True, eq=False)

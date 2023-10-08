@@ -1,7 +1,7 @@
 import numpy
 import pytest
 
-from ein import Tensor, array, function, sum
+from ein import Tensor, array, function, max, min, sum
 from ein.interpret import interpret as interpret_with_baseline
 from ein.to_numpy import interpret as interpret_with_numpy
 
@@ -75,4 +75,16 @@ def test_uv_loss(interpret, with_bounds_inference):
 
     numpy.testing.assert_allclose(
         interpret(loss.expr, {}), ((x_values - u_values @ v_values.T) ** 2).sum()
+    )
+
+
+@with_interpret
+def test_max_minus_min(interpret):
+    (a, b), expr = function(
+        lambda a, b: max(lambda i: a[i] * b[i]) - min(lambda i: a[i] * b[i])
+    )
+    a_values, b_values = numpy.random.randn(256), numpy.random.randn(256)
+    numpy.testing.assert_allclose(
+        interpret(expr, {a: a_values, b: b_values}),
+        (a_values * b_values).max() - (a_values * b_values).min(),
     )

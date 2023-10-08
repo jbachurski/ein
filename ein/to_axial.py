@@ -58,6 +58,10 @@ def transform(
                 return axial_calculus.Sum(
                     index, go(body, {index: go(size, sizes)} | sizes)
                 )
+            case calculus.Maximum(index, size, body):
+                return axial_calculus.Maximum(
+                    index, go(body, {index: go(size, sizes)} | sizes)
+                )
             case calculus.Get(operand, item):
                 axis, *_ = implied_axes(operand)
                 return axial_calculus.Get(go(operand, sizes), go(item, sizes), axis)

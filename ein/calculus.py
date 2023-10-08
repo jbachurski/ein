@@ -19,9 +19,7 @@ class Value:
     array: numpy.ndarray
 
 
-Expr: TypeAlias = (
-    "Vec | Sum | Get | Const | At | Var | Dim | Negate | Reciprocal | Add | Multiply"
-)
+Expr: TypeAlias = "Vec | Sum | Maximum | Get | Const | At | Var | Dim | Negate | Reciprocal | Add | Multiply"
 
 
 def _merge_adj(*args: dict[Index, set["Expr"]]):
@@ -102,6 +100,13 @@ class Sum(AbstractScalarReduction):
     @property
     def ufunc(self) -> numpy.ufunc:
         return numpy.add
+
+
+@dataclass(frozen=True, eq=False)
+class Maximum(AbstractScalarReduction):
+    @property
+    def ufunc(self) -> numpy.ufunc:
+        return numpy.maximum
 
 
 @dataclass(frozen=True, eq=False)
