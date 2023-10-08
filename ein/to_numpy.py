@@ -35,18 +35,10 @@ def transform(
                 return axial.Dim(go(operand), axis)
             case axial_calculus.Switch(cond, false, true):
                 return axial.Where(go(cond), go(false), go(true))
-            case axial_calculus.Negate(operands):
-                (operand,) = operands
-                return axial.Ufunc(numpy.negative, (go(operand),))
-            case axial_calculus.Reciprocal(operands):
-                (operand,) = operands
-                return axial.Ufunc(numpy.reciprocal, (go(operand),))
-            case axial_calculus.Add(operands):
-                (first, second) = operands
-                return axial.Ufunc(numpy.add, (go(first), go(second)))
-            case axial_calculus.Multiply(operands):
-                (first, second) = operands
-                return axial.Ufunc(numpy.multiply, (go(first), go(second)))
+            case axial_calculus.AbstractScalarOperator(operands):
+                return axial.Ufunc(
+                    expr.ufunc, tuple(go(operand) for operand in operands)
+                )
             case _:
                 assert_never(expr)
 

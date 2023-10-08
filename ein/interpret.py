@@ -79,6 +79,14 @@ def _interpret(
                     _interpret(second, env, idx).array,
                 )
             )
+        case calculus.Less(operands):
+            first, second = operands
+            return Value(
+                numpy.less(
+                    _interpret(first, env, idx).array,
+                    _interpret(second, env, idx).array,
+                )
+            )
         case _:
             assert_never(expr)
 

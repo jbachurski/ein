@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass
-from typing import TypeAlias
+from typing import ClassVar, TypeAlias
 
 import numpy
 
@@ -24,7 +24,7 @@ class AbstractExpr(abc.ABC):
     pass
 
 
-Expr: TypeAlias = "Sum | Maximum | Get | Const | Range | Var | Dim | Switch | Negate | Reciprocal | Add | Multiply"
+Expr: TypeAlias = "Sum | Maximum | Get | Const | Range | Var | Dim | Switch | Negate | Reciprocal | Add | Multiply | Less"
 
 
 @dataclass(frozen=True, eq=False)
@@ -91,62 +91,39 @@ class Switch(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class AbstractScalarOperator(AbstractExpr, abc.ABC):
     operands: tuple[Expr, ...]
-
-    @property
-    @abc.abstractmethod
-    def ufunc(self) -> numpy.ufunc:
-        ...
+    ufunc: ClassVar[numpy.ufunc]
 
 
 @dataclass(frozen=True, eq=False)
-class Negate(AbstractScalarOperator):
+class AbstractUnaryScalarOperator(AbstractScalarOperator, abc.ABC):
     operands: tuple[Expr]
 
-    @property
-    def ufunc(self) -> numpy.ufunc:
-        return numpy.negative
+
+@dataclass(frozen=True, eq=False)
+class Negate(AbstractUnaryScalarOperator):
+    ufunc = numpy.negative
 
 
 @dataclass(frozen=True, eq=False)
-class Reciprocal(AbstractScalarOperator):
-    operands: tuple[Expr]
-
-    @property
-    def ufunc(self) -> numpy.ufunc:
-        return numpy.reciprocal
+class Reciprocal(AbstractUnaryScalarOperator):
+    ufunc = numpy.reciprocal
 
 
 @dataclass(frozen=True, eq=False)
-class Add(AbstractScalarOperator):
+class AbstractBinaryScalarOperator(AbstractScalarOperator, abc.ABC):
     operands: tuple[Expr, Expr]
 
-    @property
-    def ufunc(self) -> numpy.ufunc:
-        return numpy.add
+
+@dataclass(frozen=True, eq=False)
+class Add(AbstractBinaryScalarOperator):
+    ufunc = numpy.add
 
 
 @dataclass(frozen=True, eq=False)
-class Multiply(AbstractScalarOperator):
-    operands: tuple[Expr, Expr]
-
-    @property
-    def ufunc(self) -> numpy.ufunc:
-        return numpy.multiply
+class Multiply(AbstractBinaryScalarOperator):
+    ufunc = numpy.multiply
 
 
-__all__ = [
-    "Index",
-    "Variable",
-    "Value",
-    "Expr",
-    "Sum",
-    "Get",
-    "Const",
-    "Range",
-    "Var",
-    "Dim",
-    "Negate",
-    "Reciprocal",
-    "Add",
-    "Multiply",
-]
+@dataclass(frozen=True, eq=False)
+class Less(AbstractBinaryScalarOperator):
+    ufunc = numpy.less

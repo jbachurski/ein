@@ -37,6 +37,12 @@ class Tensor:
             expr = calculus.Get(expr, Tensor(axis_item).expr)
         return Tensor(expr)
 
+    def __bool__(self):
+        raise TypeError(
+            "Tensors don't have a boolean value and cannot be used in conditions - "
+            "did you accidentally include it in an if or while statement?"
+        )
+
     def __add__(self, other: TensorLike) -> "Tensor":
         return Tensor(calculus.Add((self.expr, Tensor(other).expr)))
 
@@ -60,6 +66,9 @@ class Tensor:
 
     def __rtruediv__(self, other: TensorLike) -> "Tensor":
         return Tensor(other) / self
+
+    def __lt__(self, other: TensorLike) -> "Tensor":
+        return Tensor(calculus.Less((self.expr, Tensor(other).expr)))
 
     def dim(self, axis: int) -> "Tensor":
         return Tensor(calculus.Dim(self.expr, axis))

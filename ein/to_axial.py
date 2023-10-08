@@ -99,6 +99,9 @@ def transform(
             case calculus.Multiply(operands):
                 first, second = operands
                 return axial_calculus.Multiply((go(first, sizes), (go(second, sizes))))
+            case calculus.Less(operands):
+                first, second = operands
+                return axial_calculus.Less((go(first, sizes), (go(second, sizes))))
             case _:
                 assert_never(expr)
 
