@@ -24,7 +24,7 @@ class AbstractExpr(abc.ABC):
     pass
 
 
-Expr: TypeAlias = "Sum | Maximum | Get | Const | Range | Var | Dim | Negate | Reciprocal | Add | Multiply"
+Expr: TypeAlias = "Sum | Maximum | Get | Const | Range | Var | Dim | Switch | Negate | Reciprocal | Add | Multiply"
 
 
 @dataclass(frozen=True, eq=False)
@@ -79,6 +79,13 @@ class Var(AbstractExpr):
 class Dim(AbstractExpr):
     operand: Expr
     axis: Index
+
+
+@dataclass(frozen=True, eq=False)
+class Switch(AbstractExpr):
+    cond: Expr
+    true: Expr
+    false: Expr
 
 
 @dataclass(frozen=True, eq=False)

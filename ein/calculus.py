@@ -19,7 +19,7 @@ class Value:
     array: numpy.ndarray
 
 
-Expr: TypeAlias = "Vec | Sum | Maximum | Get | Const | At | Var | Dim | Negate | Reciprocal | Add | Multiply"
+Expr: TypeAlias = "Vec | Sum | Maximum | Get | Const | At | Var | Dim | Switch | Negate | Reciprocal | Add | Multiply"
 
 
 def _merge_adj(*args: dict[Index, set["Expr"]]):
@@ -169,6 +169,13 @@ class Dim(AbstractExpr):
     @cached_property
     def dependencies(self) -> set[Expr]:
         return {self.operand}
+
+
+@dataclass(frozen=True, eq=False)
+class Switch(AbstractExpr):
+    cond: Expr
+    true: Expr
+    false: Expr
 
 
 @dataclass(frozen=True, eq=False)

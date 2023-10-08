@@ -33,6 +33,8 @@ def transform(
                 return axial.FromVariable(var, var_axes)
             case axial_calculus.Dim(operand, axis):
                 return axial.Dim(go(operand), axis)
+            case axial_calculus.Switch(cond, false, true):
+                return axial.Where(go(cond), go(false), go(true))
             case axial_calculus.Negate(operands):
                 (operand,) = operands
                 return axial.Ufunc(numpy.negative, (go(operand),))

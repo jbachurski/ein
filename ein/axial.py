@@ -10,7 +10,7 @@ from .calculus import Index, Variable
 from .node import Node, identity, node
 
 Axial: TypeAlias = (
-    "Constant | FromVariable | Dim | Range | Ufunc | UfuncReduce | Gather"
+    "Constant | FromVariable | Dim | Range | Ufunc | Where | UfuncReduce | Gather"
 )
 
 
@@ -124,6 +124,25 @@ class Ufunc(AbstractAxial):
                 align(operand.axes, self.axes, operand.graph)
                 for operand in self.operands
             )
+        )
+
+
+class Where(AbstractAxial):
+    cond: Axial
+    true: Axial
+    false: Axial
+
+    def __init__(self, cond: Axial, true: Axial, false: Axial):
+        self.cond, self.true, self.false = cond, true, false
+        self.axes = Ufunc.alignment(cond.axes, true.axes, false.axes)
+        self.shape = cond.shape | true.shape | false.shape
+
+    @cached_property
+    def graph(self) -> Node:
+        return node(numpy.where)(
+            align(self.cond.axes, self.axes, self.cond.graph),
+            align(self.true.axes, self.axes, self.true.graph),
+            align(self.false.axes, self.axes, self.false.graph),
         )
 
 
