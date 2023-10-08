@@ -10,11 +10,11 @@ from ein.calculus import (
     Multiply,
     Negate,
     Reciprocal,
+    Shape,
     Sum,
     Value,
     Var,
     Variable,
-    VarShape,
     Vec,
 )
 from ein.interpret import interpret as interpret_with_baseline
@@ -78,13 +78,13 @@ def test_matmul(interpret):
     i, j, t = Index(), Index(), Index()
     matmul = Vec(
         i,
-        VarShape(a, 0),
+        Shape(Var(a), 0),
         Vec(
             j,
-            VarShape(b, 1),
+            Shape(Var(b), 1),
             Sum(
                 t,
-                VarShape(a, 1),  # == VarShape(b, 0)
+                Shape(Var(a), 1),  # == Shape(Var(b), 0)
                 Multiply(
                     (Get(Get(Var(a), At(i)), At(t)), Get(Get(Var(b), At(t)), At(j)))
                 ),

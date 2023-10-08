@@ -21,17 +21,17 @@ def transform(
                 assert not implied_axes(size)
                 assert implied_axes(body) == ()
                 return ()
-            case calculus.Get(target, item):
+            case calculus.Get(operand, item):
                 assert not implied_axes(item)
-                return implied_axes(target)[1:]
+                return implied_axes(operand)[1:]
             case calculus.Const(value):
                 return tuple(ValueAxis(value, i) for i in range(value.array.ndim))
             case calculus.At(_index):
                 return ()
             case calculus.Var(var):
                 return tuple(VariableAxis(var, i) for i in range(ranks[var]))
-            case calculus.VarShape(var, axis):
-                assert 0 <= axis < ranks[var]
+            case calculus.Shape(target, axis):
+                assert 0 <= axis < len(implied_axes(target))
                 return ()
             case calculus.Negate(operands):
                 (target,) = operands
@@ -71,9 +71,9 @@ def transform(
                 return axial_calculus.Sum(
                     index, go(body, {index: go(size, sizes)} | sizes)
                 )
-            case calculus.Get(target, item):
-                axis, *_ = implied_axes(target)
-                return axial_calculus.Get(go(target, sizes), go(item, sizes), axis)
+            case calculus.Get(operand, item):
+                axis, *_ = implied_axes(operand)
+                return axial_calculus.Get(go(operand, sizes), go(item, sizes), axis)
             case calculus.Const(value):
                 return axial_calculus.Const(value)
             case calculus.At(index):
@@ -81,8 +81,10 @@ def transform(
                 return axial_calculus.Range(index, sizes[index])
             case calculus.Var(var):
                 return axial_calculus.Var(var)
-            case calculus.VarShape(var, axis):
-                return axial_calculus.VarShape(var, axis)
+            case calculus.Shape(operand, axis):
+                return axial_calculus.Shape(
+                    go(operand, sizes), implied_axes(operand)[axis]
+                )
             case calculus.Negate(operands):
                 (target,) = operands
                 return axial_calculus.Negate((go(target, sizes),))

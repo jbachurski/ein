@@ -12,11 +12,11 @@ from .calculus import (
     Multiply,
     Negate,
     Reciprocal,
+    Shape,
     Sum,
     Value,
     Var,
     Variable,
-    VarShape,
     Vec,
 )
 
@@ -62,8 +62,8 @@ def _interpret(
             return Value(numpy.array(idx[index]))
         case Var(var):
             return env[var]
-        case VarShape(var, axis):
-            return Value(numpy.array(env[var].array.shape[axis]))
+        case Shape(operand, axis):
+            return Value(_interpret(operand, env, idx).array.shape[axis])
         case Negate(operands):
             (target,) = operands
             return Value(numpy.negative(_interpret(target, env, idx).array))

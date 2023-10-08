@@ -16,11 +16,12 @@ def transform(
 ) -> Node:
     @cache
     def go(expr: axial_calculus.Expr) -> axial.Axial:
+        print(expr)
         match expr:
             case axial_calculus.Sum(axis, body):
                 return axial.UfuncReduce(numpy.add, axis, go(body))
-            case axial_calculus.Get(target, item, axis):
-                return axial.Gather(axis, go(target), go(item))
+            case axial_calculus.Get(operand, item, axis):
+                return axial.Gather(axis, go(operand), go(item))
             case axial_calculus.Const(value):
                 value_axes = tuple(
                     ValueAxis(value, rank) for rank in range(value.array.ndim)
@@ -31,9 +32,8 @@ def transform(
             case axial_calculus.Var(var):
                 var_axes = tuple(VariableAxis(var, rank) for rank in range(ranks[var]))
                 return axial.FromVariable(var, var_axes)
-            case axial_calculus.VarShape(var, axis):
-                var_axes = tuple(VariableAxis(var, rank) for rank in range(ranks[var]))
-                return axial.Shape(axial.FromVariable(var, var_axes), var_axes[axis])
+            case axial_calculus.Shape(operand, axis):
+                return axial.Shape(go(operand), axis)
             case axial_calculus.Negate(operands):
                 (operand,) = operands
                 return axial.Ufunc(numpy.negative, (go(operand),))

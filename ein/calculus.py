@@ -18,7 +18,9 @@ class AbstractExpr(abc.ABC):
     pass
 
 
-Expr: TypeAlias = "Vec | Sum | Get | Const | At | Var | VarShape | Negate | Reciprocal | Add | Multiply"
+Expr: TypeAlias = (
+    "Vec | Sum | Get | Const | At | Var | Shape | Negate | Reciprocal | Add | Multiply"
+)
 
 
 @dataclass(frozen=True, eq=False)
@@ -42,7 +44,7 @@ class Sum(AbstractExpr):
 
 @dataclass(frozen=True, eq=False)
 class Get(AbstractExpr):
-    target: Expr
+    operand: Expr
     item: Expr
 
 
@@ -62,8 +64,8 @@ class Var(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class VarShape(AbstractExpr):
-    var: Variable
+class Shape(AbstractExpr):
+    operand: Expr
     axis: int
 
 
@@ -103,7 +105,7 @@ __all__ = [
     "Const",
     "At",
     "Var",
-    "VarShape",
+    "Shape",
     "Negate",
     "Reciprocal",
     "Add",
