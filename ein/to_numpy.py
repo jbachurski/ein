@@ -16,7 +16,6 @@ def transform(
 ) -> Node:
     @cache
     def go(expr: axial_calculus.Expr) -> axial.Axial:
-        print(expr)
         match expr:
             case axial_calculus.Sum(axis, body):
                 return axial.UfuncReduce(numpy.add, axis, go(body))

@@ -142,7 +142,6 @@ class TensorComprehension:
                 for index, size in zip(indices, self.sizes, strict=True)
             }
         for index in reversed(indices):
-            print("apply", index, size_of[index])
             body = self.application(index, size_of[index], body)
         return Tensor(body)
 

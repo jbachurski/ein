@@ -53,7 +53,10 @@ def test_matmul(interpret, with_bounds_inference):
 
 
 @with_interpret
-def test_uv_loss(interpret):
+@pytest.mark.parametrize(
+    "with_bounds_inference", [False, True], ids=["give-sizes", "infer-sizes"]
+)
+def test_uv_loss(interpret, with_bounds_inference):
     m, k, n = 16, 8, 12
     x_values = numpy.random.randn(m, n)
     u_values = numpy.random.randn(m, k)
@@ -63,7 +66,11 @@ def test_uv_loss(interpret):
     def square(a):
         return a * a
 
-    loss = sum[m, n](lambda i, j: square(x[i, j] - sum[k](lambda t: u[i, t] * v[j, t])))
+    inner_sum = sum if with_bounds_inference else sum[k]
+    outer_sum = sum if with_bounds_inference else sum[m, n]
+    loss = outer_sum(
+        lambda i, j: square(x[i, j] - inner_sum(lambda t: u[i, t] * v[j, t]))
+    )
 
     numpy.testing.assert_allclose(
         interpret(loss.expr, {}), ((x_values - u_values @ v_values.T) ** 2).sum()
