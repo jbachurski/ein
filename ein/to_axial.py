@@ -77,7 +77,6 @@ def transform(
             case calculus.Const(value):
                 return axial_calculus.Const(value)
             case calculus.At(index):
-                assert index in sizes
                 return axial_calculus.Range(index, sizes[index])
             case calculus.Var(var):
                 return axial_calculus.Var(var)
@@ -98,6 +97,6 @@ def transform(
                 first, second = operands
                 return axial_calculus.Multiply((go(first, sizes), (go(second, sizes))))
             case _:
-                assert_never(program)
+                assert_never(expr)
 
     return go(program, {}), implied_axes(program)
