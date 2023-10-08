@@ -17,7 +17,7 @@ def transform(
             case calculus.Vec(index, size, body):
                 assert not implied_axes(size)
                 return index, *implied_axes(body)
-            case calculus.Sum(_index, size, body):
+            case calculus.AbstractScalarReduction(_index, size, body):
                 assert not implied_axes(size)
                 assert implied_axes(body) == ()
                 return ()
@@ -33,21 +33,8 @@ def transform(
             case calculus.Dim(target, axis):
                 assert 0 <= axis < len(implied_axes(target))
                 return ()
-            case calculus.Negate(operands):
-                (target,) = operands
-                assert implied_axes(target) == ()
-                return ()
-            case calculus.Reciprocal(operands):
-                (target,) = operands
-                assert implied_axes(target) == ()
-                return ()
-            case calculus.Add(operands):
-                first, second = operands
-                assert implied_axes(first) == implied_axes(second) == ()
-                return ()
-            case calculus.Multiply(operands):
-                first, second = operands
-                assert implied_axes(first) == implied_axes(second) == ()
+            case calculus.AbstractScalarOperator(operands):
+                assert all(implied_axes(operand) == () for operand in operands)
                 return ()
             case _:
                 assert_never(expr)

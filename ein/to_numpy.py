@@ -17,8 +17,8 @@ def transform(
     @cache
     def go(expr: axial_calculus.Expr) -> axial.Axial:
         match expr:
-            case axial_calculus.Sum(axis, body):
-                return axial.UfuncReduce(numpy.add, axis, go(body))
+            case axial_calculus.AbstractScalarReduction(axis, body):
+                return axial.UfuncReduce(expr.ufunc, axis, go(body))
             case axial_calculus.Get(operand, item, axis):
                 return axial.Gather(axis, go(operand), go(item))
             case axial_calculus.Const(value):

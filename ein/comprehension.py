@@ -33,12 +33,9 @@ class TensorComprehension:
                 return calculus.Dim(expr, 0)
             case (
                 calculus.At()
-                | calculus.Sum()
                 | calculus.Dim()
-                | calculus.Negate()
-                | calculus.Reciprocal()
-                | calculus.Add()
-                | calculus.Multiply()
+                | calculus.AbstractScalarReduction()
+                | calculus.AbstractScalarOperator()
             ):
                 assert False, f"Cannot take size of type-wise scalar {expr}"
             case _:

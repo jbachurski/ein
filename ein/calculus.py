@@ -78,10 +78,15 @@ class Vec(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class Sum(AbstractExpr):
+class AbstractScalarReduction(AbstractExpr):
     index: Index
     size: Expr
     body: Expr
+
+    @property
+    @abc.abstractmethod
+    def ufunc(self) -> numpy.ufunc:
+        ...
 
     @cached_property
     def dependencies(self) -> set[Expr]:
@@ -90,6 +95,13 @@ class Sum(AbstractExpr):
     @property
     def _captured_indices(self) -> set[Index]:
         return {self.index}
+
+
+@dataclass(frozen=True, eq=False)
+class Sum(AbstractScalarReduction):
+    @property
+    def ufunc(self) -> numpy.ufunc:
+        return numpy.add
 
 
 @dataclass(frozen=True, eq=False)
@@ -158,6 +170,11 @@ class Dim(AbstractExpr):
 class AbstractScalarOperator(AbstractExpr, abc.ABC):
     operands: tuple[Expr, ...]
 
+    @property
+    @abc.abstractmethod
+    def ufunc(self) -> numpy.ufunc:
+        ...
+
     @cached_property
     def dependencies(self) -> set[Expr]:
         return set(self.operands)
@@ -167,20 +184,36 @@ class AbstractScalarOperator(AbstractExpr, abc.ABC):
 class Negate(AbstractScalarOperator):
     operands: tuple[Expr]
 
+    @property
+    def ufunc(self) -> numpy.ufunc:
+        return numpy.negative
+
 
 @dataclass(frozen=True, eq=False)
 class Reciprocal(AbstractScalarOperator):
     operands: tuple[Expr]
+
+    @property
+    def ufunc(self) -> numpy.ufunc:
+        return numpy.reciprocal
 
 
 @dataclass(frozen=True, eq=False)
 class Add(AbstractScalarOperator):
     operands: tuple[Expr, Expr]
 
+    @property
+    def ufunc(self) -> numpy.ufunc:
+        return numpy.add
+
 
 @dataclass(frozen=True, eq=False)
 class Multiply(AbstractScalarOperator):
     operands: tuple[Expr, Expr]
+
+    @property
+    def ufunc(self) -> numpy.ufunc:
+        return numpy.multiply
 
 
 __all__ = [

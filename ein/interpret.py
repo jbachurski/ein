@@ -2,33 +2,18 @@ from typing import assert_never
 
 import numpy
 
-from .calculus import (
-    Add,
-    At,
-    Const,
-    Dim,
-    Expr,
-    Get,
-    Index,
-    Multiply,
-    Negate,
-    Reciprocal,
-    Sum,
-    Value,
-    Var,
-    Variable,
-    Vec,
-)
+from . import calculus
+from .calculus import Expr, Index, Value, Variable
 
 
 def _interpret(
-    program: Expr,
+    expr: Expr,
     env: dict[Variable, Value],
     idx: dict[Index, int],
 ) -> Value:
     operands: tuple[Expr, ...]
-    match program:
-        case Vec(index, size, body):
+    match expr:
+        case calculus.Vec(index, size, body):
             evaluated_size = int(_interpret(size, env, idx).array)
             return Value(
                 numpy.array(
@@ -38,17 +23,17 @@ def _interpret(
                     ]
                 )
             )
-        case Sum(index, size, body):
+        case calculus.AbstractScalarReduction(index, size, body):
             evaluated_size = int(_interpret(size, env, idx).array)
             return Value(
-                numpy.sum(
+                expr.ufunc.reduce(
                     [
                         _interpret(body, env, idx | {index: i}).array
                         for i in range(evaluated_size)
                     ]
                 )
             )
-        case Get(target, item):
+        case calculus.Get(target, item):
             return Value(
                 numpy.take(
                     _interpret(target, env, idx).array,
@@ -56,21 +41,21 @@ def _interpret(
                     axis=0,
                 )
             )
-        case Const(value):
+        case calculus.Const(value):
             return value
-        case At(index):
+        case calculus.At(index):
             return Value(numpy.array(idx[index]))
-        case Var(var):
+        case calculus.Var(var):
             return env[var]
-        case Dim(operand, axis):
+        case calculus.Dim(operand, axis):
             return Value(_interpret(operand, env, idx).array.shape[axis])
-        case Negate(operands):
+        case calculus.Negate(operands):
             (target,) = operands
             return Value(numpy.negative(_interpret(target, env, idx).array))
-        case Reciprocal(operands):
+        case calculus.Reciprocal(operands):
             (target,) = operands
             return Value(numpy.reciprocal(_interpret(target, env, idx).array))
-        case Add(operands):
+        case calculus.Add(operands):
             first, second = operands
             return Value(
                 numpy.add(
@@ -78,7 +63,7 @@ def _interpret(
                     _interpret(second, env, idx).array,
                 )
             )
-        case Multiply(operands):
+        case calculus.Multiply(operands):
             first, second = operands
             return Value(
                 numpy.multiply(
@@ -87,7 +72,7 @@ def _interpret(
                 )
             )
         case _:
-            assert_never(program)
+            assert_never(expr)
 
 
 def interpret(
