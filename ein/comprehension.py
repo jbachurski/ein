@@ -50,7 +50,7 @@ class TensorComprehension:
                 | calculus.AbstractScalarReduction()
                 | calculus.AbstractScalarOperator()
             ):
-                assert False, f"Cannot take size of type-wise scalar {expr}"
+                assert False, f"Cannot take size of scalar {expr}"
             case _:
                 assert_never(expr)
 
