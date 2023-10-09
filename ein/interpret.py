@@ -49,7 +49,7 @@ def _interpret(
             return env[var]
         case calculus.Dim(operand, axis):
             return Value(_interpret(operand, env, idx).array.shape[axis])
-        case calculus.Switch(cond, false, true):
+        case calculus.Switch(cond, true, false):
             return Value(
                 numpy.where(
                     _interpret(cond, env, idx).array,
@@ -57,34 +57,10 @@ def _interpret(
                     _interpret(false, env, idx).array,
                 )
             )
-        case calculus.Negate(operands):
-            (target,) = operands
-            return Value(numpy.negative(_interpret(target, env, idx).array))
-        case calculus.Reciprocal(operands):
-            (target,) = operands
-            return Value(numpy.reciprocal(_interpret(target, env, idx).array))
-        case calculus.Add(operands):
-            first, second = operands
+        case calculus.AbstractScalarOperator(operands):
             return Value(
-                numpy.add(
-                    _interpret(first, env, idx).array,
-                    _interpret(second, env, idx).array,
-                )
-            )
-        case calculus.Multiply(operands):
-            first, second = operands
-            return Value(
-                numpy.multiply(
-                    _interpret(first, env, idx).array,
-                    _interpret(second, env, idx).array,
-                )
-            )
-        case calculus.Less(operands):
-            first, second = operands
-            return Value(
-                numpy.less(
-                    _interpret(first, env, idx).array,
-                    _interpret(second, env, idx).array,
+                expr.ufunc(
+                    *(_interpret(operand, env, idx).array for operand in operands)
                 )
             )
         case _:

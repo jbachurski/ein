@@ -88,3 +88,20 @@ def test_max_minus_min(interpret):
         interpret(expr, {a: a_values, b: b_values}),
         (a_values * b_values).max() - (a_values * b_values).min(),
     )
+
+
+@with_interpret
+def test_switches(interpret):
+    def sgn(a: Tensor, b: Tensor) -> Tensor:
+        return array(
+            lambda i: ((a[i] > b[i]).switch(a[i], b[i]) > 0).switch(
+                1, (a[i] == b[i]).switch(0, -1)
+            )
+        )
+
+    (a0, b0), sgn_expr = function(sgn)
+    a_values, b_values = numpy.random.randn(256), numpy.random.randn(256)
+    numpy.testing.assert_allclose(
+        interpret(sgn_expr, {a0: a_values, b0: b_values}),
+        numpy.sign(numpy.maximum(a_values, b_values)),
+    )

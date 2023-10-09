@@ -24,7 +24,10 @@ class AbstractExpr(abc.ABC):
     pass
 
 
-Expr: TypeAlias = "Sum | Maximum | Get | Const | Range | Var | Dim | Switch | Negate | Reciprocal | Add | Multiply | Less"
+Expr: TypeAlias = (
+    "Sum | Maximum | Get | Const | Range | Var | Dim | Switch | "
+    "Negate | Reciprocal | LogicalNot | Add | Multiply | Less | LogicalAnd"
+)
 
 
 @dataclass(frozen=True, eq=False)
@@ -110,6 +113,11 @@ class Reciprocal(AbstractUnaryScalarOperator):
 
 
 @dataclass(frozen=True, eq=False)
+class LogicalNot(AbstractUnaryScalarOperator):
+    ufunc = numpy.logical_not
+
+
+@dataclass(frozen=True, eq=False)
 class AbstractBinaryScalarOperator(AbstractScalarOperator, abc.ABC):
     operands: tuple[Expr, Expr]
 
@@ -127,3 +135,8 @@ class Multiply(AbstractBinaryScalarOperator):
 @dataclass(frozen=True, eq=False)
 class Less(AbstractBinaryScalarOperator):
     ufunc = numpy.less
+
+
+@dataclass(frozen=True, eq=False)
+class LogicalAnd(AbstractBinaryScalarOperator):
+    ufunc = numpy.logical_and

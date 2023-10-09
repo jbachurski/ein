@@ -67,8 +67,37 @@ class Tensor:
     def __rtruediv__(self, other: TensorLike) -> "Tensor":
         return Tensor(other) / self
 
+    def __invert__(self) -> "Tensor":
+        return Tensor(calculus.LogicalNot((self.expr,)))
+
+    def __and__(self, other: TensorLike) -> "Tensor":
+        return Tensor(calculus.LogicalAnd((self.expr, Tensor(other).expr)))
+
+    def __or__(self, other: TensorLike) -> "Tensor":
+        return ~(~self & ~Tensor(other))
+
     def __lt__(self, other: TensorLike) -> "Tensor":
         return Tensor(calculus.Less((self.expr, Tensor(other).expr)))
+
+    def __ne__(self, other: TensorLike) -> "Tensor":  # type: ignore
+        other_ = Tensor(other)
+        return (self < other_) | (other_ < self)
+
+    def __eq__(self, other: TensorLike) -> "Tensor":  # type: ignore
+        return ~(self != other)
+
+    def __gt__(self, other: TensorLike) -> "Tensor":
+        return Tensor(other) < self
+
+    def __le__(self, other: TensorLike) -> "Tensor":
+        other_ = Tensor(other)
+        return (self < other_) | (self == other_)
+
+    def __ge__(self, other: TensorLike) -> "Tensor":
+        return Tensor(other) <= self
+
+    def switch(self, true: TensorLike, false: TensorLike) -> "Tensor":
+        return Tensor(calculus.Switch(self.expr, Tensor(true).expr, Tensor(false).expr))
 
     def dim(self, axis: int) -> "Tensor":
         return Tensor(calculus.Dim(self.expr, axis))

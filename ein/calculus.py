@@ -19,7 +19,10 @@ class Value:
     array: numpy.ndarray
 
 
-Expr: TypeAlias = "Vec | Sum | Maximum | Get | Const | At | Var | Dim | Switch | Negate | Reciprocal | Add | Multiply | Less"
+Expr: TypeAlias = (
+    "Vec | Sum | Maximum | Get | Const | At | Var | Dim | Switch | "
+    "Negate | Reciprocal | LogicalNot | Add | Multiply | Less | LogicalAnd"
+)
 
 
 def _merge_adj(*args: dict[Index, set["Expr"]]):
@@ -177,6 +180,10 @@ class Switch(AbstractExpr):
     true: Expr
     false: Expr
 
+    @cached_property
+    def dependencies(self) -> set[Expr]:
+        return {self.cond, self.true, self.false}
+
 
 @dataclass(frozen=True, eq=False)
 class AbstractScalarOperator(AbstractExpr, abc.ABC):
@@ -204,6 +211,11 @@ class Reciprocal(AbstractUnaryScalarOperator):
 
 
 @dataclass(frozen=True, eq=False)
+class LogicalNot(AbstractUnaryScalarOperator):
+    ufunc = numpy.logical_not
+
+
+@dataclass(frozen=True, eq=False)
 class AbstractBinaryScalarOperator(AbstractScalarOperator, abc.ABC):
     operands: tuple[Expr, Expr]
 
@@ -221,3 +233,8 @@ class Multiply(AbstractBinaryScalarOperator):
 @dataclass(frozen=True, eq=False)
 class Less(AbstractBinaryScalarOperator):
     ufunc = numpy.less
+
+
+@dataclass(frozen=True, eq=False)
+class LogicalAnd(AbstractBinaryScalarOperator):
+    ufunc = numpy.logical_and

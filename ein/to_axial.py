@@ -93,6 +93,9 @@ def transform(
             case calculus.Reciprocal(operands):
                 (target,) = operands
                 return axial_calculus.Reciprocal((go(target, sizes),))
+            case calculus.LogicalNot(operands):
+                (target,) = operands
+                return axial_calculus.LogicalNot((go(target, sizes),))
             case calculus.Add(operands):
                 first, second = operands
                 return axial_calculus.Add((go(first, sizes), (go(second, sizes))))
@@ -102,6 +105,11 @@ def transform(
             case calculus.Less(operands):
                 first, second = operands
                 return axial_calculus.Less((go(first, sizes), (go(second, sizes))))
+            case calculus.LogicalAnd(operands):
+                first, second = operands
+                return axial_calculus.LogicalAnd(
+                    (go(first, sizes), (go(second, sizes)))
+                )
             case _:
                 assert_never(expr)
 
