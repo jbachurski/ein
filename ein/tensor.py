@@ -97,7 +97,7 @@ class Tensor:
         return Tensor(other) <= self
 
     def switch(self, true: TensorLike, false: TensorLike) -> "Tensor":
-        return Tensor(calculus.Switch(self.expr, Tensor(true).expr, Tensor(false).expr))
+        return Tensor(calculus.Where(self.expr, Tensor(true).expr, Tensor(false).expr))
 
     def dim(self, axis: int) -> "Tensor":
         return Tensor(calculus.Dim(self.expr, axis))

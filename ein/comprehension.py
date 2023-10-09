@@ -46,7 +46,7 @@ class TensorComprehension:
             case (
                 calculus.At()
                 | calculus.Dim()
-                | calculus.Switch()
+                | calculus.Where()
                 | calculus.AbstractScalarReduction()
                 | calculus.AbstractScalarOperator()
             ):

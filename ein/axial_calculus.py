@@ -25,7 +25,7 @@ class AbstractExpr(abc.ABC):
 
 
 Expr: TypeAlias = (
-    "Sum | Maximum | Get | Const | Range | Var | Dim | Switch | "
+    "Sum | Maximum | Get | Const | Range | Var | Dim | Where | "
     "Negate | Reciprocal | LogicalNot | Add | Multiply | Less | LogicalAnd"
 )
 
@@ -85,7 +85,7 @@ class Dim(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class Switch(AbstractExpr):
+class Where(AbstractExpr):
     cond: Expr
     true: Expr
     false: Expr

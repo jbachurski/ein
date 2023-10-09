@@ -33,7 +33,7 @@ def transform(
                 return axial.FromVariable(var, var_axes)
             case axial_calculus.Dim(operand, axis):
                 return axial.Dim(go(operand), axis)
-            case axial_calculus.Switch(cond, false, true):
+            case axial_calculus.Where(cond, false, true):
                 return axial.Where(go(cond), go(false), go(true))
             case axial_calculus.AbstractScalarOperator(operands):
                 return axial.Ufunc(

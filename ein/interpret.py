@@ -49,7 +49,7 @@ def _interpret(
             return env[var]
         case calculus.Dim(operand, axis):
             return Value(_interpret(operand, env, idx).array.shape[axis])
-        case calculus.Switch(cond, true, false):
+        case calculus.Where(cond, true, false):
             return Value(
                 numpy.where(
                     _interpret(cond, env, idx).array,

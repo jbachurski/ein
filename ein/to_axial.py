@@ -33,7 +33,7 @@ def transform(
             case calculus.Dim(target, axis):
                 assert 0 <= axis < len(implied_axes(target))
                 return ()
-            case calculus.Switch(cond, false, true):
+            case calculus.Where(cond, false, true):
                 assert (
                     implied_axes(cond)
                     == implied_axes(false)
@@ -83,8 +83,8 @@ def transform(
                 return axial_calculus.Dim(
                     go(operand, sizes), implied_axes(operand)[axis]
                 )
-            case calculus.Switch(cond, true, false):
-                return axial_calculus.Switch(
+            case calculus.Where(cond, true, false):
+                return axial_calculus.Where(
                     go(cond, sizes), go(true, sizes), go(false, sizes)
                 )
             case calculus.Negate(operands):
