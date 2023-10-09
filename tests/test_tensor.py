@@ -94,8 +94,8 @@ def test_max_minus_min(interpret):
 def test_switches(interpret):
     def sgn(a: Tensor, b: Tensor) -> Tensor:
         return array(
-            lambda i: ((a[i] > b[i]).switch(a[i], b[i]) > 0).switch(
-                1, (a[i] == b[i]).switch(0, -1)
+            lambda i: ((a[i] > b[i]).where(a[i], b[i]) > 0).where(
+                1, (a[i] == b[i]).where(0, -1)
             )
         )
 

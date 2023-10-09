@@ -96,7 +96,7 @@ class Tensor:
     def __ge__(self, other: TensorLike) -> "Tensor":
         return Tensor(other) <= self
 
-    def switch(self, true: TensorLike, false: TensorLike) -> "Tensor":
+    def where(self, true: TensorLike, false: TensorLike) -> "Tensor":
         return Tensor(calculus.Where(self.expr, Tensor(true).expr, Tensor(false).expr))
 
     def dim(self, axis: int) -> "Tensor":
