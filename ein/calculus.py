@@ -83,11 +83,7 @@ class AbstractScalarReduction(AbstractExpr):
     index: Index
     size: Expr
     body: Expr
-
-    @property
-    @abc.abstractmethod
-    def ufunc(self) -> numpy.ufunc:
-        ...
+    ufunc: ClassVar[numpy.ufunc]
 
     @cached_property
     def dependencies(self) -> set[Expr]:
@@ -100,16 +96,12 @@ class AbstractScalarReduction(AbstractExpr):
 
 @dataclass(frozen=True, eq=False)
 class Sum(AbstractScalarReduction):
-    @property
-    def ufunc(self) -> numpy.ufunc:
-        return numpy.add
+    ufunc = numpy.add
 
 
 @dataclass(frozen=True, eq=False)
 class Maximum(AbstractScalarReduction):
-    @property
-    def ufunc(self) -> numpy.ufunc:
-        return numpy.maximum
+    ufunc = numpy.maximum
 
 
 @dataclass(frozen=True, eq=False)
