@@ -33,6 +33,8 @@ def _interpret(
                     ]
                 )
             )
+        case calculus.AbstractScalarAxisReduction(_, _) | calculus.Range(_, _):
+            raise NotImplementedError("Axials are not supported in the interpreter")
         case calculus.Get(target, item):
             return Value(
                 numpy.take(

@@ -68,7 +68,7 @@ def test_basic_reduction_and_get(interpret):
     n = 5
     i = Index()
     a = Const(Value(numpy.arange(n)))
-    the_sum = Sum(i, Const(Value(numpy.array(n))), Get(a, At(i)))
+    the_sum = Sum(i, Const(Value(numpy.array(n))), Get(a, At(i), None))
     numpy.testing.assert_allclose(interpret(the_sum, {}), numpy.arange(n).sum())
 
 
@@ -86,7 +86,10 @@ def test_matmul(interpret):
                 t,
                 Dim(Var(a), 1),  # == Dim(Var(b), 0)
                 Multiply(
-                    (Get(Get(Var(a), At(i)), At(t)), Get(Get(Var(b), At(t)), At(j)))
+                    (
+                        Get(Get(Var(a), At(i), None), At(t), None),
+                        Get(Get(Var(b), At(t), None), At(j), None),
+                    )
                 ),
             ),
         ),

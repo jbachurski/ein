@@ -40,14 +40,18 @@ class TensorComprehension:
         match expr:
             case calculus.Get(operand):
                 sub = TensorComprehension._size_of(operand)
-                return calculus.Dim(sub.operand, sub.axis + 1)
+                return calculus.Dim(
+                    sub.operand, sub.axis + 1 if isinstance(sub.axis, int) else sub.axis
+                )
             case calculus.Vec() | calculus.Const() | calculus.Var():
                 return calculus.Dim(expr, 0)
             case (
                 calculus.At()
+                | calculus.Range()
                 | calculus.Dim()
                 | calculus.Where()
                 | calculus.AbstractScalarReduction()
+                | calculus.AbstractScalarAxisReduction()
                 | calculus.AbstractScalarOperator()
             ):
                 assert False, f"Cannot take size of scalar {expr}"

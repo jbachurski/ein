@@ -3,41 +3,48 @@ from typing import Any, assert_never
 
 import numpy
 
-from . import axial, axial_calculus, to_axial
-from .axial_calculus import ValueAxis, VariableAxis
-from .calculus import Index, Variable
+from . import axial, calculus, to_pure_axial
+from .calculus import Index, ValueAxis, Variable, VariableAxis
 from .node import Node
 
 
 def transform(
-    program: axial_calculus.Expr,
+    program: calculus.Expr,
     program_axes: tuple[Index, ...],
     ranks: dict[Variable, int],
 ) -> Node:
     @cache
-    def go(expr: axial_calculus.Expr) -> axial.Axial:
+    def go(expr: calculus.Expr) -> axial.Axial:
         match expr:
-            case axial_calculus.AbstractScalarReduction(axis, body):
-                return axial.UfuncReduce(expr.ufunc, axis, go(body))
-            case axial_calculus.Get(operand, item, axis):
+            case calculus.Get(operand, item, axis):
+                assert isinstance(axis, Index)
                 return axial.Gather(axis, go(operand), go(item))
-            case axial_calculus.Const(value):
+            case calculus.Const(value):
                 value_axes = tuple(
                     ValueAxis(value, rank) for rank in range(value.array.ndim)
                 )
                 return axial.Constant(value.array, value_axes)
-            case axial_calculus.Range(axis, size):
+            case calculus.Range(axis, size):
                 return axial.Range(axis, go(size))
-            case axial_calculus.Var(var):
+            case calculus.Var(var):
                 var_axes = tuple(VariableAxis(var, rank) for rank in range(ranks[var]))
                 return axial.FromVariable(var, var_axes)
-            case axial_calculus.Dim(operand, axis):
+            case calculus.Dim(operand, axis):
+                assert isinstance(axis, Index)
                 return axial.Dim(go(operand), axis)
-            case axial_calculus.Where(cond, false, true):
+            case calculus.Where(cond, false, true):
                 return axial.Where(go(cond), go(false), go(true))
-            case axial_calculus.AbstractScalarOperator(operands):
+            case calculus.AbstractScalarAxisReduction(axis, body):
+                return axial.UfuncReduce(expr.ufunc, axis, go(body))
+            case calculus.AbstractScalarOperator(operands):
                 return axial.Ufunc(
                     expr.ufunc, tuple(go(operand) for operand in operands)
+                )
+            case calculus.Vec(_, _, _) | calculus.At(
+                _
+            ) | calculus.AbstractScalarReduction(_, _, _):
+                raise NotImplementedError(
+                    "Positional axes are not supported in the numpy backend"
                 )
             case _:
                 assert_never(expr)
@@ -55,7 +62,7 @@ def repr_node(nodes, i):
 
 
 def stage(program, ranks: dict[Variable, int]):
-    axial_program, axial_program_axes = to_axial.transform(program, ranks)
+    axial_program, axial_program_axes = to_pure_axial.transform(program, ranks)
     return transform(axial_program, axial_program_axes, ranks)
 
 

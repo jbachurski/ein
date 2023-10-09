@@ -34,7 +34,7 @@ class Tensor:
         )
         expr = self.expr
         for axis_item in item:
-            expr = calculus.Get(expr, Tensor(axis_item).expr)
+            expr = calculus.Get(expr, Tensor(axis_item).expr, None)
         return Tensor(expr)
 
     def __bool__(self):
