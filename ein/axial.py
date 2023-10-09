@@ -166,13 +166,11 @@ class UfuncReduce(AbstractAxial):
 
     @cached_property
     def graph(self) -> Node:
-        # We push the reduced axis at the back if the reduction is along a non-realised axis.
-        # FIXME: This can be special cased for things like summation as an optimisation.
-        axes_with_reduced = (
-            self.axes if self.axis in self.axes else (*self.axes, self.axis)
+        if self.axis not in self.operand.axes:
+            raise NotImplementedError("Reductions with unused axes are not implemented")
+        return node(self.ufunc.reduce)(
+            self.operand.graph, axis=self.operand.axes.index(self.axis)
         )
-        array = align(self.operand.axes, axes_with_reduced, self.operand.graph)
-        return node(self.ufunc.reduce)(array, axis=axes_with_reduced.index(self.axis))
 
 
 class Gather(AbstractAxial):
