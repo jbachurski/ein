@@ -1,12 +1,19 @@
 import numpy
 import pytest
 
-from ein import Tensor, array, function, max, min, sum
-from ein.interpret import interpret as interpret_with_baseline
-from ein.to_numpy import interpret as interpret_with_numpy
+from ein import (
+    Tensor,
+    array,
+    function,
+    interpret_with_arrays,
+    interpret_with_naive,
+    max,
+    min,
+    sum,
+)
 
 with_interpret = pytest.mark.parametrize(
-    "interpret", [interpret_with_baseline, interpret_with_numpy], ids=["base", "numpy"]
+    "interpret", [interpret_with_naive, interpret_with_arrays], ids=["base", "numpy"]
 )
 
 

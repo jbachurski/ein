@@ -2,7 +2,7 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol, TypeAlias, TypeVar
 
-from .calculus import Variable
+from calculus import Variable
 
 T = TypeVar("T")
 NodeArg: TypeAlias = "Variable | Node | int | tuple[NodeArg, ...]"

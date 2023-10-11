@@ -3,8 +3,8 @@ from typing import TypeAlias, cast
 import numpy
 import numpy.typing
 
-from . import calculus
-from .calculus import AbstractExpr, Expr, Value
+from ein import calculus
+from ein.calculus import AbstractExpr, Expr, Value
 
 TensorLike: TypeAlias = Expr | numpy.typing.ArrayLike | "Tensor"
 TensorItem: TypeAlias = TensorLike
@@ -19,6 +19,7 @@ class Tensor:
         elif isinstance(tensor_like, Tensor):
             expr = tensor_like.expr
         else:
+            print(tensor_like, type(tensor_like), isinstance(tensor_like, AbstractExpr))
             array = numpy.array(tensor_like)
             assert array.dtype in (
                 numpy.dtype(bool),
@@ -34,7 +35,7 @@ class Tensor:
         )
         expr = self.expr
         for axis_item in item:
-            expr = calculus.Get(expr, Tensor(axis_item).expr, None)
+            expr = calculus.Get(expr, Tensor(axis_item).expr)
         return Tensor(expr)
 
     def __bool__(self):

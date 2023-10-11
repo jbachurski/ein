@@ -1,9 +1,9 @@
 from typing import assert_never
 
 import numpy
+from calculus import Expr, Index, Value, Variable
 
-from . import calculus
-from .calculus import Expr, Index, Value, Variable
+from ein import calculus
 
 
 def _interpret(
@@ -63,8 +63,6 @@ def _interpret(
                     *(_interpret(operand, env, idx).array for operand in operands)
                 )
             )
-        case calculus.AbstractScalarAxisReduction(_, _) | calculus.Range(_, _):
-            raise NotImplementedError("Axials are not supported in the interpreter")
         case _:
             assert_never(expr)
 
@@ -76,3 +74,6 @@ def interpret(
     return _interpret(
         program, {var: Value(array) for var, array in env.items()}, {}
     ).array
+
+
+__all__ = ["interpret"]

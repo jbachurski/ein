@@ -33,7 +33,7 @@ class VariableAxis(Index):
 
 
 Expr: TypeAlias = (
-    "Vec | Get | Const | At | Range | Var | Dim | Where | Sum | Maximum | AxisSum | AxisMaximum | "
+    "Vec | Get | Const | At | Var | Dim | Where | Sum | Maximum | "
     "Negate | Reciprocal | LogicalNot | Add | Multiply | Less | LogicalAnd"
 )
 
@@ -77,76 +77,9 @@ class AbstractExpr(abc.ABC):
 
 
 @dataclass(frozen=True, eq=False)
-class Vec(AbstractExpr):
-    index: Index
-    size: Expr
-    body: Expr
-
-    @cached_property
-    def dependencies(self) -> set[Expr]:
-        return {self.size, self.body}
-
-    @property
-    def _captured_indices(self) -> set[Index]:
-        return {self.index}
-
-
-@dataclass(frozen=True, eq=False)
-class AbstractScalarReduction(AbstractExpr):
-    index: Index
-    size: Expr
-    body: Expr
-    ufunc: ClassVar[numpy.ufunc]
-
-    @cached_property
-    def dependencies(self) -> set[Expr]:
-        return {self.size, self.body}
-
-    @property
-    def _captured_indices(self) -> set[Index]:
-        return {self.index}
-
-
-@dataclass(frozen=True, eq=False)
-class Sum(AbstractScalarReduction):
-    ufunc = numpy.add
-
-
-@dataclass(frozen=True, eq=False)
-class Maximum(AbstractScalarReduction):
-    ufunc = numpy.maximum
-
-
-@dataclass(frozen=True, eq=False)
-class AbstractScalarAxisReduction(AbstractExpr):
-    axis: Index
-    body: Expr
-    ufunc: ClassVar[numpy.ufunc]
-
-    @cached_property
-    def dependencies(self) -> set[Expr]:
-        return {self.body}
-
-    @property
-    def _captured_indices(self) -> set[Index]:
-        return {self.axis}
-
-
-@dataclass(frozen=True, eq=False)
-class AxisSum(AbstractScalarAxisReduction):
-    ufunc = numpy.add
-
-
-@dataclass(frozen=True, eq=False)
-class AxisMaximum(AbstractScalarAxisReduction):
-    ufunc = numpy.maximum
-
-
-@dataclass(frozen=True, eq=False)
 class Get(AbstractExpr):
     operand: Expr
     item: Expr
-    axis: Index | None
 
     @cached_property
     def dependencies(self) -> set[Expr]:
@@ -187,20 +120,6 @@ class At(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class Range(AbstractExpr):
-    axis: Index
-    size: Expr
-
-    @property
-    def dependencies(self) -> set[Expr]:
-        return set()
-
-    @property
-    def _indices(self) -> set[Index]:
-        return {self.axis}
-
-
-@dataclass(frozen=True, eq=False)
 class Var(AbstractExpr):
     var: Variable
 
@@ -212,7 +131,7 @@ class Var(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class Dim(AbstractExpr):
     operand: Expr
-    axis: int | Index
+    axis: int
 
     @cached_property
     def dependencies(self) -> set[Expr]:
@@ -228,6 +147,44 @@ class Where(AbstractExpr):
     @cached_property
     def dependencies(self) -> set[Expr]:
         return {self.cond, self.true, self.false}
+
+
+@dataclass(frozen=True, eq=False)
+class AbstractVectorization(AbstractExpr):
+    index: Index
+    size: Expr
+    body: Expr
+
+    @cached_property
+    def dependencies(self) -> set[Expr]:
+        return {self.size, self.body}
+
+    @property
+    def _captured_indices(self) -> set[Index]:
+        return {self.index}
+
+
+@dataclass(frozen=True, eq=False)
+class Vec(AbstractVectorization):
+    pass
+
+
+@dataclass(frozen=True, eq=False)
+class AbstractScalarReduction(AbstractVectorization):
+    index: Index
+    size: Expr
+    body: Expr
+    ufunc: ClassVar[numpy.ufunc]
+
+
+@dataclass(frozen=True, eq=False)
+class Sum(AbstractScalarReduction):
+    ufunc = numpy.add
+
+
+@dataclass(frozen=True, eq=False)
+class Maximum(AbstractScalarReduction):
+    ufunc = numpy.maximum
 
 
 @dataclass(frozen=True, eq=False)

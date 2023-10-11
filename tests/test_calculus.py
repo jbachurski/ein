@@ -1,6 +1,7 @@
 import numpy
 import pytest
 
+from ein import interpret_with_arrays, interpret_with_naive
 from ein.calculus import (
     Add,
     At,
@@ -17,11 +18,9 @@ from ein.calculus import (
     Variable,
     Vec,
 )
-from ein.interpret import interpret as interpret_with_baseline
-from ein.to_numpy import interpret as interpret_with_numpy
 
 with_interpret = pytest.mark.parametrize(
-    "interpret", [interpret_with_baseline, interpret_with_numpy], ids=["base", "numpy"]
+    "interpret", [interpret_with_naive, interpret_with_arrays], ids=["base", "numpy"]
 )
 
 
@@ -68,7 +67,7 @@ def test_basic_reduction_and_get(interpret):
     n = 5
     i = Index()
     a = Const(Value(numpy.arange(n)))
-    the_sum = Sum(i, Const(Value(numpy.array(n))), Get(a, At(i), None))
+    the_sum = Sum(i, Const(Value(numpy.array(n))), Get(a, At(i)))
     numpy.testing.assert_allclose(interpret(the_sum, {}), numpy.arange(n).sum())
 
 
@@ -87,8 +86,8 @@ def test_matmul(interpret):
                 Dim(Var(a), 1),  # == Dim(Var(b), 0)
                 Multiply(
                     (
-                        Get(Get(Var(a), At(i), None), At(t), None),
-                        Get(Get(Var(b), At(t), None), At(j), None),
+                        Get(Get(Var(a), At(i)), At(t)),
+                        Get(Get(Var(b), At(t)), At(j)),
                     )
                 ),
             ),

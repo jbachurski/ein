@@ -2,8 +2,9 @@ import inspect
 from dataclasses import dataclass
 from typing import Callable, Self, TypeVar, assert_never
 
-from . import calculus
-from .calculus import Expr, Index, Var, Variable
+from ein import calculus
+from ein.calculus import Expr, Index, Var, Variable
+
 from .tensor import Tensor, TensorLike
 
 T = TypeVar("T")
@@ -47,11 +48,9 @@ class TensorComprehension:
                 return calculus.Dim(expr, 0)
             case (
                 calculus.At()
-                | calculus.Range()
                 | calculus.Dim()
                 | calculus.Where()
                 | calculus.AbstractScalarReduction()
-                | calculus.AbstractScalarAxisReduction()
                 | calculus.AbstractScalarOperator()
             ):
                 assert False, f"Cannot take size of scalar {expr}"
