@@ -1,13 +1,8 @@
-import abc
 from typing import Any
-
-from ein.calculus import Index
 
 
 class Axial:
-    @abc.abstractmethod
-    def vector(self, axis: Index) -> "Axial":
-        ...
+    pass
 
 
 Const: Any = None
