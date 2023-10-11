@@ -5,31 +5,13 @@ from typing import ClassVar, TypeAlias
 
 import numpy
 
-
-class Index:
-    pass
-
-
-class Variable:
-    pass
+from .symbols import Index, Variable
 
 
 # FIXME: These values only have positional axes, but no axials.
 @dataclass(frozen=True, eq=False)
 class Value:
     array: numpy.ndarray
-
-
-@dataclass(frozen=True)
-class ValueAxis(Index):
-    value: Value
-    rank: int
-
-
-@dataclass(frozen=True)
-class VariableAxis(Index):
-    variable: Variable
-    rank: int
 
 
 Expr: TypeAlias = (

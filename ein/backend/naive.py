@@ -1,9 +1,10 @@
 from typing import assert_never
 
 import numpy
-from calculus import Expr, Index, Value, Variable
 
 from ein import calculus
+from ein.calculus import Expr, Value
+from ein.symbols import Index, Variable
 
 
 def _interpret(
