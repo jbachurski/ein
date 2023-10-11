@@ -16,7 +16,7 @@ class Value:
 
 Expr: TypeAlias = (
     "Const | At | Var | Dim | Get | Vec | Sum | Maximum | "
-    "Where | Negate | Reciprocal | LogicalNot | Add | Multiply | Less | LogicalAnd"
+    "Negate | Reciprocal | LogicalNot | Add | Multiply | Less | LogicalAnd | Where"
 )
 
 
@@ -158,18 +158,6 @@ class Maximum(AbstractScalarReduction):
     ufunc = numpy.maximum
 
 
-# FIXME: This should be unified with scalar operators.
-@dataclass(frozen=True, eq=False)
-class Where(AbstractExpr):
-    cond: Expr
-    true: Expr
-    false: Expr
-
-    @cached_property
-    def dependencies(self) -> set[Expr]:
-        return {self.cond, self.true, self.false}
-
-
 @dataclass(frozen=True, eq=False)
 class AbstractScalarOperator(AbstractExpr, abc.ABC):
     operands: tuple[Expr, ...]
@@ -223,3 +211,11 @@ class Less(AbstractBinaryScalarOperator):
 @dataclass(frozen=True, eq=False)
 class LogicalAnd(AbstractBinaryScalarOperator):
     ufunc = numpy.logical_and
+
+
+class AbstractTernaryScalarOperator(AbstractScalarOperator):
+    operands: tuple[Expr, Expr, Expr]
+
+
+class Where(AbstractTernaryScalarOperator):
+    ufunc = staticmethod(numpy.where)  # type: ignore

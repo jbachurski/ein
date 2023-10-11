@@ -50,14 +50,6 @@ def _interpret(
             return env[var]
         case calculus.Dim(operand, axis):
             return Value(_interpret(operand, env, idx).array.shape[axis])
-        case calculus.Where(cond, true, false):
-            return Value(
-                numpy.where(
-                    _interpret(cond, env, idx).array,
-                    _interpret(true, env, idx).array,
-                    _interpret(false, env, idx).array,
-                )
-            )
         case calculus.AbstractScalarOperator(operands):
             return Value(
                 expr.ufunc(

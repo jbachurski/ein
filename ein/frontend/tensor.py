@@ -19,7 +19,6 @@ class Tensor:
         elif isinstance(tensor_like, Tensor):
             expr = tensor_like.expr
         else:
-            print(tensor_like, type(tensor_like), isinstance(tensor_like, AbstractExpr))
             array = numpy.array(tensor_like)
             assert array.dtype in (
                 numpy.dtype(bool),
@@ -98,7 +97,9 @@ class Tensor:
         return Tensor(other) <= self
 
     def where(self, true: TensorLike, false: TensorLike) -> "Tensor":
-        return Tensor(calculus.Where(self.expr, Tensor(true).expr, Tensor(false).expr))
+        return Tensor(
+            calculus.Where((self.expr, Tensor(true).expr, Tensor(false).expr))
+        )
 
     def dim(self, axis: int) -> "Tensor":
         return Tensor(calculus.Dim(self.expr, axis))

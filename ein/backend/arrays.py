@@ -25,13 +25,13 @@ def to_axial(program: Expr, ranks: dict[Variable, int]) -> axial.Axial:
             case calculus.Get(operand, item):
                 return axial.Gather(go(operand, sizes), go(item, sizes))
             case calculus.Vec(index, size, body):
-                return axial.vector(index, go(body, {index: size, **sizes}))
+                return axial.vector(
+                    index, go(size, sizes), go(body, {index: size, **sizes})
+                )
             case calculus.AbstractScalarReduction(index, size, body):
                 return axial.Reduce(
                     index, size, go(body, {index: size, **sizes}), expr.ufunc
                 )
-            case calculus.Where(cond, true, false):
-                return axial.Where(cond, true, false)
             case calculus.AbstractScalarOperator(operands):
                 return axial.Elementwise(operands, expr.ufunc)
             case _:

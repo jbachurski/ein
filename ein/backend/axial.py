@@ -17,5 +17,4 @@ Dim: Any = None
 Gather: Any = None
 vector: Any = None
 Reduce: Any = None
-Where: Any = None
 Elementwise: Any = None
