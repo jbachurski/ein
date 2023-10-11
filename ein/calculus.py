@@ -5,7 +5,7 @@ from typing import ClassVar, TypeAlias
 
 import numpy
 
-from .symbols import Index, Variable
+from ein.symbols import Index, Variable
 
 
 # FIXME: These values only have positional axes, but no axials.
