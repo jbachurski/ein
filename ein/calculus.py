@@ -33,8 +33,8 @@ class VariableAxis(Index):
 
 
 Expr: TypeAlias = (
-    "Vec | Get | Const | At | Var | Dim | Where | Sum | Maximum | "
-    "Negate | Reciprocal | LogicalNot | Add | Multiply | Less | LogicalAnd"
+    "Const | At | Var | Dim | Get | Vec | Sum | Maximum | "
+    "Where | Negate | Reciprocal | LogicalNot | Add | Multiply | Less | LogicalAnd"
 )
 
 
@@ -74,27 +74,6 @@ class AbstractExpr(abc.ABC):
     @cached_property
     def direct_indices(self) -> dict[Index, set[Expr]]:
         return _merge_adj(*(sub.direct_indices for sub in self.dependencies))
-
-
-@dataclass(frozen=True, eq=False)
-class Get(AbstractExpr):
-    operand: Expr
-    item: Expr
-
-    @cached_property
-    def dependencies(self) -> set[Expr]:
-        return {self.operand, self.item}
-
-    @property
-    def direct_index(self) -> Index | None:
-        return self.item.index if isinstance(self.item, At) else None
-
-    @cached_property
-    def direct_indices(self) -> dict[Index, set[Expr]]:
-        index = self.direct_index
-        return _merge_adj(
-            super().direct_indices, {index: {self.operand}} if index is not None else {}
-        )
 
 
 @dataclass(frozen=True, eq=False)
@@ -139,14 +118,24 @@ class Dim(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class Where(AbstractExpr):
-    cond: Expr
-    true: Expr
-    false: Expr
+class Get(AbstractExpr):
+    operand: Expr
+    item: Expr
 
     @cached_property
     def dependencies(self) -> set[Expr]:
-        return {self.cond, self.true, self.false}
+        return {self.operand, self.item}
+
+    @property
+    def direct_index(self) -> Index | None:
+        return self.item.index if isinstance(self.item, At) else None
+
+    @cached_property
+    def direct_indices(self) -> dict[Index, set[Expr]]:
+        index = self.direct_index
+        return _merge_adj(
+            super().direct_indices, {index: {self.operand}} if index is not None else {}
+        )
 
 
 @dataclass(frozen=True, eq=False)
@@ -185,6 +174,18 @@ class Sum(AbstractScalarReduction):
 @dataclass(frozen=True, eq=False)
 class Maximum(AbstractScalarReduction):
     ufunc = numpy.maximum
+
+
+# FIXME: This should be unified with scalar operators.
+@dataclass(frozen=True, eq=False)
+class Where(AbstractExpr):
+    cond: Expr
+    true: Expr
+    false: Expr
+
+    @cached_property
+    def dependencies(self) -> set[Expr]:
+        return {self.cond, self.true, self.false}
 
 
 @dataclass(frozen=True, eq=False)
