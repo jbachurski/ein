@@ -2,10 +2,11 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol, TypeAlias, TypeVar
 
+import numpy
 from calculus import Variable
 
 T = TypeVar("T")
-NodeArg: TypeAlias = "Variable | Node | int | tuple[NodeArg, ...]"
+NodeArg: TypeAlias = "Variable | Node | int | numpy.array | tuple[NodeArg, ...]"
 
 
 def identity(x: T) -> T:

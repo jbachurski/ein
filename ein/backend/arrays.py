@@ -25,15 +25,17 @@ def to_axial(program: Expr, ranks: dict[Variable, int]) -> axial.Axial:
             case calculus.Get(operand, item):
                 return axial.Gather(go(operand, sizes), go(item, sizes))
             case calculus.Vec(index, size, body):
-                return axial.vector(
-                    index, go(size, sizes), go(body, {index: size, **sizes})
+                return axial.Vector(
+                    index, go(size, {}), go(body, {index: size, **sizes})
                 )
             case calculus.AbstractScalarReduction(index, size, body):
                 return axial.Reduce(
-                    index, size, go(body, {index: size, **sizes}), expr.ufunc
+                    expr.ufunc, index, go(size, {}), go(body, {index: size, **sizes})
                 )
             case calculus.AbstractScalarOperator(operands):
-                return axial.Elementwise(operands, expr.ufunc)
+                return axial.Elementwise(
+                    expr.ufunc, tuple(go(operand, sizes) for operand in operands)
+                )
             case _:
                 assert_never(expr)
 

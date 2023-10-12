@@ -8,7 +8,6 @@ import numpy
 from ein.symbols import Index, Variable
 
 
-# FIXME: These values only have positional axes, but no axials.
 @dataclass(frozen=True, eq=False)
 class Value:
     array: numpy.ndarray
