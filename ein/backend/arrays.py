@@ -49,14 +49,11 @@ def to_axial(program: Expr) -> StagedAxial:
 
 def interpret(program: Expr, env: dict[Variable, numpy.ndarray]) -> numpy.ndarray:
     staged_program = to_axial(program)
-    print(staged_program)
     results: dict[StagedAxial, Axial] = {}
-    print(env)
 
     def go(staged: StagedAxial) -> Axial:
         if staged not in results:
             args = [go(operand) for operand in staged.operands]
-            print(staged.operation, staged.type, args)
             results[staged] = staged.operation.apply(*args, env=env)
         return results[staged]
 
