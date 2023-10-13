@@ -18,6 +18,7 @@ from ein.calculus import (
     Variable,
     Vec,
 )
+from ein.type_system import Type
 
 with_interpret = pytest.mark.parametrize(
     "interpret", [interpret_with_naive, interpret_with_arrays], ids=["base", "numpy"]
@@ -53,11 +54,11 @@ def test_basic_indices(interpret):
 
 @with_interpret
 def test_basic_variables(interpret):
-    x = Variable()
-    y = Variable()
-    x_minus_y = Add((Var(x), Negate((Var(y),))))
+    x0, y0 = Variable(), Variable()
+    x, y = Var(x0, Type(0)), Var(y0, Type(0))
+    x_minus_y = Add((x, Negate((y,))))
     numpy.testing.assert_allclose(
-        interpret(x_minus_y, {x: numpy.array(4.0), y: numpy.array(3.0)}),
+        interpret(x_minus_y, {x0: numpy.array(4.0), y0: numpy.array(3.0)}),
         1,
     )
 
@@ -73,21 +74,22 @@ def test_basic_reduction_and_get(interpret):
 
 @with_interpret
 def test_matmul(interpret):
-    a, b = Variable(), Variable()
+    a0, b0 = Variable(), Variable()
     i, j, t = Index(), Index(), Index()
+    a, b = Var(a0, Type(2)), Var(b0, Type(2))
     matmul = Vec(
         i,
-        Dim(Var(a), 0),
+        Dim(a, 0),
         Vec(
             j,
-            Dim(Var(b), 1),
+            Dim(b, 1),
             Sum(
                 t,
-                Dim(Var(a), 1),  # == Dim(Var(b), 0)
+                Dim(a, 1),  # == Dim(Var(b), 0)
                 Multiply(
                     (
-                        Get(Get(Var(a), At(i)), At(t)),
-                        Get(Get(Var(b), At(t)), At(j)),
+                        Get(Get(a, At(i)), At(t)),
+                        Get(Get(b, At(t)), At(j)),
                     )
                 ),
             ),
@@ -99,8 +101,8 @@ def test_matmul(interpret):
         interpret(
             matmul,
             {
-                a: first,
-                b: second,
+                a0: first,
+                b0: second,
             },
         ),
         first @ second,

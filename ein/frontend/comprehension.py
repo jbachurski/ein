@@ -1,9 +1,10 @@
 import inspect
 from dataclasses import dataclass
-from typing import Callable, Self, TypeVar, assert_never
+from typing import Callable, Self, TypeVar, assert_never, cast
 
 from ein import calculus
 from ein.calculus import Expr, Index, Var, Variable
+from ein.type_system import Type
 
 from .tensor import Tensor, TensorLike
 
@@ -109,14 +110,19 @@ min = TensorComprehension(
 class VariableTensor(Tensor):
     expr: Var
 
-    def __init__(self):
-        super().__init__(Var(Variable()))
+    def __init__(self, type_: Type):
+        super().__init__(Var(Variable(), type_))
 
     @property
     def var(self) -> Variable:
         return self.expr.var
 
 
+def of(_type: Type) -> Tensor:
+    return cast(Tensor, _type)
+
+
 def function(fun: Callable[..., TensorLike]) -> tuple[tuple[Variable, ...], Expr]:
-    args = [VariableTensor() for _ in range(len(inspect.signature(fun).parameters))]
+    parameters = inspect.signature(fun).parameters
+    args = [VariableTensor(parameter.default) for parameter in parameters.values()]
     return tuple(arg.var for arg in args), Tensor(fun(*args)).expr

@@ -1,26 +1,46 @@
 import abc
-import operator
-from functools import cached_property
-from typing import Any, Iterable, TypeAlias, cast
+from dataclasses import dataclass
+from typing import Iterable, ParamSpec, TypeAlias
 
 import numpy
-import numpy.typing
 
+from ein.backend.staged import Staged
 from ein.symbols import Index, Variable
-
-from .node import Node, identity, node
-
-Axial: TypeAlias = "Const | Range | Var | Dim | Gather | Vector | Elementwise | Reduce"
-Axis = Index | int
+from ein.type_system import Type
 
 
-def _all_unique(xs: Iterable[Any]) -> bool:
-    xs = list(xs)
-    return len(set(xs)) == len(xs)
+@dataclass(frozen=True)
+class AxialType:
+    type: Type
+    free_indices: set[Index]
 
 
-def alignment(*args: tuple[Axis, ...]) -> tuple[Axis, ...]:
-    # TODO: This is a silly baseline alignment algorithm.
+P = ParamSpec("P")
+Axis: TypeAlias = Index | int
+Axes: TypeAlias = tuple[Axis, ...]
+StagedAxial: TypeAlias = Staged["Operation", AxialType]
+Env: TypeAlias = dict[Variable, numpy.ndarray]
+
+
+class Axial:
+    axes: Axes
+    value: numpy.ndarray
+
+    def __init__(self, axes: Iterable[Axis], value: numpy.ndarray):
+        self.axes = tuple(axes)
+        self.value = value
+
+    def __repr__(self):
+        return f"{self.axes}:{self.value!r}"
+
+    @property
+    def type(self) -> AxialType:
+        free_indices = {index for index in self.axes if isinstance(index, Index)}
+        return AxialType(Type(rank=len(self.axes) - len(free_indices)), free_indices)
+
+
+# TODO: This is a silly baseline alignment algorithm.
+def alignment(*args: Axes) -> Axes:
     seen = []
     for axes in args:
         for axis in axes:
@@ -29,218 +49,169 @@ def alignment(*args: tuple[Axis, ...]) -> tuple[Axis, ...]:
     return tuple(seen)
 
 
-def align(
-    source_axes: tuple[Any, ...], target_axes: tuple[Any, ...], array: Node
-) -> Node:
+def align(target: Axial, into_axes: Axes) -> numpy.ndarray:
     transposition = tuple(
-        source_axes.index(axis) for axis in sorted(source_axes, key=target_axes.index)
+        target.axes.index(axis) for axis in sorted(target.axes, key=into_axes.index)
     )
-    expands = tuple(i for i, axis in enumerate(target_axes) if axis not in source_axes)
-    array = node(numpy.transpose)(array, transposition)
-    array = node(numpy.expand_dims)(array, expands)
+    expands = tuple(i for i, axis in enumerate(into_axes) if axis not in target.axes)
+    array = target.value
+    array = numpy.transpose(array, transposition)
+    array = numpy.expand_dims(array, expands)
     return array
 
 
-class AbstractAxial(abc.ABC):
-    axes: tuple[Axis, ...]
-    free_sizes: dict[Index, Axial]
-
-    def __init__(self, axes: Iterable[Axis], free_sizes: dict[Index, Axial]):
-        self.axes = tuple(axes)
-        self.free_sizes = free_sizes
-        assert _all_unique(axes), "Expected axes to be unique"
-        assert self.free_axes <= set(
-            free_sizes
-        ), "Expected all free indices to have a size"
-        assert (
-            set(range(self.rank)) == self.pos_axes
-        ), "Expected positional axes to form a permutation"
+@dataclass(frozen=True)
+class Operation(abc.ABC):
+    def stage(self, *args: StagedAxial) -> StagedAxial:
+        return Staged(self, self.type(*(arg.type for arg in args)), args)
 
     @abc.abstractmethod
-    @cached_property
-    def graph(self) -> Node:
+    def type(self, *args: AxialType) -> AxialType:
         ...
 
-    @property
-    def pos_axes(self) -> set[int]:
-        return {pos for pos in self.axes if isinstance(pos, int)}
-
-    @property
-    def free_axes(self):
-        return {index for index in self.axes if isinstance(index, Index)}
-
-    @property
-    def rank(self) -> int:
-        return len(self.axes) - len(self.free_sizes)
-
-    def unwrap_scalar_axial(self) -> tuple[Index, ...]:
-        assert self.rank == 0, "A scalar axial was expected at this point"
-        return cast(tuple[Index, ...], self.axes)
+    @abc.abstractmethod
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        ...
 
 
-class Const(AbstractAxial):
-    array: numpy.array
+@dataclass(frozen=True, eq=False)
+class Const(Operation):
+    array: numpy.ndarray
 
-    def __init__(self, array: numpy.typing.ArrayLike):
-        self.array = numpy.array(array)
-        super().__init__(range(self.array.ndim), {})
+    def type(self, *args: AxialType) -> AxialType:
+        () = args
+        return AxialType(Type(self.array.ndim), set())
 
-    @cached_property
-    def graph(self) -> Node:
-        return node(identity)(self.array)
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        () = args
+        return Axial(reversed(range(self.array.ndim)), self.array)
 
 
-class Range(AbstractAxial):
+@dataclass(frozen=True)
+class Range(Operation):
     index: Index
-    size: Axial
 
-    def __init__(self, index: Index, size: Axial):
-        self.index = index
-        self.size = size
-        super().__init__((index,), {index: size})
+    def type(self, *args: AxialType) -> AxialType:
+        (size,) = args
+        assert not size.type.rank, "Expected scalar size"
+        assert not size.free_indices, "Expected loop-independent size"
+        return AxialType(Type(0), {self.index})
 
-    @cached_property
-    def graph(self) -> Node:
-        return node(numpy.arange)(self.size.graph)
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        (size,) = args
+        return Axial([self.index], numpy.arange(int(size.value)))
 
 
-class Var(AbstractAxial):
+@dataclass(frozen=True)
+class Var(Operation):
     var: Variable
+    var_type: Type
 
-    def __init__(self, var: Variable, rank: int):
-        self.var = var
-        super().__init__(range(rank), {})
+    def type(self, *args: AxialType) -> AxialType:
+        () = args
+        return AxialType(self.var_type, set())
 
-    @cached_property
-    def graph(self) -> Node:
-        return node(identity)(self.var)
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        () = args
+        return Axial(reversed(range(self.var_type.rank)), env[self.var])
 
 
-class Dim(AbstractAxial):
-    operand: Axial
+@dataclass(frozen=True)
+class Dim(Operation):
     pos: int
 
-    def __init__(self, operand: Axial, pos: int):
-        self.operand = operand
-        self.pos = pos
-        super().__init__((), {})
+    def type(self, *args: AxialType) -> AxialType:
+        (target,) = args
+        assert 0 <= self.pos < target.type.rank
+        assert not target.free_indices
+        return AxialType(Type(rank=0), set())
 
-    @cached_property
-    def graph(self) -> Node:
-        shape = node(numpy.shape)(self.operand.graph)
-        return node(operator.getitem)(shape, self.operand.axes.index(self.pos))
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        (target,) = args
+        pos = target.type.type.rank - self.pos - 1
+        return Axial([], target.value.shape[target.axes.index(pos)])
 
 
-class Gather(AbstractAxial):
-    target: Axial
-    item: Axial
-    alignment: tuple[Axis, ...]
-
-    def __init__(self, target: Axial, item: Axial):
-        self.target = target
-        self.item = item
-        self.pos = self.target.rank - 1
-        assert self.pos >= 0, "Cannot Gather from a scalar target"
-        self.alignment = alignment(self.target.axes, self.item.axes)
-        super().__init__(
-            [axis for axis in self.alignment if axis != self.pos],
-            self.target.free_sizes | self.item.free_sizes,
+@dataclass(frozen=True)
+class Gather(Operation):
+    def type(self, *args: AxialType) -> AxialType:
+        (target, item) = args
+        assert target.type.rank > 0, "Expected vector target"
+        assert item.type.rank == 0, "Expected scalar item"
+        return AxialType(
+            Type(rank=target.type.rank - 1),
+            {index for index in target.free_indices | item.free_indices},
         )
 
-    @cached_property
-    def graph(self) -> Node:
-        if self.pos not in self.target.axes:
-            return self.target.graph
-        k = self.target.axes.index(self.pos)
-        target = align(self.target.axes, self.alignment, self.target.graph)
-        item = align(self.item.axes, self.alignment, self.item.graph)
-        array = node(numpy.take_along_axis)(target, item, axis=k)
-        return node(numpy.squeeze)(array, axis=k)
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        (target, item) = args
+        used_axes = alignment(target.axes, item.axes)
+        k = used_axes.index(target.type.type.rank - 1)
+        result = numpy.take_along_axis(
+            align(target, used_axes), align(item, used_axes), axis=k
+        )
+        return Axial(used_axes[:k] + used_axes[k + 1 :], numpy.squeeze(result, axis=k))
 
 
-class Vector(AbstractAxial):
+@dataclass(frozen=True)
+class Vector(Operation):
     index: Index
-    size: Axial
-    target: Axial
 
-    def __init__(self, index: Index, size: Axial, target: Axial):
-        self.index = index
-        self.size = size
-        self.target = target
-        super().__init__(
-            [self.target.rank] + [axis for axis in self.axes if axis != index],
-            {
-                index_: size
-                for index_, size in self.free_sizes.items()
-                if index != index_
-            },
+    def type(self, *args: AxialType) -> AxialType:
+        (size, target) = args
+        assert not size.type.rank, "Expected scalar size"
+        assert not size.free_indices, "Expected loop-independent size"
+        return AxialType(
+            Type(rank=target.type.rank + 1), target.free_indices - {self.index}
         )
 
-    @cached_property
-    def graph(self) -> Node:
-        if self.index in self.target.axes:
-            return align(
-                self.target.axes,
-                (self.index, *(axis for axis in self.axes if axis != self.index)),
-                self.target.graph,
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        (size, target) = args
+        if self.index in target.axes:
+            return Axial(
+                (
+                    target.type.type.rank if axis == self.index else axis
+                    for axis in target.axes
+                ),
+                target.value,
             )
         else:
-            return node(numpy.repeat)(
-                node(numpy.expand_dims)(self.target.graph, axis=0),
-                self.size.graph,
-                axis=0,
+            return Axial(
+                (target.type.type.rank, *target.axes),
+                numpy.repeat(numpy.expand_dims(target.value, axis=0), int(size.value)),
             )
 
 
-class Elementwise(AbstractAxial):
-    ufunc: numpy.ufunc
-    operands: tuple[Axial, ...]
-
-    def __init__(self, ufunc: numpy.ufunc, operands: tuple[Axial, ...]):
-        self.ufunc = ufunc
-        self.operands = operands
-        free_sizes: dict[Index, Axial] = {}
-        for operand in operands:
-            free_sizes |= operand.free_sizes
-        super().__init__(
-            alignment(*(operand.unwrap_scalar_axial() for operand in operands)),
-            free_sizes,
-        )
-
-    @cached_property
-    def graph(self) -> Node:
-        return node(self.ufunc)(
-            *(
-                align(operand.axes, self.axes, operand.graph)
-                for operand in self.operands
-            )
-        )
-
-
-class Reduce(AbstractAxial):
+@dataclass(frozen=True)
+class Reduce(Operation):
     ufunc: numpy.ufunc
     index: Index
-    size: Axial
-    target: Axial
 
-    def __init__(self, ufunc: numpy.ufunc, index: Index, size: Axial, target: Axial):
-        self.ufunc = ufunc
-        self.index = index
-        self.size = size
-        self.target = target
-        super().__init__(
-            (axis for axis in target.axes if axis != index),
-            {
-                index_: size
-                for index_, size in self.target.free_sizes.items()
-                if index_ != index
-            },
+    def type(self, *args: AxialType) -> AxialType:
+        (size, target) = args
+        assert not size.type.rank, "Expected scalar size"
+        assert not size.free_indices, "Expected loop-independent size"
+        assert not target.type.rank, "Expected scalar reduction"
+        return AxialType(Type(rank=0), target.free_indices - {self.index})
+
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        (size, target) = args
+        return Axial(
+            (axis for axis in target.axes if axis != self.index),
+            self.ufunc.reduce(target.value, axis=target.axes.index(self.index)),
         )
 
-    @cached_property
-    def graph(self) -> Node:
-        if self.index not in self.target.axes:
-            raise NotImplementedError("Reductions with unused axes are not implemented")
-        return node(self.ufunc.reduce)(
-            self.target.graph, axis=self.target.axes.index(self.index)
+
+@dataclass(frozen=True)
+class Elementwise(Operation):
+    ufunc: numpy.ufunc
+
+    def type(self, *args: AxialType) -> AxialType:
+        assert all(not arg.type.rank for arg in args), "Expected scalar elementwise"
+        return AxialType(
+            Type(rank=0), {index for arg in args for index in arg.free_indices}
         )
+
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        used_axes = alignment(*(arg.axes for arg in args))
+        return Axial(used_axes, self.ufunc(*(align(arg, used_axes) for arg in args)))

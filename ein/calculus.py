@@ -6,6 +6,7 @@ from typing import ClassVar, TypeAlias
 import numpy
 
 from ein.symbols import Index, Variable
+from ein.type_system import Type
 
 
 @dataclass(frozen=True, eq=False)
@@ -82,6 +83,7 @@ class At(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class Var(AbstractExpr):
     var: Variable
+    type: Type
 
     @property
     def dependencies(self) -> set[Expr]:

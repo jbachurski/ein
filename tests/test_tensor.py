@@ -3,12 +3,14 @@ import pytest
 
 from ein import (
     Tensor,
+    Type,
     array,
     function,
     interpret_with_arrays,
     interpret_with_naive,
     max,
     min,
+    of,
     sum,
 )
 
@@ -21,7 +23,7 @@ with_interpret = pytest.mark.parametrize(
 def test_mul_grid(interpret):
     # FIXME: This should have proper casting behaviour.
     (n0,), grid_expr = function(
-        lambda n: array[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
+        lambda n=of(Type(0)): array[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
     )
 
     numpy.testing.assert_allclose(
@@ -38,7 +40,7 @@ def test_mul_grid(interpret):
     "with_bounds_inference", [False, True], ids=["give-sizes", "infer-sizes"]
 )
 def test_matmul(interpret, with_bounds_inference):
-    def matmul(a, b):
+    def matmul(a=of(Type(2)), b=of(Type(2))):
         n, k = a.dim(0), a.dim(1)
         _k, m = b.dim(0), b.dim(1)
         array_ = array if with_bounds_inference else array[n, m]
@@ -88,7 +90,8 @@ def test_uv_loss(interpret, with_bounds_inference):
 @with_interpret
 def test_max_minus_min(interpret):
     (a, b), expr = function(
-        lambda a, b: max(lambda i: a[i] * b[i]) - min(lambda i: a[i] * b[i])
+        lambda a=of(Type(1)), b=of(Type(1)): max(lambda i: a[i] * b[i])
+        - min(lambda i: a[i] * b[i])
     )
     a_values, b_values = numpy.random.randn(256), numpy.random.randn(256)
     numpy.testing.assert_allclose(
@@ -99,7 +102,7 @@ def test_max_minus_min(interpret):
 
 @with_interpret
 def test_switches(interpret):
-    def sgn(a: Tensor, b: Tensor) -> Tensor:
+    def sgn(a: Tensor = of(Type(1)), b: Tensor = of(Type(1))) -> Tensor:
         return array(
             lambda i: ((a[i] > b[i]).where(a[i], b[i]) > 0).where(
                 1, ((a[i] == b[i]) | False).where(0, -1)
