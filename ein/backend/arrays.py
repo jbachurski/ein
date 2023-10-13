@@ -71,13 +71,5 @@ def interpret(program: Expr, env: dict[Variable, numpy.ndarray]) -> numpy.ndarra
 
     return numpy.transpose(result.value, inv)
 
-    # results: list[Any] = []
-    # for i, node in enumerate(nodes):
-    #     args, kwargs = node.mapped_args(
-    #         lambda var: env[var], lambda arg: results[nodes.index(arg)], lambda x: x
-    #     )
-    #     results.append(node.fun(*args, **kwargs))
-    # return results[-1]
-
 
 __all__ = ["interpret"]
