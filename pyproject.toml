@@ -14,6 +14,8 @@ pytest = "^7.4.2"
 ipython = "^8.16.1"
 black = "^23.9.1"
 coverage = "^7.3.2"
+mypy = "^1.6.0"
+ruff = "^0.0.292"
 
 [build-system]
 requires = ["poetry-core"]
