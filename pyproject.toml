@@ -16,6 +16,7 @@ black = "^23.9.1"
 coverage = "^7.3.2"
 mypy = "^1.6.0"
 ruff = "^0.0.292"
+scipy = "^1.11.3"
 
 [build-system]
 requires = ["poetry-core"]
@@ -25,4 +26,4 @@ build-backend = "poetry.core.masonry.api"
 profile = "black"
 
 [tool.ruff]
-ignore = ["E501"]
+ignore = ["E501", "E741"]

@@ -1,6 +1,6 @@
 import inspect
 from dataclasses import dataclass
-from typing import Callable, Self, TypeVar, assert_never, cast
+from typing import Callable, Iterable, Self, TypeVar, assert_never, cast
 
 from ein import calculus
 from ein.calculus import Expr, Index, Var, Variable
@@ -38,15 +38,20 @@ class TensorComprehension:
         )
 
     @staticmethod
-    def _size_of(expr: calculus.Expr) -> calculus.Dim:
+    def _size_of(expr: calculus.Expr) -> Iterable[calculus.Expr]:
         match expr:
             case calculus.Get(operand):
-                sub = TensorComprehension._size_of(operand)
-                return calculus.Dim(
-                    sub.operand, sub.axis + 1 if isinstance(sub.axis, int) else sub.axis
-                )
-            case calculus.Vec() | calculus.Const() | calculus.Var():
-                return calculus.Dim(expr, 0)
+                for sub in TensorComprehension._size_of(operand):
+                    if isinstance(sub, calculus.Dim):
+                        yield calculus.Dim(
+                            sub.operand,
+                            sub.axis + 1 if isinstance(sub.axis, int) else sub.axis,
+                        )
+            case calculus.Vec():
+                yield calculus.Dim(expr, 0)
+                yield expr.size
+            case calculus.Const() | calculus.Var():
+                yield calculus.Dim(expr, 0)
             case (
                 calculus.At()
                 | calculus.Dim()
@@ -70,15 +75,16 @@ class TensorComprehension:
         if self.sizes is None:
             size_of: dict[Index, Expr] = {}
             for rank, index in enumerate(indices):
-                candidates = (
-                    self._size_of(expr)
+                candidates = [
+                    candidate
                     for expr in body.direct_indices.get(index, set())
-                )
-                candidates = (
+                    for candidate in self._size_of(expr)
+                ]
+                candidates = [
                     shape_expr
                     for shape_expr in candidates
                     if not shape_expr.free_indices
-                )
+                ]
                 if not candidates:
                     raise ValueError(
                         f"Cannot infer bounds for index without direct gets: {index}"

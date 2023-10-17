@@ -16,7 +16,7 @@ class Value:
 
 Expr: TypeAlias = (
     "Const | At | Var | Dim | Get | Vec | Sum | Maximum | "
-    "Negate | Reciprocal | LogicalNot | Add | Multiply | Less | LogicalAnd | Where"
+    "Negate | Reciprocal | Exp | LogicalNot | Add | Multiply | Less | LogicalAnd | Where"
 )
 
 
@@ -182,6 +182,11 @@ class Negate(AbstractUnaryScalarOperator):
 @dataclass(frozen=True, eq=False)
 class Reciprocal(AbstractUnaryScalarOperator):
     ufunc = numpy.reciprocal
+
+
+@dataclass(frozen=True, eq=False)
+class Exp(AbstractUnaryScalarOperator):
+    ufunc = numpy.exp
 
 
 @dataclass(frozen=True, eq=False)

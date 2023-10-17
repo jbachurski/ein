@@ -1,6 +1,6 @@
-from backend.arrays import interpret as interpret_with_arrays
-from backend.naive import interpret as interpret_with_naive
-from frontend.comprehension import Tensor, Type, array, function, max, min, of, sum
+from .backend.arrays import interpret as interpret_with_arrays
+from .backend.naive import interpret as interpret_with_naive
+from .frontend.comprehension import Tensor, Type, array, function, max, min, of, sum
 
 __all__ = [
     "Tensor",

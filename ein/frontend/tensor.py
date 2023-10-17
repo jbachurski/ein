@@ -43,6 +43,9 @@ class Tensor:
             "did you accidentally include it in an if or while statement?"
         )
 
+    def dim(self, axis: int) -> "Tensor":
+        return Tensor(calculus.Dim(self.expr, axis))
+
     def __add__(self, other: TensorLike) -> "Tensor":
         return Tensor(calculus.Add((self.expr, Tensor(other).expr)))
 
@@ -101,5 +104,9 @@ class Tensor:
             calculus.Where((self.expr, Tensor(true).expr, Tensor(false).expr))
         )
 
-    def dim(self, axis: int) -> "Tensor":
-        return Tensor(calculus.Dim(self.expr, axis))
+    def exp(self) -> "Tensor":
+        return Tensor(calculus.Exp((self.expr,)))
+
+    def tanh(self) -> "Tensor":
+        a, b = self.exp(), (-self).exp()
+        return (a - b) / (a + b)
