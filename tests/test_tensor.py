@@ -11,7 +11,6 @@ from ein import (
     interpret_with_naive,
     max,
     min,
-    of,
     sum,
 )
 
@@ -24,7 +23,7 @@ with_interpret = pytest.mark.parametrize(
 def test_mul_grid(interpret):
     # FIXME: This should have proper casting behaviour.
     (n0,), grid_expr = function(
-        lambda n=of(Type(0)): array[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
+        [Type(rank=0)], lambda n: array[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
     )
 
     numpy.testing.assert_allclose(
@@ -41,14 +40,14 @@ def test_mul_grid(interpret):
     "with_bounds_inference", [False, True], ids=["give-sizes", "infer-sizes"]
 )
 def test_matmul(interpret, with_bounds_inference):
-    def matmul(a=of(Type(2)), b=of(Type(2))):
+    def matmul(a: Tensor, b: Tensor):
         n, k = a.dim(0), a.dim(1)
         _k, m = b.dim(0), b.dim(1)
         array_ = array if with_bounds_inference else array[n, m]
         sum_ = sum if with_bounds_inference else sum[k]
         return array_(lambda i, j: sum_(lambda t: a[i, t] * b[t, j]))
 
-    (a0, b0), matmul_expr = function(matmul)
+    (a0, b0), matmul_expr = function([Type(rank=2), Type(rank=2)], matmul)
     first = numpy.array([[1, 2, 3], [4, 5, 6]])
     second = numpy.array([[1], [0], [-1]])
     numpy.testing.assert_allclose(
@@ -91,8 +90,8 @@ def test_uv_loss(interpret, with_bounds_inference):
 @with_interpret
 def test_max_minus_min(interpret):
     (a, b), expr = function(
-        lambda a=of(Type(1)), b=of(Type(1)): max(lambda i: a[i] * b[i])
-        - min(lambda i: a[i] * b[i])
+        [Type(rank=1), Type(rank=1)],
+        lambda a, b: max(lambda i: a[i] * b[i]) - min(lambda i: a[i] * b[i]),
     )
     a_values, b_values = numpy.random.randn(256), numpy.random.randn(256)
     numpy.testing.assert_allclose(
@@ -103,14 +102,14 @@ def test_max_minus_min(interpret):
 
 @with_interpret
 def test_switches(interpret):
-    def sgn(a: Tensor = of(Type(1)), b: Tensor = of(Type(1))) -> Tensor:
+    def sgn(a: Tensor, b: Tensor) -> Tensor:
         return array(
             lambda i: ((a[i] > b[i]).where(a[i], b[i]) > 0).where(
                 1, (a[i] == b[i]).where(0, -1)
             )
         )
 
-    (a0, b0), sgn_expr = function(sgn)
+    (a0, b0), sgn_expr = function([Type(rank=1), Type(rank=1)], sgn)
     a_values, b_values = numpy.random.randn(256), numpy.random.randn(256)
     numpy.testing.assert_allclose(
         interpret(sgn_expr, {a0: a_values, b0: b_values}),
@@ -125,16 +124,7 @@ def test_attention():
     batched_vector, batched_matrix = matrix, Type(rank=3)
 
     def ein_attention_batched(
-        Wh=of(matrix),
-        Wr=of(matrix),
-        WY=of(matrix),
-        Wt=of(matrix),
-        bM=of(vector),
-        w=of(vector),
-        br=of(vector),
-        batched_Y=of(batched_matrix),
-        batched_ht=of(batched_vector),
-        batched_rt1=of(batched_vector),
+        Wh, Wr, WY, Wt, bM, w, br, batched_Y, batched_ht, batched_rt1
     ) -> Tensor:
         def softmax(v):
             return array(lambda i: v[i].exp() / sum(lambda j: v[j].exp()))
@@ -183,7 +173,10 @@ def test_attention():
         # return rt, at
         return rt
 
-    arg_vars, attention_expr = function(ein_attention_batched)
+    arg_vars, attention_expr = function(
+        [matrix] * 4 + [vector] * 3 + [batched_matrix, batched_vector, batched_vector],
+        ein_attention_batched,
+    )
 
     hidden = 17
     a_Wh, a_Wr, a_Wy, a_Wt = (numpy.random.randn(hidden, hidden) for _ in range(4))

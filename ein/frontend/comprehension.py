@@ -1,6 +1,6 @@
 import inspect
 from dataclasses import dataclass
-from typing import Callable, Iterable, Self, TypeVar, assert_never, cast
+from typing import Callable, Iterable, Self, TypeVar, assert_never
 
 from ein import calculus
 from ein.calculus import Expr, Index, Var, Variable
@@ -124,11 +124,8 @@ class VariableTensor(Tensor):
         return self.expr.var
 
 
-def of(_type: Type) -> Tensor:
-    return cast(Tensor, _type)
-
-
-def function(fun: Callable[..., TensorLike]) -> tuple[tuple[Variable, ...], Expr]:
-    parameters = inspect.signature(fun).parameters
-    args = [VariableTensor(parameter.default) for parameter in parameters.values()]
+def function(
+    types: Iterable[Type], fun: Callable[..., TensorLike]
+) -> tuple[tuple[Variable, ...], Expr]:
+    args = [VariableTensor(typ) for typ in types]
     return tuple(arg.var for arg in args), Tensor(fun(*args)).expr
