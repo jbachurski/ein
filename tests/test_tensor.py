@@ -106,7 +106,7 @@ def test_switches(interpret):
     def sgn(a: Tensor = of(Type(1)), b: Tensor = of(Type(1))) -> Tensor:
         return array(
             lambda i: ((a[i] > b[i]).where(a[i], b[i]) > 0).where(
-                1, ((a[i] == b[i]) | False).where(0, -1)
+                1, (a[i] == b[i]).where(0, -1)
             )
         )
 
