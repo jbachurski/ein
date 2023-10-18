@@ -50,7 +50,7 @@ class TensorComprehension:
             case calculus.Vec():
                 yield calculus.Dim(expr, 0)
                 yield expr.size
-            case calculus.Const() | calculus.Var():
+            case calculus.Const() | calculus.Var() | calculus.Fold():
                 yield calculus.Dim(expr, 0)
             case (
                 calculus.At()

@@ -7,6 +7,7 @@ from ein.calculus import (
     At,
     Const,
     Dim,
+    Fold,
     Get,
     Index,
     Multiply,
@@ -106,4 +107,18 @@ def test_matmul(interpret):
             },
         ),
         first @ second,
+    )
+
+
+@with_interpret
+def test_power(interpret):
+    a0, n0, x0 = Variable(), Variable(), Variable()
+    i = Index()
+    a, n, x = Var(a0, Type(rank=0)), Var(n0, Type(rank=0)), Var(x0, Type(rank=0))
+    power = Fold(i, n, Multiply((x, a)), Const(Value(numpy.array(1))), x)
+    if interpret == interpret_with_arrays:
+        pytest.mark.skip()
+        return
+    numpy.testing.assert_allclose(
+        interpret(power, {a0: numpy.array(3), n0: numpy.array(7)}), 3**7
     )

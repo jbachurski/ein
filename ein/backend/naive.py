@@ -7,11 +7,7 @@ from ein.calculus import Expr, Value
 from ein.symbols import Index, Variable
 
 
-def _interpret(
-    expr: Expr,
-    env: dict[Variable, Value],
-    idx: dict[Index, int],
-) -> Value:
+def _interpret(expr: Expr, env: dict[Variable, Value], idx: dict[Index, int]) -> Value:
     operands: tuple[Expr, ...]
     match expr:
         case calculus.Vec(index, size, body):
@@ -24,6 +20,13 @@ def _interpret(
                     ]
                 )
             )
+        case calculus.Fold(index, size, body, init, acc):
+            evaluated_size = int(_interpret(size, env, idx).array)
+            env = env.copy()
+            env[acc.var] = _interpret(init, env, idx)
+            for i in range(evaluated_size):
+                env[acc.var] = _interpret(body, env, idx | {index: i})
+            return env.pop(acc.var)
         case calculus.AbstractScalarReduction(index, size, body):
             evaluated_size = int(_interpret(size, env, idx).array)
             return Value(

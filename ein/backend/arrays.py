@@ -28,6 +28,8 @@ def to_axial(program: Expr) -> StagedAxial:
                 return axial.Vector(index).stage(
                     go(size, {}), go(body, {index: size, **sizes})
                 )
+            case calculus.Fold():
+                raise NotImplementedError("Folds are not yet implemented for axials")
             case calculus.AbstractScalarReduction(index, size, body):
                 return axial.Reduce(expr.ufunc, index).stage(
                     go(size, {}), go(body, {index: size, **sizes})

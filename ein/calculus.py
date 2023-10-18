@@ -15,7 +15,7 @@ class Value:
 
 
 Expr: TypeAlias = (
-    "Const | At | Var | Dim | Get | Vec | Sum | Maximum | "
+    "Const | At | Var | Dim | Get | Vec | Fold | Sum | Maximum | "
     "Negate | Reciprocal | Exp | LogicalNot | Add | Multiply | Less | LogicalAnd | Where"
 )
 
@@ -139,6 +139,12 @@ class AbstractVectorization(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class Vec(AbstractVectorization):
     pass
+
+
+@dataclass(frozen=True, eq=False)
+class Fold(AbstractVectorization):
+    init: Expr
+    acc: Var
 
 
 @dataclass(frozen=True, eq=False)
