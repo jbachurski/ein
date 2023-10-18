@@ -2,7 +2,7 @@ import numpy
 import pytest
 
 from ein import (
-    Tensor,
+    Array,
     Type,
     array,
     function,
@@ -39,7 +39,7 @@ def test_mul_grid(interpret):
     "with_bounds_inference", [False, True], ids=["give-sizes", "infer-sizes"]
 )
 def test_matmul(interpret, with_bounds_inference):
-    def matmul(a: Tensor, b: Tensor):
+    def matmul(a: Array, b: Array):
         n, k = a.dim(0), a.dim(1)
         _k, m = b.dim(0), b.dim(1)
         array_ = array if with_bounds_inference else array[n, m]
@@ -70,7 +70,7 @@ def test_uv_loss(interpret, with_bounds_inference):
     x_values = numpy.random.randn(m, n)
     u_values = numpy.random.randn(m, k)
     v_values = numpy.random.randn(n, k)
-    x, u, v = Tensor(x_values), Tensor(u_values), Tensor(v_values)
+    x, u, v = Array(x_values), Array(u_values), Array(v_values)
 
     def square(a):
         return a * a
@@ -101,7 +101,7 @@ def test_max_minus_min(interpret):
 
 @with_interpret
 def test_switches(interpret):
-    def sgn(a: Tensor, b: Tensor) -> Tensor:
+    def sgn(a: Array, b: Array) -> Array:
         return array(
             lambda i: ((a[i] > b[i]).where(a[i], b[i]) > 0).where(
                 1, (a[i] == b[i]).where(0, -1)

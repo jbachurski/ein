@@ -3,7 +3,7 @@ from typing import Callable, ClassVar, Sequence
 
 import numpy
 
-from ein import Tensor, Type, function
+from ein import Array, Type, function
 from ein.calculus import Expr, Variable
 
 
@@ -12,7 +12,7 @@ class Case(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def in_ein(*args: Tensor) -> Tensor:
+    def in_ein(*args: Array) -> Array:
         ...
 
     @staticmethod

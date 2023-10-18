@@ -1,7 +1,7 @@
 import numpy
 import scipy
 
-from ein import Tensor, Type, array, sum
+from ein import Array, Type, array, sum
 
 from ..case import Case
 
@@ -37,7 +37,7 @@ class Attention(Case):
         return rt
 
     @staticmethod
-    def in_ein(*args: Tensor) -> Tensor:
+    def in_ein(*args: Array) -> Array:
         Wh, Wr, WY, Wt, bM, w, br, Y, ht, rt1 = args
         return array(
             lambda i: Attention.ein_single(

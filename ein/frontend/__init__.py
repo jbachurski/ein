@@ -1,3 +1,3 @@
-from . import comprehension, tensor
+from . import comprehension, ndarray
 
-__all__ = ["comprehension", "tensor"]
+__all__ = ["comprehension", "ndarray"]

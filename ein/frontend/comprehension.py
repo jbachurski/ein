@@ -6,7 +6,7 @@ from ein import calculus
 from ein.calculus import Expr, Index, Var, Variable
 from ein.type_system import Type
 
-from .tensor import Tensor, TensorLike
+from .ndarray import Array, ArrayLike
 
 T = TypeVar("T")
 
@@ -16,11 +16,11 @@ def identity(x: T) -> T:
 
 
 @dataclass
-class TensorComprehension:
+class ArrayComprehension:
     application: Callable[[Index, Expr, Expr], Expr]
     pre: Callable[[Expr], Expr]
     post: Callable[[Expr], Expr]
-    sizes: tuple[TensorLike, ...] | None
+    sizes: tuple[ArrayLike, ...] | None
 
     def __init__(self, *, application, pre=identity, post=identity, sizes=None):
         self.application = application
@@ -30,7 +30,7 @@ class TensorComprehension:
 
     def __getitem__(self, sizes) -> Self:
         if self.sizes is not None:
-            raise TypeError("Already specified the sizes for the tensor comprehension.")
+            raise TypeError("Already specified the sizes for the array comprehension.")
         if not isinstance(sizes, tuple):
             sizes = (sizes,)
         return type(self)(
@@ -41,7 +41,7 @@ class TensorComprehension:
     def _size_of(expr: calculus.Expr) -> Iterable[calculus.Expr]:
         match expr:
             case calculus.Get(operand):
-                for sub in TensorComprehension._size_of(operand):
+                for sub in ArrayComprehension._size_of(operand):
                     if isinstance(sub, calculus.Dim):
                         yield calculus.Dim(
                             sub.operand,
@@ -62,16 +62,16 @@ class TensorComprehension:
             case _:
                 assert_never(expr)
 
-    def __call__(self, constructor: Callable[..., TensorLike]) -> Tensor:
+    def __call__(self, constructor: Callable[..., ArrayLike]) -> Array:
         n = (
             len(inspect.signature(constructor).parameters)
             if self.sizes is None
             else len(self.sizes)
         )
         indices = [Index() for _ in range(n)]
-        wrapped_indices = [Tensor(calculus.At(index)) for index in indices]
+        wrapped_indices = [Array(calculus.At(index)) for index in indices]
         base_body = constructor(*wrapped_indices)  # type: ignore
-        body = self.pre(Tensor(base_body).expr)
+        body = self.pre(Array(base_body).expr)
         if self.sizes is None:
             size_of: dict[Index, Expr] = {}
             for rank, index in enumerate(indices):
@@ -95,25 +95,25 @@ class TensorComprehension:
                     size_of[index] = shape_expr
         else:
             size_of = {
-                index: Tensor(size).expr
+                index: Array(size).expr
                 for index, size in zip(indices, self.sizes, strict=True)
             }
         for index in reversed(indices):
             body = self.application(index, size_of[index], body)
-        return Tensor(self.post(Tensor(body).expr))
+        return Array(self.post(Array(body).expr))
 
 
-array = TensorComprehension(application=calculus.Vec)
-sum = TensorComprehension(application=calculus.Sum)
-max = TensorComprehension(application=calculus.Maximum)
-min = TensorComprehension(
+array = ArrayComprehension(application=calculus.Vec)
+sum = ArrayComprehension(application=calculus.Sum)
+max = ArrayComprehension(application=calculus.Maximum)
+min = ArrayComprehension(
     application=calculus.Maximum,
     pre=lambda expr: calculus.Negate((expr,)),
     post=lambda expr: calculus.Negate((expr,)),
 )
 
 
-class VariableTensor(Tensor):
+class VariableArray(Array):
     expr: Var
 
     def __init__(self, type_: Type):
@@ -125,7 +125,7 @@ class VariableTensor(Tensor):
 
 
 def function(
-    types: Iterable[Type], fun: Callable[..., TensorLike]
+    types: Iterable[Type], fun: Callable[..., ArrayLike]
 ) -> tuple[tuple[Variable, ...], Expr]:
-    args = [VariableTensor(typ) for typ in types]
-    return tuple(arg.var for arg in args), Tensor(fun(*args)).expr
+    args = [VariableArray(typ) for typ in types]
+    return tuple(arg.var for arg in args), Array(fun(*args)).expr
