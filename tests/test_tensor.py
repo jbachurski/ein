@@ -1,6 +1,5 @@
 import numpy
 import pytest
-import scipy
 
 from ein import (
     Tensor,
@@ -118,77 +117,11 @@ def test_switches(interpret):
 
 
 def test_attention():
-    # Wh, ..., bM are parameters.
-    # w, br, Y, ht, rt1 are arguments.
-    vector, matrix = Type(rank=1), Type(rank=2)
-    batched_vector, batched_matrix = matrix, Type(rank=3)
+    from suite.deep.attention import Attention
 
-    def ein_attention_batched(
-        Wh, Wr, WY, Wt, bM, w, br, batched_Y, batched_ht, batched_rt1
-    ) -> Tensor:
-        def softmax(v):
-            return array(lambda i: v[i].exp() / sum(lambda j: v[j].exp()))
-
-        def ein_attention(Y, ht, rt1):
-            Mt = array(
-                lambda s, l: (
-                    sum(lambda k: Y[s, k] * WY[k, l])
-                    + sum(lambda k: ht[k] * Wh[k, l] + rt1[k] * Wr[k, l])
-                    + bM[l]
-                ).tanh()
-            )
-            at = softmax(array(lambda s: sum(lambda l: Mt[s, l] * w[l])))
-
-            rt = array(
-                lambda l: (
-                    sum(lambda s: Y[s, l] * at[s])
-                    + (sum(lambda k: rt1[k] * Wt[k, l]) + br[l]).tanh()
-                )
-            )
-
-            return rt
-
-        return array(
-            lambda i: ein_attention(batched_Y[i], batched_ht[i], batched_rt1[i])
-        )
-
-    def numpy_attention(Wh, Wr, WY, Wt, bM, w, br, Y, ht, rt1):
-        # -- [batch_size x hidden_dimension]
-        tmp: numpy.ndarray = numpy.einsum("ik,kl->il", ht, Wh) + numpy.einsum(
-            "ik,kl->il", rt1, Wr
-        )
-
-        Mt = numpy.tanh(
-            numpy.einsum("ijk,kl->ijl", Y, WY) + numpy.expand_dims(tmp, axis=1) + bM
-        )
-        # -- [batch_size x sequence_length]
-        at = scipy.special.softmax(numpy.einsum("ijk,k->ij", Mt, w), axis=-1)
-
-        # -- [batch_size x hidden_dimension]
-        rt = numpy.einsum("ijk,ij->ik", Y, at) + numpy.tanh(
-            numpy.einsum("ij,jk->ik", rt1, Wt) + br
-        )
-
-        # # -- [batch_size x hidden_dimension], [batch_size x sequence_dimension]
-        # return rt, at
-        return rt
-
-    arg_vars, attention_expr = function(
-        [matrix] * 4 + [vector] * 3 + [batched_matrix, batched_vector, batched_vector],
-        ein_attention_batched,
-    )
-
-    hidden = 17
-    a_Wh, a_Wr, a_Wy, a_Wt = (numpy.random.randn(hidden, hidden) for _ in range(4))
-    a_bM, a_w, a_br = (numpy.random.randn(hidden) for _ in range(3))
-    batch, tokens = 4, 7
-    a_Y = numpy.random.randn(batch, tokens, hidden)
-    a_ht, a_rt1 = numpy.random.randn(batch, hidden), numpy.random.randn(batch, hidden)
-    arg_arrays = (a_Wh, a_Wr, a_Wy, a_Wt, a_bM, a_w, a_br, a_Y, a_ht, a_rt1)
+    args = Attention.sample()
 
     numpy.testing.assert_allclose(
-        interpret_with_arrays(
-            attention_expr, {v: a for v, a in zip(arg_vars, arg_arrays)}
-        ),
-        numpy_attention(*arg_arrays),
+        Attention.in_ein_function(interpret_with_arrays, *args),
+        Attention.in_numpy(*args),
     )
