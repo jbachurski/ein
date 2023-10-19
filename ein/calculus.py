@@ -6,12 +6,17 @@ from typing import ClassVar, TypeAlias
 import numpy
 
 from ein.symbols import Index, Variable
-from ein.type_system import Type
+from ein.type_system import Scalar, Type, Vector
+from ein.type_system import ndarray as ndarray_type
 
 
 @dataclass(frozen=True, eq=False)
 class Value:
     array: numpy.ndarray
+
+    @property
+    def type(self) -> Type:
+        return ndarray_type(self.array.ndim)
 
 
 Expr: TypeAlias = (
@@ -30,6 +35,14 @@ def _merge_adj(*args: dict[Index, set["Expr"]]):
 
 @dataclass(frozen=True, eq=False)
 class AbstractExpr(abc.ABC):
+    def __post_init__(self):
+        assert self.type
+
+    @property
+    @abc.abstractmethod
+    def type(self) -> Type:
+        ...
+
     @property
     @abc.abstractmethod
     def dependencies(self) -> set[Expr]:
@@ -50,7 +63,6 @@ class AbstractExpr(abc.ABC):
             set.union(*(sub.free_indices for sub in deps)) if deps else set()
         )
         indices = self._indices | sub_free_indices
-        assert self._captured_indices <= indices
         return indices - self._captured_indices
 
     @cached_property
@@ -62,6 +74,10 @@ class AbstractExpr(abc.ABC):
 class Const(AbstractExpr):
     value: Value
 
+    @cached_property
+    def type(self) -> Type:
+        return self.value.type
+
     @property
     def dependencies(self) -> set[Expr]:
         return set()
@@ -70,6 +86,10 @@ class Const(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class At(AbstractExpr):
     index: Index
+
+    @cached_property
+    def type(self) -> Type:
+        return Scalar()
 
     @property
     def dependencies(self) -> set[Expr]:
@@ -83,7 +103,11 @@ class At(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class Var(AbstractExpr):
     var: Variable
-    type: Type
+    var_type: Type
+
+    @cached_property
+    def type(self) -> Type:
+        return self.var_type
 
     @property
     def dependencies(self) -> set[Expr]:
@@ -96,6 +120,10 @@ class Dim(AbstractExpr):
     axis: int
 
     @cached_property
+    def type(self) -> Type:
+        return Scalar()
+
+    @cached_property
     def dependencies(self) -> set[Expr]:
         return {self.operand}
 
@@ -104,6 +132,14 @@ class Dim(AbstractExpr):
 class Get(AbstractExpr):
     operand: Expr
     item: Expr
+
+    @cached_property
+    def type(self) -> Type:
+        if not isinstance(self.operand.type, Vector):
+            raise TypeError(f"Cannot index a non-array type {self.operand.type}")
+        if not isinstance(self.item.type, Scalar):
+            raise TypeError(f"Cannot index with a non-scalar type {self.item.type}")
+        return self.operand.type.elem
 
     @cached_property
     def dependencies(self) -> set[Expr]:
@@ -127,6 +163,10 @@ class AbstractVectorization(AbstractExpr):
     size: Expr
     body: Expr
 
+    def _validate_size(self) -> None:
+        if not isinstance(self.size.type, Scalar):
+            raise TypeError(f"Size must be a scalar, not {self.size.type}")
+
     @cached_property
     def dependencies(self) -> set[Expr]:
         return {self.size, self.body}
@@ -138,7 +178,9 @@ class AbstractVectorization(AbstractExpr):
 
 @dataclass(frozen=True, eq=False)
 class Vec(AbstractVectorization):
-    pass
+    @cached_property
+    def type(self) -> Type:
+        return Vector(self.body.type)
 
 
 @dataclass(frozen=True, eq=False)
@@ -146,13 +188,26 @@ class Fold(AbstractVectorization):
     init: Expr
     acc: Var
 
+    @cached_property
+    def type(self) -> Type:
+        self._validate_size()
+        if self.init.type != self.acc.type:
+            raise TypeError(
+                f"Initial value and accumulator must be of the same type, got {self.init.type} != {self.acc.type}"
+            )
+        return self.acc.type
+
 
 @dataclass(frozen=True, eq=False)
 class AbstractScalarReduction(AbstractVectorization):
-    index: Index
-    size: Expr
-    body: Expr
     ufunc: ClassVar[numpy.ufunc]
+
+    @cached_property
+    def type(self) -> Type:
+        self._validate_size()
+        if not isinstance(self.body.type, Scalar):
+            raise TypeError(f"Can only reduce over scalar types, not {self.body.type}")
+        return self.body.type
 
 
 @dataclass(frozen=True, eq=False)
@@ -169,10 +224,19 @@ class Maximum(AbstractScalarReduction):
 class AbstractScalarOperator(AbstractExpr, abc.ABC):
     operands: tuple[Expr, ...]
     ufunc: ClassVar[numpy.ufunc]
+    signature: ClassVar[tuple[tuple[numpy.dtype | str, ...], numpy.dtype | str]]
 
     @cached_property
     def dependencies(self) -> set[Expr]:
         return set(self.operands)
+
+    @cached_property
+    def type(self) -> Type:
+        # TODO: This should also do some dtype checks.
+        types = [operand.type for operand in self.operands]
+        if not all(isinstance(typ, Scalar) for typ in types):
+            raise TypeError(f"Scalar operator expected only scalars, got {types}")
+        return Scalar()
 
 
 @dataclass(frozen=True, eq=False)
