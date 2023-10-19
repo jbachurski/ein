@@ -18,8 +18,28 @@ class AxialType:
 P = ParamSpec("P")
 Axis: TypeAlias = Index | int
 Axes: TypeAlias = tuple[Axis, ...]
-StagedAxial: TypeAlias = Staged["Operation", AxialType]
-Env: TypeAlias = dict[Variable, numpy.ndarray]
+
+
+@dataclass
+class Env:
+    var: dict[Variable, numpy.ndarray]
+    idx: dict[Index, int]
+
+    def copy(self) -> "Env":
+        return Env(self.var.copy(), self.idx.copy())
+
+
+class StagedAxial(Staged["Operation", AxialType]):
+    def execute(self, env: Env):
+        results: dict[Staged["Operation", AxialType], Axial] = {}
+
+        def go(staged: Staged["Operation", AxialType]) -> Axial:
+            if staged not in results:
+                args = [go(operand) for operand in staged.operands]
+                results[staged] = staged.operation.apply(*args, env=env)
+            return results[staged]
+
+        return go(self)
 
 
 class Axial:
@@ -37,6 +57,17 @@ class Axial:
     def type(self) -> AxialType:
         free_indices = {index for index in self.axes if isinstance(index, Index)}
         return AxialType(Type(rank=len(self.axes) - len(free_indices)), free_indices)
+
+    @property
+    def normal(self) -> numpy.ndarray:
+        assert not self.type.free_indices
+        rank = self.type.type.rank
+        inv: list[int | None] = [None for _ in range(rank)]
+        for i, p in enumerate(self.axes):
+            assert isinstance(p, int)
+            # Axes are numbered in reverse order
+            inv[rank - p - 1] = i
+        return numpy.transpose(self.value, inv)
 
 
 # TODO: This is a silly baseline alignment algorithm.
@@ -63,7 +94,7 @@ def align(target: Axial, into_axes: Axes) -> numpy.ndarray:
 @dataclass(frozen=True)
 class Operation(abc.ABC):
     def stage(self, *args: StagedAxial) -> StagedAxial:
-        return Staged(self, self.type(*(arg.type for arg in args)), args)
+        return StagedAxial(self, self.type(*(arg.type for arg in args)), args)
 
     @abc.abstractmethod
     def type(self, *args: AxialType) -> AxialType:
@@ -113,7 +144,20 @@ class Var(Operation):
 
     def apply(self, *args: Axial, env: Env) -> Axial:
         () = args
-        return Axial(reversed(range(self.var_type.rank)), env[self.var])
+        return Axial(reversed(range(self.var_type.rank)), env.var[self.var])
+
+
+@dataclass(frozen=True)
+class At(Operation):
+    index: Index
+
+    def type(self, *args: AxialType) -> AxialType:
+        () = args
+        return AxialType(Type(rank=0), set())
+
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        () = args
+        return Axial([], numpy.array(env.idx[self.index]))
 
 
 @dataclass(frozen=True)
@@ -130,6 +174,31 @@ class Dim(Operation):
         (target,) = args
         pos = target.type.type.rank - self.pos - 1
         return Axial([], target.value.shape[target.axes.index(pos)])
+
+
+@dataclass(frozen=True)
+class Fold(Operation):
+    body: StagedAxial
+    index: Index
+    acc: Var
+
+    def type(self, *args: AxialType) -> AxialType:
+        (size, init) = args
+        assert not size.free_indices
+        assert size.type == Type(rank=0)
+        assert self.acc.var_type == init.type
+        assert not self.body.type.free_indices
+        return self.body.type
+
+    def apply(self, *args: Axial, env: Env) -> Axial:
+        (size, init) = args
+        env = env.copy()
+        env.var[self.acc.var] = init.normal
+        for i in range(size.value):
+            env.idx[self.index] = i
+            env.var[self.acc.var] = self.body.execute(env).normal
+        last = env.var[self.acc.var]
+        return Axial(reversed(range(last.ndim)), last)
 
 
 @dataclass(frozen=True)

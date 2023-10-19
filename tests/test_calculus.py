@@ -10,6 +10,9 @@ from ein.calculus import (
     Fold,
     Get,
     Index,
+    Less,
+    LogicalAnd,
+    LogicalNot,
     Multiply,
     Negate,
     Reciprocal,
@@ -18,6 +21,7 @@ from ein.calculus import (
     Var,
     Variable,
     Vec,
+    Where,
 )
 from ein.type_system import Type
 
@@ -111,14 +115,55 @@ def test_matmul(interpret):
 
 
 @with_interpret
-def test_power(interpret):
+def test_power_fold(interpret):
     a0, n0, x0 = Variable(), Variable(), Variable()
     i = Index()
     a, n, x = Var(a0, Type(rank=0)), Var(n0, Type(rank=0)), Var(x0, Type(rank=0))
-    power = Fold(i, n, Multiply((x, a)), Const(Value(numpy.array(1))), x)
-    if interpret == interpret_with_arrays:
-        pytest.mark.skip()
-        return
+    power_expr = Fold(i, n, Multiply((x, a)), Const(Value(numpy.array(1))), x)
     numpy.testing.assert_allclose(
-        interpret(power, {a0: numpy.array(3), n0: numpy.array(7)}), 3**7
+        interpret(power_expr, {a0: numpy.array(3), n0: numpy.array(7)}), 3**7
+    )
+
+
+@with_interpret
+def test_fibonacci_vector_fold(interpret):
+    fib0, n0 = Variable(), Variable()
+    i, j, j0 = Index(), Index(), Index()
+    fib, n = Var(fib0, Type(rank=1)), Var(n0, Type(rank=0))
+    zero = Const(Value(numpy.array(0)))
+    one = Const(Value(numpy.array(1)))
+    zeros = Vec(j0, n, Negate((one,)))
+
+    def eq(x, y):
+        return LogicalAnd((LogicalNot((Less((x, y)),)), LogicalNot((Less((y, x)),))))
+
+    i1 = Add((At(i), Negate((one,))))
+    i2 = Add((i1, Negate((one,))))
+    fib_expr = Fold(
+        i,
+        n,
+        Vec(
+            j,
+            n,
+            Where(
+                (
+                    eq(At(i), At(j)),
+                    Where(
+                        (
+                            eq(At(i), zero),
+                            zero,
+                            Where(
+                                (eq(At(i), one), one, Add((Get(fib, i1), Get(fib, i2))))
+                            ),
+                        )
+                    ),
+                    Get(fib, At(j)),
+                )
+            ),
+        ),
+        zeros,
+        fib,
+    )
+    numpy.testing.assert_allclose(
+        interpret(fib_expr, {n0: numpy.array(8)}), [0, 1, 1, 2, 3, 5, 8, 13]
     )
