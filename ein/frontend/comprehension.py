@@ -1,3 +1,4 @@
+import abc
 import inspect
 from dataclasses import dataclass
 from typing import Callable, Iterable, Self, TypeVar, assert_never
@@ -16,16 +17,10 @@ def identity(x: T) -> T:
 
 
 @dataclass
-class ArrayComprehension:
-    application: Callable[[Index, Expr, Expr], Expr]
-    pre: Callable[[Expr], Expr]
-    post: Callable[[Expr], Expr]
+class BaseComprehension(abc.ABC):
     sizes: tuple[ArrayLike, ...] | None
 
-    def __init__(self, *, application, pre=identity, post=identity, sizes=None):
-        self.application = application
-        self.pre = pre
-        self.post = post
+    def __init__(self, *, sizes=None):
         self.sizes = sizes
 
     def __getitem__(self, sizes) -> Self:
@@ -33,9 +28,7 @@ class ArrayComprehension:
             raise TypeError("Already specified the sizes for the array comprehension.")
         if not isinstance(sizes, tuple):
             sizes = (sizes,)
-        return type(self)(
-            application=self.application, pre=self.pre, post=self.post, sizes=sizes
-        )
+        return type(self)(sizes=sizes)
 
     @staticmethod
     def _size_of(expr: calculus.Expr) -> Iterable[calculus.Expr]:
@@ -62,16 +55,7 @@ class ArrayComprehension:
             case _:
                 assert_never(expr)
 
-    def __call__(self, constructor: Callable[..., ArrayLike]) -> Array:
-        n = (
-            len(inspect.signature(constructor).parameters)
-            if self.sizes is None
-            else len(self.sizes)
-        )
-        indices = [Index() for _ in range(n)]
-        wrapped_indices = [Array(calculus.At(index)) for index in indices]
-        base_body = constructor(*wrapped_indices)  # type: ignore
-        body = self.pre(Array(base_body).expr)
+    def _get_sized(self, body: Expr, indices: tuple[Index, ...]) -> dict[Index, Expr]:
         if self.sizes is None:
             size_of: dict[Index, Expr] = {}
             for rank, index in enumerate(indices):
@@ -98,19 +82,65 @@ class ArrayComprehension:
                 index: Array(size).expr
                 for index, size in zip(indices, self.sizes, strict=True)
             }
+        return size_of
+
+
+class CommutativeComprehension(BaseComprehension):
+    @staticmethod
+    @abc.abstractmethod
+    def application(index: Index, size: Expr, body: Expr) -> Expr:
+        ...
+
+    @staticmethod
+    def pre(expr: Expr, /) -> Expr:
+        return expr
+
+    @staticmethod
+    def post(expr: Expr, /) -> Expr:
+        return expr
+
+    def __call__(self, constructor: Callable[..., ArrayLike]) -> Array:
+        n = (
+            len(inspect.signature(constructor).parameters)
+            if self.sizes is None
+            else len(self.sizes)
+        )
+        indices = [Index() for _ in range(n)]
+        wrapped_indices = [Array(calculus.At(index)) for index in indices]
+        body: Expr = self.pre(Array(constructor(*wrapped_indices)).expr)
+        size_of = self._get_sized(body, tuple(indices))
         for index in reversed(indices):
             body = self.application(index, size_of[index], body)
         return Array(self.post(Array(body).expr))
 
 
-array = ArrayComprehension(application=calculus.Vec)
-sum = ArrayComprehension(application=calculus.Sum)
-max = ArrayComprehension(application=calculus.Maximum)
-min = ArrayComprehension(
-    application=calculus.Maximum,
-    pre=lambda expr: calculus.Negate((expr,)),
-    post=lambda expr: calculus.Negate((expr,)),
-)
+class ArrayComprehension(CommutativeComprehension):
+    application = calculus.Vec
+
+
+class SumComprehension(CommutativeComprehension):
+    application = calculus.Sum
+
+
+class MaxComprehension(CommutativeComprehension):
+    application = calculus.Maximum
+
+
+class MinComprehension(MaxComprehension):
+    pre = post = staticmethod(lambda expr: calculus.Negate((expr,)))
+
+
+class FoldComprehension(BaseComprehension):
+    def __call__(
+        self, type_: Type, init: Array, constructor: Callable[[Array, Array], ArrayLike]
+    ) -> Array:
+        assert self.sizes is None or len(self.sizes) == 1
+        index, acc = Index(), Variable()
+        typed_acc = calculus.Var(acc, type_)
+        wrapped_index, wrapped_acc = Array(calculus.At(index)), Array(typed_acc)
+        body = Array(constructor(wrapped_index, wrapped_acc)).expr
+        size_of = self._get_sized(body, (index,))
+        return Array(calculus.Fold(index, size_of[index], body, init.expr, typed_acc))
 
 
 class VariableArray(Array):
@@ -129,3 +159,10 @@ def function(
 ) -> tuple[tuple[Variable, ...], Expr]:
     args = [VariableArray(typ) for typ in types]
     return tuple(arg.var for arg in args), Array(fun(*args)).expr
+
+
+array = ArrayComprehension()
+sum = SumComprehension()
+max = MaxComprehension()
+min = MinComprehension()
+fold = FoldComprehension()

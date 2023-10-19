@@ -1,6 +1,6 @@
 from .backend.arrays import interpret as interpret_with_arrays
 from .backend.naive import interpret as interpret_with_naive
-from .frontend.comprehension import Array, Type, array, function, max, min, sum
+from .frontend.comprehension import Array, Type, array, fold, function, max, min, sum
 
 __all__ = [
     "Array",
@@ -8,6 +8,7 @@ __all__ = [
     "sum",
     "max",
     "min",
+    "fold",
     "function",
     "Type",
     "interpret_with_naive",

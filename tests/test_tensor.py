@@ -5,6 +5,7 @@ from ein import (
     Array,
     Type,
     array,
+    fold,
     function,
     interpret_with_arrays,
     interpret_with_naive,
@@ -113,6 +114,29 @@ def test_switches(interpret):
     numpy.testing.assert_allclose(
         interpret(sgn_expr, {a0: a_values, b0: b_values}),
         numpy.sign(numpy.maximum(a_values, b_values)),
+    )
+
+
+@with_interpret
+def test_fibonacci_fold(interpret):
+    def fib(n: Array) -> Array:
+        return fold[n](
+            Type(rank=1),
+            array[n](lambda i: 0),
+            lambda i, acc: array(
+                lambda j: Array(i == j).where(
+                    Array(j == 0).where(
+                        0, Array(j == 1).where(1, acc[i - 1] + acc[i - 2])
+                    ),
+                    acc[j],
+                )
+            ),
+        )
+
+    (n0,), fib_expr = function([Type(rank=0)], fib)
+    numpy.testing.assert_allclose(
+        interpret(fib_expr, {n0: numpy.array(8)}),
+        [0, 1, 1, 2, 3, 5, 8, 13],
     )
 
 
