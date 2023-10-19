@@ -1,7 +1,7 @@
 import numpy
 import pytest
 
-from ein import interpret_with_arrays, interpret_with_naive
+from ein import Scalar, interpret_with_arrays, interpret_with_naive, matrix, vector
 from ein.calculus import (
     Add,
     At,
@@ -23,7 +23,6 @@ from ein.calculus import (
     Vec,
     Where,
 )
-from ein.type_system import Type
 
 with_interpret = pytest.mark.parametrize(
     "interpret", [interpret_with_naive, interpret_with_arrays], ids=["base", "numpy"]
@@ -60,7 +59,7 @@ def test_basic_indices(interpret):
 @with_interpret
 def test_basic_variables(interpret):
     x0, y0 = Variable(), Variable()
-    x, y = Var(x0, Type(0)), Var(y0, Type(0))
+    x, y = Var(x0, Scalar()), Var(y0, Scalar())
     x_minus_y = Add((x, Negate((y,))))
     numpy.testing.assert_allclose(
         interpret(x_minus_y, {x0: numpy.array(4.0), y0: numpy.array(3.0)}),
@@ -81,7 +80,7 @@ def test_basic_reduction_and_get(interpret):
 def test_matmul(interpret):
     a0, b0 = Variable(), Variable()
     i, j, t = Index(), Index(), Index()
-    a, b = Var(a0, Type(2)), Var(b0, Type(2))
+    a, b = Var(a0, matrix()), Var(b0, matrix())
     matmul = Vec(
         i,
         Dim(a, 0),
@@ -118,7 +117,7 @@ def test_matmul(interpret):
 def test_power_fold(interpret):
     a0, n0, x0 = Variable(), Variable(), Variable()
     i = Index()
-    a, n, x = Var(a0, Type(rank=0)), Var(n0, Type(rank=0)), Var(x0, Type(rank=0))
+    a, n, x = Var(a0, Scalar()), Var(n0, Scalar()), Var(x0, Scalar())
     power_expr = Fold(i, n, Multiply((x, a)), Const(Value(numpy.array(1))), x)
     numpy.testing.assert_allclose(
         interpret(power_expr, {a0: numpy.array(3), n0: numpy.array(7)}), 3**7
@@ -129,7 +128,7 @@ def test_power_fold(interpret):
 def test_fibonacci_vector_fold(interpret):
     fib0, n0 = Variable(), Variable()
     i, j, j0 = Index(), Index(), Index()
-    fib, n = Var(fib0, Type(rank=1)), Var(n0, Type(rank=0))
+    fib, n = Var(fib0, vector()), Var(n0, Scalar())
     zero = Const(Value(numpy.array(0)))
     one = Const(Value(numpy.array(1)))
     zeros = Vec(j0, n, Negate((one,)))

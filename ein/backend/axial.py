@@ -6,12 +6,12 @@ import numpy
 
 from ein.backend.staged import Staged
 from ein.symbols import Index, Variable
-from ein.type_system import Type
+from ein.type_system import PrimitiveArrayType
 
 
 @dataclass(frozen=True)
 class AxialType:
-    type: Type
+    type: PrimitiveArrayType
     free_indices: set[Index]
 
 
@@ -56,7 +56,9 @@ class Axial:
     @property
     def type(self) -> AxialType:
         free_indices = {index for index in self.axes if isinstance(index, Index)}
-        return AxialType(Type(rank=len(self.axes) - len(free_indices)), free_indices)
+        return AxialType(
+            PrimitiveArrayType(rank=len(self.axes) - len(free_indices)), free_indices
+        )
 
     @property
     def normal(self) -> numpy.ndarray:
@@ -111,7 +113,7 @@ class Const(Operation):
 
     def type(self, *args: AxialType) -> AxialType:
         () = args
-        return AxialType(Type(self.array.ndim), set())
+        return AxialType(PrimitiveArrayType(self.array.ndim), set())
 
     def apply(self, *args: Axial, env: Env) -> Axial:
         () = args
@@ -126,7 +128,7 @@ class Range(Operation):
         (size,) = args
         assert not size.type.rank, "Expected scalar size"
         assert not size.free_indices, "Expected loop-independent size"
-        return AxialType(Type(0), {self.index})
+        return AxialType(PrimitiveArrayType(rank=0), {self.index})
 
     def apply(self, *args: Axial, env: Env) -> Axial:
         (size,) = args
@@ -136,7 +138,7 @@ class Range(Operation):
 @dataclass(frozen=True)
 class Var(Operation):
     var: Variable
-    var_type: Type
+    var_type: PrimitiveArrayType
 
     def type(self, *args: AxialType) -> AxialType:
         () = args
@@ -153,7 +155,7 @@ class At(Operation):
 
     def type(self, *args: AxialType) -> AxialType:
         () = args
-        return AxialType(Type(rank=0), set())
+        return AxialType(PrimitiveArrayType(rank=0), set())
 
     def apply(self, *args: Axial, env: Env) -> Axial:
         () = args
@@ -168,7 +170,7 @@ class Dim(Operation):
         (target,) = args
         assert 0 <= self.pos < target.type.rank
         assert not target.free_indices
-        return AxialType(Type(rank=0), set())
+        return AxialType(PrimitiveArrayType(rank=0), set())
 
     def apply(self, *args: Axial, env: Env) -> Axial:
         (target,) = args
@@ -184,8 +186,8 @@ class Fold(Operation):
 
     def type(self, *args: AxialType) -> AxialType:
         (size, init) = args
+        assert size.type == PrimitiveArrayType(rank=0)
         assert not size.free_indices
-        assert size.type == Type(rank=0)
         assert self.acc.var_type == init.type
         assert not self.body.type.free_indices
         return self.body.type
@@ -208,7 +210,7 @@ class Gather(Operation):
         assert target.type.rank > 0, "Expected vector target"
         assert item.type.rank == 0, "Expected scalar item"
         return AxialType(
-            Type(rank=target.type.rank - 1),
+            PrimitiveArrayType(rank=target.type.rank - 1),
             {index for index in target.free_indices | item.free_indices},
         )
 
@@ -230,9 +232,7 @@ class Vector(Operation):
         (size, target) = args
         assert not size.type.rank, "Expected scalar size"
         assert not size.free_indices, "Expected loop-independent size"
-        return AxialType(
-            Type(rank=target.type.rank + 1), target.free_indices - {self.index}
-        )
+        return AxialType(target.type.in_vector, target.free_indices - {self.index})
 
     def apply(self, *args: Axial, env: Env) -> Axial:
         (size, target) = args
@@ -261,7 +261,7 @@ class Reduce(Operation):
         assert not size.type.rank, "Expected scalar size"
         assert not size.free_indices, "Expected loop-independent size"
         assert not target.type.rank, "Expected scalar reduction"
-        return AxialType(Type(rank=0), target.free_indices - {self.index})
+        return AxialType(PrimitiveArrayType(rank=0), target.free_indices - {self.index})
 
     def apply(self, *args: Axial, env: Env) -> Axial:
         (size, target) = args
@@ -278,7 +278,8 @@ class Elementwise(Operation):
     def type(self, *args: AxialType) -> AxialType:
         assert all(not arg.type.rank for arg in args), "Expected scalar elementwise"
         return AxialType(
-            Type(rank=0), {index for arg in args for index in arg.free_indices}
+            PrimitiveArrayType(rank=0),
+            {index for arg in args for index in arg.free_indices},
         )
 
     def apply(self, *args: Axial, env: Env) -> Axial:

@@ -3,15 +3,17 @@ import pytest
 
 from ein import (
     Array,
-    Type,
+    Scalar,
     array,
     fold,
     function,
     interpret_with_arrays,
     interpret_with_naive,
+    matrix,
     max,
     min,
     sum,
+    vector,
 )
 
 with_interpret = pytest.mark.parametrize(
@@ -23,7 +25,7 @@ with_interpret = pytest.mark.parametrize(
 def test_mul_grid(interpret):
     # FIXME: This should have proper casting behaviour.
     (n0,), grid_expr = function(
-        [Type(rank=0)], lambda n: array[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
+        [Scalar()], lambda n: array[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
     )
 
     numpy.testing.assert_allclose(
@@ -47,7 +49,7 @@ def test_matmul(interpret, with_bounds_inference):
         sum_ = sum if with_bounds_inference else sum[k]
         return array_(lambda i, j: sum_(lambda t: a[i, t] * b[t, j]))
 
-    (a0, b0), matmul_expr = function([Type(rank=2), Type(rank=2)], matmul)
+    (a0, b0), matmul_expr = function([matrix(), matrix()], matmul)
     first = numpy.array([[1, 2, 3], [4, 5, 6]])
     second = numpy.array([[1], [0], [-1]])
     numpy.testing.assert_allclose(
@@ -90,7 +92,7 @@ def test_uv_loss(interpret, with_bounds_inference):
 @with_interpret
 def test_max_minus_min(interpret):
     (a, b), expr = function(
-        [Type(rank=1), Type(rank=1)],
+        [vector(), vector()],
         lambda a, b: max(lambda i: a[i] * b[i]) - min(lambda i: a[i] * b[i]),
     )
     a_values, b_values = numpy.random.randn(256), numpy.random.randn(256)
@@ -109,7 +111,7 @@ def test_switches(interpret):
             )
         )
 
-    (a0, b0), sgn_expr = function([Type(rank=1), Type(rank=1)], sgn)
+    (a0, b0), sgn_expr = function([vector(), vector()], sgn)
     a_values, b_values = numpy.random.randn(256), numpy.random.randn(256)
     numpy.testing.assert_allclose(
         interpret(sgn_expr, {a0: a_values, b0: b_values}),
@@ -121,7 +123,7 @@ def test_switches(interpret):
 def test_fibonacci_fold(interpret):
     def fib(n: Array) -> Array:
         return fold[n](
-            Type(rank=1),
+            vector(),
             array[n](lambda i: 0),
             lambda i, acc: array(
                 lambda j: Array(i == j).where(
@@ -133,7 +135,7 @@ def test_fibonacci_fold(interpret):
             ),
         )
 
-    (n0,), fib_expr = function([Type(rank=0)], fib)
+    (n0,), fib_expr = function([Scalar()], fib)
     numpy.testing.assert_allclose(
         interpret(fib_expr, {n0: numpy.array(8)}),
         [0, 1, 1, 2, 3, 5, 8, 13],

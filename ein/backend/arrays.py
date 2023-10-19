@@ -23,7 +23,7 @@ def to_axial(program: Expr) -> StagedAxial:
                 else:
                     return axial.At(index).stage()
             case calculus.Var(var, type_):
-                return axial.Var(var, type_).stage()
+                return axial.Var(var, type_.primitive_type.single).stage()
             case calculus.Dim(operand, axis):
                 return axial.Dim(axis).stage(go(operand, sizes))
             case calculus.Get(operand, item):
@@ -35,7 +35,9 @@ def to_axial(program: Expr) -> StagedAxial:
             case calculus.Fold(index, size, body, init, acc):
                 # TODO: Support accumulators with free indices (axial body/init).
                 return axial.Fold(
-                    go(body, {index: None}), index, axial.Var(acc.var, acc.type)
+                    go(body, {index: None}),
+                    index,
+                    axial.Var(acc.var, acc.type.primitive_type.single),
                 ).stage(go(size, {}), go(init, {}))
             case calculus.AbstractScalarReduction(index, size, body):
                 return axial.Reduce(expr.ufunc, index).stage(

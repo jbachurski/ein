@@ -1,16 +1,16 @@
 import numpy
 import scipy
 
-from ein import Array, Type, array, sum
+from ein import Array, Vector, array, matrix, sum, vector
 
 from ..case import Case
 
 
 class Attention(Case):
     ein_types = (
-        [Type(rank=2)] * 4
-        + [Type(rank=1)] * 3
-        + [Type(rank=3), Type(rank=2), Type(rank=2)]
+        [matrix()] * 4
+        + [vector()] * 3
+        + [Vector(matrix()), Vector(vector()), Vector(vector())]
     )
 
     @staticmethod
