@@ -21,6 +21,11 @@ with_interpret = pytest.mark.parametrize(
 )
 
 
+def test_type_checks():
+    with pytest.raises(TypeError):
+        _ = function([Scalar()], lambda n: 1 + array[n](lambda i: 0))
+
+
 @with_interpret
 def test_mul_grid(interpret):
     # FIXME: This should have proper casting behaviour.
