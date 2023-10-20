@@ -37,7 +37,7 @@ class Pair(AbstractType):
     @property
     def primitive_type(self) -> "PrimitiveType":
         return PrimitiveType(
-            (self.first.primitive_type.single, *self.second.primitive_type.elems)
+            (*self.first.primitive_type.elems, *self.second.primitive_type.elems)
         )
 
 
