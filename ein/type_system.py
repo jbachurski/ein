@@ -41,15 +41,15 @@ class Pair(AbstractType):
         )
 
 
-def vector():
+def vector() -> Vector:
     return Vector(Scalar())
 
 
-def matrix():
+def matrix() -> Vector:
     return Vector(Vector(Scalar()))
 
 
-def ndarray(rank: int):
+def ndarray(rank: int) -> Type:
     return Vector(ndarray(rank - 1)) if rank else Scalar()
 
 

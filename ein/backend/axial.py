@@ -1,17 +1,17 @@
 import abc
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Iterable, ParamSpec, TypeAlias
 
 import numpy
 
-from ein.backend.staged import Staged
 from ein.symbols import Index, Variable
 from ein.type_system import PrimitiveArrayType
 
 
 @dataclass(frozen=True)
 class AxialType:
-    type: PrimitiveArrayType
+    array_type: PrimitiveArrayType
     free_indices: set[Index]
 
 
@@ -27,19 +27,6 @@ class Env:
 
     def copy(self) -> "Env":
         return Env(self.var.copy(), self.idx.copy())
-
-
-class StagedAxial(Staged["Operation", AxialType]):
-    def execute(self, env: Env):
-        results: dict[Staged["Operation", AxialType], Axial] = {}
-
-        def go(staged: Staged["Operation", AxialType]) -> Axial:
-            if staged not in results:
-                args = [go(operand) for operand in staged.operands]
-                results[staged] = staged.operation.apply(*args, env=env)
-            return results[staged]
-
-        return go(self)
 
 
 class Axial:
@@ -60,10 +47,14 @@ class Axial:
             PrimitiveArrayType(rank=len(self.axes) - len(free_indices)), free_indices
         )
 
+    @staticmethod
+    def of_normal(array: numpy.ndarray):
+        return Axial(reversed(range(array.ndim)), array)
+
     @property
     def normal(self) -> numpy.ndarray:
         assert not self.type.free_indices
-        rank = self.type.type.rank
+        rank = self.type.array_type.rank
         inv: list[int | None] = [None for _ in range(rank)]
         for i, p in enumerate(self.axes):
             assert isinstance(p, int)
@@ -93,195 +84,283 @@ def align(target: Axial, into_axes: Axes) -> numpy.ndarray:
     return array
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Operation(abc.ABC):
-    def stage(self, *args: StagedAxial) -> StagedAxial:
-        return StagedAxial(self, self.type(*(arg.type for arg in args)), args)
+    def __post_init__(self):
+        assert self.type
 
+    @property
     @abc.abstractmethod
-    def type(self, *args: AxialType) -> AxialType:
+    def dependencies(self) -> tuple["Operation", ...]:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def type(self) -> AxialType:
         ...
 
     @abc.abstractmethod
-    def apply(self, *args: Axial, env: Env) -> Axial:
+    def apply(self, dependencies: dict["Operation", Axial], env: Env) -> Axial:
         ...
+
+    def execute(self, env: Env, base: dict["Operation", Axial] | None = None):
+        results: dict[Operation, Axial] = base.copy() if base is not None else {}
+
+        def go(op: Operation) -> Axial:
+            print(op)
+            if op not in results:
+                results[op] = op.apply(
+                    {sub: go(sub) for sub in op.dependencies}, env=env
+                )
+            return results[op]
+
+        return go(self)
 
 
 @dataclass(frozen=True, eq=False)
 class Const(Operation):
     array: numpy.ndarray
 
-    def type(self, *args: AxialType) -> AxialType:
-        () = args
+    @property
+    def dependencies(self) -> tuple[Operation, ...]:
+        return ()
+
+    @property
+    def type(self) -> AxialType:
         return AxialType(PrimitiveArrayType(self.array.ndim), set())
 
-    def apply(self, *args: Axial, env: Env) -> Axial:
-        () = args
-        return Axial(reversed(range(self.array.ndim)), self.array)
+    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+        return Axial.of_normal(self.array)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Range(Operation):
     index: Index
+    size: Operation
 
-    def type(self, *args: AxialType) -> AxialType:
-        (size,) = args
-        assert not size.type.rank, "Expected scalar size"
-        assert not size.free_indices, "Expected loop-independent size"
+    @property
+    def dependencies(self) -> tuple[Operation, ...]:
+        return (self.size,)
+
+    @cached_property
+    def type(self) -> AxialType:
+        assert not self.size.type.array_type.rank, "Expected scalar size"
+        assert not self.size.type.free_indices, "Expected loop-independent size"
         return AxialType(PrimitiveArrayType(rank=0), {self.index})
 
-    def apply(self, *args: Axial, env: Env) -> Axial:
-        (size,) = args
-        return Axial([self.index], numpy.arange(int(size.value)))
+    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+        return Axial([self.index], numpy.arange(int(dependencies[self.size].value)))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Var(Operation):
     var: Variable
     var_type: PrimitiveArrayType
 
-    def type(self, *args: AxialType) -> AxialType:
-        () = args
+    @property
+    def dependencies(self) -> tuple[Operation, ...]:
+        return ()
+
+    @property
+    def type(self) -> AxialType:
         return AxialType(self.var_type, set())
 
-    def apply(self, *args: Axial, env: Env) -> Axial:
-        () = args
-        return Axial(reversed(range(self.var_type.rank)), env.var[self.var])
+    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+        return Axial.of_normal(env.var[self.var])
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class At(Operation):
     index: Index
 
-    def type(self, *args: AxialType) -> AxialType:
-        () = args
+    @property
+    def dependencies(self) -> tuple["Operation", ...]:
+        return ()
+
+    @property
+    def type(self) -> AxialType:
         return AxialType(PrimitiveArrayType(rank=0), set())
 
-    def apply(self, *args: Axial, env: Env) -> Axial:
-        () = args
+    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
         return Axial([], numpy.array(env.idx[self.index]))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Dim(Operation):
     pos: int
+    target: Operation
 
-    def type(self, *args: AxialType) -> AxialType:
-        (target,) = args
-        assert 0 <= self.pos < target.type.rank
-        assert not target.free_indices
+    @property
+    def dependencies(self) -> tuple["Operation", ...]:
+        return (self.target,)
+
+    @cached_property
+    def type(self) -> AxialType:
+        assert 0 <= self.pos < self.target.type.array_type.rank
+        assert not self.target.type.free_indices
         return AxialType(PrimitiveArrayType(rank=0), set())
 
-    def apply(self, *args: Axial, env: Env) -> Axial:
-        (target,) = args
-        pos = target.type.type.rank - self.pos - 1
+    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+        target = dependencies[self.target]
+        pos = target.type.array_type.rank - self.pos - 1
         return Axial([], target.value.shape[target.axes.index(pos)])
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Fold(Operation):
-    body: StagedAxial
     index: Index
     acc: Var
+    size: Operation
+    init: Operation
+    body: Operation
 
-    def type(self, *args: AxialType) -> AxialType:
-        (size, init) = args
-        assert size.type == PrimitiveArrayType(rank=0)
-        assert not size.free_indices
-        assert self.acc.var_type == init.type
-        assert not self.body.type.free_indices
+    @property
+    def dependencies(self) -> tuple["Operation", ...]:
+        return self.size, self.init
+
+    @cached_property
+    def type(self) -> AxialType:
+        assert self.size.type.array_type == PrimitiveArrayType(
+            rank=0
+        ), "Expected scalar fold size"
+        # TODO: This, similarly to loop-dependent arrays and reductions, is possible to implement.
+        #  But it does not have any benefits from vectorisation, so maybe it doesn't have to be.
+        assert not self.size.type.free_indices, "Expected loop-independent fold size"
+        assert (
+            self.acc.var_type == self.init.type.array_type
+        ), "Mismatched accumulator and initialiser type"
+        # FIXME: This should work?
+        assert not self.body.type.free_indices, "Expected outer-loop-independent body"
         return self.body.type
 
-    def apply(self, *args: Axial, env: Env) -> Axial:
-        (size, init) = args
+    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
         env = env.copy()
-        env.var[self.acc.var] = init.normal
-        for i in range(size.value):
+        env.var[self.acc.var] = dependencies[self.init].normal
+        for i in range(int(dependencies[self.size].value)):
             env.idx[self.index] = i
-            env.var[self.acc.var] = self.body.execute(env).normal
-        last = env.var[self.acc.var]
-        return Axial(reversed(range(last.ndim)), last)
+            env.var[self.acc.var] = self.body.execute(env, dependencies).normal
+        return Axial.of_normal(env.var[self.acc.var])
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Gather(Operation):
-    def type(self, *args: AxialType) -> AxialType:
-        (target, item) = args
-        assert target.type.rank > 0, "Expected vector target"
-        assert item.type.rank == 0, "Expected scalar item"
+    target: Operation
+    item: Operation
+
+    @property
+    def dependencies(self):
+        return self.target, self.item
+
+    @cached_property
+    def type(self) -> AxialType:
+        assert self.target.type.array_type.rank > 0, "Expected vector target"
+        assert self.item.type.array_type.rank == 0, "Expected scalar item"
         return AxialType(
-            PrimitiveArrayType(rank=target.type.rank - 1),
-            {index for index in target.free_indices | item.free_indices},
+            PrimitiveArrayType(rank=self.target.type.array_type.rank - 1),
+            {
+                index
+                for index in self.target.type.free_indices | self.item.type.free_indices
+            },
         )
 
-    def apply(self, *args: Axial, env: Env) -> Axial:
-        (target, item) = args
+    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+        target, item = dependencies[self.target], dependencies[self.item]
         used_axes = alignment(target.axes, item.axes)
-        k = used_axes.index(target.type.type.rank - 1)
+        k = used_axes.index(target.type.array_type.rank - 1)
         result = numpy.take_along_axis(
             align(target, used_axes), align(item, used_axes), axis=k
         )
         return Axial(used_axes[:k] + used_axes[k + 1 :], numpy.squeeze(result, axis=k))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Vector(Operation):
     index: Index
+    size: Operation
+    target: Operation
 
-    def type(self, *args: AxialType) -> AxialType:
-        (size, target) = args
-        assert not size.type.rank, "Expected scalar size"
-        assert not size.free_indices, "Expected loop-independent size"
-        return AxialType(target.type.in_vector, target.free_indices - {self.index})
+    @property
+    def dependencies(self):
+        return self.size, self.target
 
-    def apply(self, *args: Axial, env: Env) -> Axial:
-        (size, target) = args
+    @cached_property
+    def type(self) -> AxialType:
+        assert not self.size.type.array_type.rank, "Expected scalar size"
+        assert not self.size.type.free_indices, "Expected loop-independent size"
+        return AxialType(
+            self.target.type.array_type.in_vector,
+            self.target.type.free_indices - {self.index},
+        )
+
+    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+        size, target = dependencies[self.size], dependencies[self.target]
         if self.index in target.axes:
             return Axial(
                 (
-                    target.type.type.rank if axis == self.index else axis
+                    target.type.array_type.rank if axis == self.index else axis
                     for axis in target.axes
                 ),
                 target.value,
             )
         else:
             return Axial(
-                (target.type.type.rank, *target.axes),
+                (target.type.array_type.rank, *target.axes),
                 numpy.repeat(numpy.expand_dims(target.value, axis=0), int(size.value)),
             )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Reduce(Operation):
     ufunc: numpy.ufunc
     index: Index
+    target: Operation
 
+    @property
+    def dependencies(self):
+        return (self.target,)
+
+    @cached_property
     def type(self, *args: AxialType) -> AxialType:
-        (size, target) = args
-        assert not size.type.rank, "Expected scalar size"
-        assert not size.free_indices, "Expected loop-independent size"
-        assert not target.type.rank, "Expected scalar reduction"
-        return AxialType(PrimitiveArrayType(rank=0), target.free_indices - {self.index})
+        assert not self.target.type.array_type.rank, "Expected scalar reduction"
+        assert (
+            self.index in self.target.type.free_indices
+        ), "Can only reduce over free index"
+        return AxialType(
+            PrimitiveArrayType(rank=0), self.target.type.free_indices - {self.index}
+        )
 
-    def apply(self, *args: Axial, env: Env) -> Axial:
-        (size, target) = args
+    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+        target = dependencies[self.target]
+        # FIXME: target might not depend on the reduction index, though this is a rather degenerate corner case.
+        #  This manifests with a failing `axes.index`.
         return Axial(
             (axis for axis in target.axes if axis != self.index),
             self.ufunc.reduce(target.value, axis=target.axes.index(self.index)),
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Elementwise(Operation):
     ufunc: numpy.ufunc
+    operands: tuple[Operation, ...]
 
-    def type(self, *args: AxialType) -> AxialType:
-        assert all(not arg.type.rank for arg in args), "Expected scalar elementwise"
+    @property
+    def dependencies(self) -> tuple["Operation", ...]:
+        return self.operands
+
+    @cached_property
+    def type(self) -> AxialType:
+        assert all(
+            not op.type.array_type.rank for op in self.operands
+        ), "Expected scalar elementwise"
         return AxialType(
             PrimitiveArrayType(rank=0),
-            {index for arg in args for index in arg.free_indices},
+            {index for op in self.operands for index in op.type.free_indices},
         )
 
-    def apply(self, *args: Axial, env: Env) -> Axial:
-        used_axes = alignment(*(arg.axes for arg in args))
-        return Axial(used_axes, self.ufunc(*(align(arg, used_axes) for arg in args)))
+    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+        used_axes = alignment(*(dependencies[op].axes for op in self.operands))
+        return Axial(
+            used_axes,
+            self.ufunc(*(align(dependencies[op], used_axes) for op in self.operands)),
+        )

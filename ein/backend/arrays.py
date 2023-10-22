@@ -4,53 +4,53 @@ import numpy.typing
 
 from ein import calculus
 from ein.backend import axial
-from ein.backend.axial import Env, StagedAxial
+from ein.backend.axial import Env, Operation
 from ein.calculus import Expr
 from ein.symbols import Index, Variable
 
 
-def to_axial(program: Expr) -> StagedAxial:
-    transformed: dict[Expr, StagedAxial] = {}
+def to_axial(program: Expr) -> Operation:
+    transformed: dict[Expr, Operation] = {}
 
-    def _go(expr: Expr, sizes: dict[Index, "Expr | None"]) -> StagedAxial:
+    def _go(expr: Expr, sizes: dict[Index, "Expr | None"]) -> Operation:
         match expr:
             case calculus.Const(value):
-                return axial.Const(value.array).stage()
+                return axial.Const(value.array)
             case calculus.At(index):
                 size = sizes[index]
                 if size is not None:
-                    return axial.Range(index).stage(go(size, {}))
+                    return axial.Range(index, go(size, {}))
                 else:
-                    return axial.At(index).stage()
+                    return axial.At(index)
             case calculus.Var(var, type_):
-                return axial.Var(var, type_.primitive_type.single).stage()
+                return axial.Var(var, type_.primitive_type.single)
             case calculus.Dim(operand, axis):
-                return axial.Dim(axis).stage(go(operand, sizes))
+                return axial.Dim(axis, go(operand, sizes))
             case calculus.Get(operand, item):
-                return axial.Gather().stage(go(operand, sizes), go(item, sizes))
+                return axial.Gather(go(operand, sizes), go(item, sizes))
             case calculus.Vec(index, size, body):
-                return axial.Vector(index).stage(
-                    go(size, {}), go(body, {index: size, **sizes})
+                return axial.Vector(
+                    index, go(size, {}), go(body, {index: size} | sizes)
                 )
             case calculus.Fold(index, size, body, init, acc):
                 # TODO: Support accumulators with free indices (axial body/init).
                 return axial.Fold(
-                    go(body, {index: None}),
                     index,
                     axial.Var(acc.var, acc.type.primitive_type.single),
-                ).stage(go(size, {}), go(init, {}))
-            case calculus.AbstractScalarReduction(index, size, body):
-                return axial.Reduce(expr.ufunc, index).stage(
-                    go(size, {}), go(body, {index: size, **sizes})
+                    go(size, {}),
+                    go(init, {}),
+                    go(body, {index: None}),
                 )
+            case calculus.AbstractScalarReduction(index, size, body):
+                return axial.Reduce(expr.ufunc, index, go(body, {index: size, **sizes}))
             case calculus.AbstractScalarOperator(operands):
-                return axial.Elementwise(expr.ufunc).stage(
-                    *(go(operand, sizes) for operand in operands)
+                return axial.Elementwise(
+                    expr.ufunc, tuple(go(operand, sizes) for operand in operands)
                 )
             case _:
                 assert_never(expr)
 
-    def go(expr: Expr, sizes: dict[Index, "Expr | None"]) -> StagedAxial:
+    def go(expr: Expr, sizes: dict[Index, "Expr | None"]) -> Operation:
         if expr not in transformed:
             transformed[expr] = _go(expr, sizes)
         return transformed[expr]
