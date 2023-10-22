@@ -4,15 +4,14 @@ import numpy.typing
 
 from ein import calculus
 from ein.backend import axial
-from ein.backend.axial import Env, Operation
-from ein.calculus import Expr
+from ein.backend.axial import Env, Expr
 from ein.symbols import Index, Variable
 
 
-def to_axial(program: Expr) -> Operation:
-    transformed: dict[Expr, Operation] = {}
+def to_axial(program: calculus.Expr) -> Expr:
+    transformed: dict[calculus.Expr, Expr] = {}
 
-    def _go(expr: Expr, sizes: dict[Index, "Expr | None"]) -> Operation:
+    def _go(expr: calculus.Expr, sizes: dict[Index, "calculus.Expr | None"]) -> Expr:
         match expr:
             case calculus.Const(value):
                 return axial.Const(value.array)
@@ -50,7 +49,7 @@ def to_axial(program: Expr) -> Operation:
             case _:
                 assert_never(expr)
 
-    def go(expr: Expr, sizes: dict[Index, "Expr | None"]) -> Operation:
+    def go(expr: calculus.Expr, sizes: dict[Index, "calculus.Expr | None"]) -> Expr:
         if expr not in transformed:
             transformed[expr] = _go(expr, sizes)
         return transformed[expr]
@@ -58,7 +57,9 @@ def to_axial(program: Expr) -> Operation:
     return go(program, {})
 
 
-def interpret(program: Expr, env: dict[Variable, numpy.ndarray]) -> numpy.ndarray:
+def interpret(
+    program: calculus.Expr, env: dict[Variable, numpy.ndarray]
+) -> numpy.ndarray:
     return to_axial(program).execute(Env(var=env, idx={})).normal
 
 

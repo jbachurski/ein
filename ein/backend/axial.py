@@ -85,13 +85,13 @@ def align(target: Axial, into_axes: Axes) -> numpy.ndarray:
 
 
 @dataclass(frozen=True, eq=False)
-class Operation(abc.ABC):
+class Expr(abc.ABC):
     def __post_init__(self):
         assert self.type
 
     @property
     @abc.abstractmethod
-    def dependencies(self) -> tuple["Operation", ...]:
+    def dependencies(self) -> tuple["Expr", ...]:
         ...
 
     @property
@@ -100,13 +100,13 @@ class Operation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def apply(self, dependencies: dict["Operation", Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict["Expr", Axial], env: Env) -> Axial:
         ...
 
-    def execute(self, env: Env, base: dict["Operation", Axial] | None = None):
-        results: dict[Operation, Axial] = base.copy() if base is not None else {}
+    def execute(self, env: Env, base: dict["Expr", Axial] | None = None):
+        results: dict[Expr, Axial] = base.copy() if base is not None else {}
 
-        def go(op: Operation) -> Axial:
+        def go(op: Expr) -> Axial:
             print(op)
             if op not in results:
                 results[op] = op.apply(
@@ -118,28 +118,28 @@ class Operation(abc.ABC):
 
 
 @dataclass(frozen=True, eq=False)
-class Const(Operation):
+class Const(Expr):
     array: numpy.ndarray
 
     @property
-    def dependencies(self) -> tuple[Operation, ...]:
+    def dependencies(self) -> tuple[Expr, ...]:
         return ()
 
     @property
     def type(self) -> AxialType:
         return AxialType(PrimitiveArrayType(self.array.ndim), set())
 
-    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
         return Axial.of_normal(self.array)
 
 
 @dataclass(frozen=True, eq=False)
-class Range(Operation):
+class Range(Expr):
     index: Index
-    size: Operation
+    size: Expr
 
     @property
-    def dependencies(self) -> tuple[Operation, ...]:
+    def dependencies(self) -> tuple[Expr, ...]:
         return (self.size,)
 
     @cached_property
@@ -148,50 +148,50 @@ class Range(Operation):
         assert not self.size.type.free_indices, "Expected loop-independent size"
         return AxialType(PrimitiveArrayType(rank=0), {self.index})
 
-    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
         return Axial([self.index], numpy.arange(int(dependencies[self.size].value)))
 
 
 @dataclass(frozen=True, eq=False)
-class Var(Operation):
+class Var(Expr):
     var: Variable
     var_type: PrimitiveArrayType
 
     @property
-    def dependencies(self) -> tuple[Operation, ...]:
+    def dependencies(self) -> tuple[Expr, ...]:
         return ()
 
     @property
     def type(self) -> AxialType:
         return AxialType(self.var_type, set())
 
-    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
         return Axial.of_normal(env.var[self.var])
 
 
 @dataclass(frozen=True, eq=False)
-class At(Operation):
+class At(Expr):
     index: Index
 
     @property
-    def dependencies(self) -> tuple["Operation", ...]:
+    def dependencies(self) -> tuple["Expr", ...]:
         return ()
 
     @property
     def type(self) -> AxialType:
         return AxialType(PrimitiveArrayType(rank=0), set())
 
-    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
         return Axial([], numpy.array(env.idx[self.index]))
 
 
 @dataclass(frozen=True, eq=False)
-class Dim(Operation):
+class Dim(Expr):
     pos: int
-    target: Operation
+    target: Expr
 
     @property
-    def dependencies(self) -> tuple["Operation", ...]:
+    def dependencies(self) -> tuple["Expr", ...]:
         return (self.target,)
 
     @cached_property
@@ -200,22 +200,22 @@ class Dim(Operation):
         assert not self.target.type.free_indices
         return AxialType(PrimitiveArrayType(rank=0), set())
 
-    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
         target = dependencies[self.target]
         pos = target.type.array_type.rank - self.pos - 1
         return Axial([], target.value.shape[target.axes.index(pos)])
 
 
 @dataclass(frozen=True, eq=False)
-class Fold(Operation):
+class Fold(Expr):
     index: Index
     acc: Var
-    size: Operation
-    init: Operation
-    body: Operation
+    size: Expr
+    init: Expr
+    body: Expr
 
     @property
-    def dependencies(self) -> tuple["Operation", ...]:
+    def dependencies(self) -> tuple["Expr", ...]:
         return self.size, self.init
 
     @cached_property
@@ -233,7 +233,7 @@ class Fold(Operation):
         assert not self.body.type.free_indices, "Expected outer-loop-independent body"
         return self.body.type
 
-    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
         env = env.copy()
         env.var[self.acc.var] = dependencies[self.init].normal
         for i in range(int(dependencies[self.size].value)):
@@ -243,9 +243,9 @@ class Fold(Operation):
 
 
 @dataclass(frozen=True, eq=False)
-class Gather(Operation):
-    target: Operation
-    item: Operation
+class Gather(Expr):
+    target: Expr
+    item: Expr
 
     @property
     def dependencies(self):
@@ -263,7 +263,7 @@ class Gather(Operation):
             },
         )
 
-    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
         target, item = dependencies[self.target], dependencies[self.item]
         used_axes = alignment(target.axes, item.axes)
         k = used_axes.index(target.type.array_type.rank - 1)
@@ -274,10 +274,10 @@ class Gather(Operation):
 
 
 @dataclass(frozen=True, eq=False)
-class Vector(Operation):
+class Vector(Expr):
     index: Index
-    size: Operation
-    target: Operation
+    size: Expr
+    target: Expr
 
     @property
     def dependencies(self):
@@ -292,7 +292,7 @@ class Vector(Operation):
             self.target.type.free_indices - {self.index},
         )
 
-    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
         size, target = dependencies[self.size], dependencies[self.target]
         if self.index in target.axes:
             return Axial(
@@ -310,10 +310,10 @@ class Vector(Operation):
 
 
 @dataclass(frozen=True, eq=False)
-class Reduce(Operation):
+class Reduce(Expr):
     ufunc: numpy.ufunc
     index: Index
-    target: Operation
+    target: Expr
 
     @property
     def dependencies(self):
@@ -329,7 +329,7 @@ class Reduce(Operation):
             PrimitiveArrayType(rank=0), self.target.type.free_indices - {self.index}
         )
 
-    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
         target = dependencies[self.target]
         # FIXME: target might not depend on the reduction index, though this is a rather degenerate corner case.
         #  This manifests with a failing `axes.index`.
@@ -340,12 +340,12 @@ class Reduce(Operation):
 
 
 @dataclass(frozen=True, eq=False)
-class Elementwise(Operation):
+class Elementwise(Expr):
     ufunc: numpy.ufunc
-    operands: tuple[Operation, ...]
+    operands: tuple[Expr, ...]
 
     @property
-    def dependencies(self) -> tuple["Operation", ...]:
+    def dependencies(self) -> tuple["Expr", ...]:
         return self.operands
 
     @cached_property
@@ -358,7 +358,7 @@ class Elementwise(Operation):
             {index for op in self.operands for index in op.type.free_indices},
         )
 
-    def apply(self, dependencies: dict[Operation, Axial], env: Env) -> Axial:
+    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
         used_axes = alignment(*(dependencies[op].axes for op in self.operands))
         return Axial(
             used_axes,
