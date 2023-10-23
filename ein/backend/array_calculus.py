@@ -218,9 +218,6 @@ class Fold(AbstractExpr):
         assert (
             self.init.rank == self.body.rank
         ), "Mismatched init and body accumulator rank"
-        print("size", self.size.rank, self.size)
-        print("init", self.init.rank, self.init)
-        print("body", self.body.rank, self.body)
         return self.body.rank
 
 
