@@ -17,6 +17,7 @@ coverage = "^7.3.2"
 mypy = "^1.6.0"
 ruff = "^0.0.292"
 scipy = "^1.11.3"
+pydot = "^1.4.2"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,7 +1,7 @@
 import abc
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Iterable, ParamSpec, TypeAlias, cast
+from typing import Any, Iterable, ParamSpec, TypeAlias, cast
 
 import numpy
 
@@ -15,6 +15,10 @@ from . import array_calculus
 class AxialType:
     array_type: PrimitiveArrayType
     free_indices: set[Index]
+
+    @property
+    def pretty(self) -> str:
+        return f"{sorted(self.free_indices, key=lambda x: int(str(x)[1:]))}:{self.array_type.pretty}"
 
 
 P = ParamSpec("P")
@@ -38,9 +42,6 @@ class Axial:
     def __init__(self, axes: Iterable[Axis], value: array_calculus.Expr):
         self.axes = tuple(axes)
         self.array = value
-
-    def __repr__(self):
-        return f"{self.axes}:{self.array!r}"
 
     @property
     def type(self) -> AxialType:
@@ -98,6 +99,11 @@ class AbstractExpr(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        ...
+
+    @property
+    @abc.abstractmethod
     def type(self) -> AxialType:
         ...
 
@@ -105,6 +111,10 @@ class AbstractExpr(abc.ABC):
 @dataclass(frozen=True, eq=False)
 class Const(AbstractExpr):
     array: numpy.ndarray
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"array": self.array}, set()
 
     @property
     def type(self) -> AxialType:
@@ -115,6 +125,10 @@ class Const(AbstractExpr):
 class Range(AbstractExpr):
     index: Index
     size: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"index": self.index}, {self.size}
 
     @cached_property
     def type(self) -> AxialType:
@@ -129,6 +143,10 @@ class Var(AbstractExpr):
     var_type: PrimitiveArrayType
 
     @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"var": self.var}, set()
+
+    @property
     def type(self) -> AxialType:
         return AxialType(self.var_type, set())
 
@@ -136,6 +154,10 @@ class Var(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class At(AbstractExpr):
     index: Index
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"index": self.index}, set()
 
     @property
     def type(self) -> AxialType:
@@ -146,6 +168,10 @@ class At(AbstractExpr):
 class Dim(AbstractExpr):
     pos: int
     target: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"pos": self.pos}, {self.target}
 
     @cached_property
     def type(self) -> AxialType:
@@ -161,6 +187,10 @@ class Fold(AbstractExpr):
     init: Expr
     size: Expr
     body: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"index": self.index, "acc": self.acc}, {self.init, self.size, self.body}
 
     @cached_property
     def type(self) -> AxialType:
@@ -183,6 +213,10 @@ class Gather(AbstractExpr):
     target: Expr
     item: Expr
 
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, {self.target, self.item}
+
     @cached_property
     def type(self) -> AxialType:
         assert self.target.type.array_type.rank > 0, "Expected vector target"
@@ -202,6 +236,10 @@ class Vector(AbstractExpr):
     size: Expr
     target: Expr
 
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"index": self.index}, {self.size, self.target}
+
     @cached_property
     def type(self) -> AxialType:
         assert not self.size.type.array_type.rank, "Expected scalar size"
@@ -218,6 +256,10 @@ class Reduce(AbstractExpr):
     index: Index
     target: Expr
 
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"ufunc": numpy.ufunc, "index": self.index}, {self.target}
+
     @cached_property
     def type(self, *args: AxialType) -> AxialType:
         assert not self.target.type.array_type.rank, "Expected scalar reduction"
@@ -233,6 +275,10 @@ class Reduce(AbstractExpr):
 class Elementwise(AbstractExpr):
     ufunc: numpy.ufunc
     operands: tuple[Expr, ...]
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"ufunc": self.ufunc}, set(self.operands)
 
     @cached_property
     def type(self) -> AxialType:

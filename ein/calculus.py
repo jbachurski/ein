@@ -1,7 +1,8 @@
 import abc
+from abc import ABC
 from dataclasses import dataclass
 from functools import cached_property
-from typing import ClassVar, TypeAlias
+from typing import Any, ClassVar, TypeAlias
 
 import numpy
 
@@ -40,6 +41,11 @@ class AbstractExpr(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        ...
+
+    @property
+    @abc.abstractmethod
     def type(self) -> Type:
         ...
 
@@ -74,6 +80,10 @@ class AbstractExpr(abc.ABC):
 class Const(AbstractExpr):
     value: Value
 
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"value": self.value.array}, set()
+
     @cached_property
     def type(self) -> Type:
         return self.value.type
@@ -86,6 +96,10 @@ class Const(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class At(AbstractExpr):
     index: Index
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"index": self.index}, set()
 
     @cached_property
     def type(self) -> Type:
@@ -105,6 +119,10 @@ class Var(AbstractExpr):
     var: Variable
     var_type: Type
 
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"var": self.var}, set()
+
     @cached_property
     def type(self) -> Type:
         return self.var_type
@@ -119,6 +137,10 @@ class Dim(AbstractExpr):
     operand: Expr
     axis: int
 
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"axis": self.axis}, {self.operand}
+
     @cached_property
     def type(self) -> Type:
         return Scalar()
@@ -132,6 +154,10 @@ class Dim(AbstractExpr):
 class Get(AbstractExpr):
     operand: Expr
     item: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, {self.operand, self.item}
 
     @cached_property
     def type(self) -> Type:
@@ -158,7 +184,7 @@ class Get(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class AbstractVectorization(AbstractExpr):
+class AbstractVectorization(AbstractExpr, ABC):
     index: Index
     size: Expr
     body: Expr
@@ -178,6 +204,10 @@ class AbstractVectorization(AbstractExpr):
 
 @dataclass(frozen=True, eq=False)
 class Vec(AbstractVectorization):
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"index": self.index}, {self.size, self.body}
+
     @cached_property
     def type(self) -> Type:
         return Vector(self.body.type)
@@ -187,6 +217,14 @@ class Vec(AbstractVectorization):
 class Fold(AbstractVectorization):
     init: Expr
     acc: Var
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"index": self.index, "acc": self.acc.var}, {
+            self.size,
+            self.body,
+            self.init,
+        }
 
     @cached_property
     def type(self) -> Type:
@@ -201,6 +239,10 @@ class Fold(AbstractVectorization):
 @dataclass(frozen=True, eq=False)
 class AbstractScalarReduction(AbstractVectorization):
     ufunc: ClassVar[numpy.ufunc]
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"index": self.index, "ufunc": self.ufunc}, {self.size, self.body}
 
     @cached_property
     def type(self) -> Type:
@@ -224,7 +266,10 @@ class Maximum(AbstractScalarReduction):
 class AbstractScalarOperator(AbstractExpr, abc.ABC):
     operands: tuple[Expr, ...]
     ufunc: ClassVar[numpy.ufunc]
-    signature: ClassVar[tuple[tuple[numpy.dtype | str, ...], numpy.dtype | str]]
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"ufunc": self.ufunc}, set(self.operands)
 
     @cached_property
     def dependencies(self) -> set[Expr]:

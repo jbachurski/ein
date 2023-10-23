@@ -21,6 +21,11 @@ class AbstractExpr(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        ...
+
+    @property
+    @abc.abstractmethod
     def rank(self) -> int:
         ...
 
@@ -28,6 +33,10 @@ class AbstractExpr(abc.ABC):
 @dataclass(frozen=True, eq=False)
 class Const(AbstractExpr):
     array: numpy.ndarray
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"array": self.array}, set()
 
     @property
     def rank(self) -> int:
@@ -40,6 +49,10 @@ class Var(AbstractExpr):
     var_rank: int
 
     @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"var": self.var}, set()
+
+    @property
     def rank(self) -> int:
         return self.var_rank
 
@@ -50,6 +63,10 @@ class Dim(AbstractExpr):
     target: Expr
 
     @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"axis": self.axis}, {self.target}
+
+    @property
     def rank(self) -> int:
         return 0
 
@@ -57,6 +74,10 @@ class Dim(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class Range(AbstractExpr):
     size: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, {self.size}
 
     @cached_property
     def rank(self) -> int:
@@ -69,6 +90,10 @@ class Transpose(AbstractExpr):
     permutation: tuple[int, ...]
     target: Expr
 
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"axes": self.permutation}, {self.target}
+
     @cached_property
     def rank(self) -> int:
         assert len(self.permutation) == self.target.rank
@@ -80,6 +105,10 @@ class Squeeze(AbstractExpr):
     axes: tuple[int, ...]
     target: Expr
 
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"axes": self.axes}, {self.target}
+
     @cached_property
     def rank(self) -> int:
         return self.target.rank - len(self.axes)
@@ -89,6 +118,10 @@ class Squeeze(AbstractExpr):
 class Unsqueeze(AbstractExpr):
     axes: tuple[int, ...]
     target: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"axes": self.axes}, {self.target}
 
     @cached_property
     def rank(self) -> int:
@@ -100,6 +133,10 @@ class Gather(AbstractExpr):
     axis: int
     target: Expr
     item: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"axis": self.axis}, {self.target, self.item}
 
     @cached_property
     def rank(self) -> int:
@@ -115,6 +152,10 @@ class Repeat(AbstractExpr):
     axis: int
     count: Expr
     target: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"axis": self.axis}, {self.count, self.target}
 
     @cached_property
     def rank(self) -> int:
@@ -133,6 +174,10 @@ class Reduce(AbstractExpr):
     axis: int
     target: Expr
 
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"kind": self.kind.name, "axis": self.axis}, {self.target}
+
     @cached_property
     def rank(self) -> int:
         assert 0 <= self.axis <= self.target.rank, "Mismatched reduction axis"
@@ -145,6 +190,10 @@ class AbstractElementwise(AbstractExpr):
     @abc.abstractmethod
     def operands(self) -> tuple[Expr, ...]:
         ...
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"kind": getattr(self, "kind").name}, set(self.operands)
 
     @cached_property
     def rank(self) -> int:
@@ -211,6 +260,10 @@ class Fold(AbstractExpr):
     init: Expr
     size: Expr
     body: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"index": self.index, "acc": self.acc}, {self.init, self.size, self.body}
 
     @cached_property
     def rank(self) -> int:

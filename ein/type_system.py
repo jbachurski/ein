@@ -16,6 +16,10 @@ class AbstractType(abc.ABC):
 @dataclass(frozen=True)
 class Scalar(AbstractType):
     @property
+    def pretty(self) -> str:
+        return "*"
+
+    @property
     def primitive_type(self) -> "PrimitiveType":
         return PrimitiveType((PrimitiveArrayType(rank=0),))
 
@@ -23,6 +27,10 @@ class Scalar(AbstractType):
 @dataclass(frozen=True)
 class Vector(AbstractType):
     elem: Type
+
+    @property
+    def pretty(self) -> str:
+        return f"[]{self.elem.pretty}"
 
     @property
     def primitive_type(self) -> "PrimitiveType":
@@ -33,6 +41,10 @@ class Vector(AbstractType):
 class Pair(AbstractType):
     first: Type
     second: Type
+
+    @property
+    def pretty(self) -> str:
+        return f"({self.first.pretty}, {self.second.pretty})"
 
     @property
     def primitive_type(self) -> "PrimitiveType":
@@ -61,6 +73,10 @@ class PrimitiveArrayType:
         assert self.rank >= 0
 
     @property
+    def pretty(self) -> str:
+        return "[]" * self.rank + "*"
+
+    @property
     def in_vector(self) -> "PrimitiveArrayType":
         return PrimitiveArrayType(self.rank + 1)
 
@@ -80,6 +96,10 @@ class PrimitiveType:
 
     def __post_init__(self):
         assert self.elems, "No unit types in the language"
+
+    @property
+    def pretty(self) -> str:
+        return "(" + ", ".join(elem.pretty for elem in self.elems) + ")"
 
     @property
     def single(self) -> PrimitiveArrayType:
