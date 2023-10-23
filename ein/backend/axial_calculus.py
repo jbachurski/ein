@@ -1,12 +1,14 @@
 import abc
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Iterable, ParamSpec, TypeAlias
+from typing import Iterable, ParamSpec, TypeAlias, cast
 
 import numpy
 
 from ein.symbols import Index, Variable
 from ein.type_system import PrimitiveArrayType
+
+from . import array_calculus
 
 
 @dataclass(frozen=True)
@@ -22,7 +24,7 @@ Axes: TypeAlias = tuple[Axis, ...]
 
 @dataclass
 class Env:
-    var: dict[Variable, numpy.ndarray]
+    var: dict[Variable, array_calculus.Expr]
     idx: dict[Index, int]
 
     def copy(self) -> "Env":
@@ -31,14 +33,14 @@ class Env:
 
 class Axial:
     axes: Axes
-    value: numpy.ndarray
+    array: array_calculus.Expr
 
-    def __init__(self, axes: Iterable[Axis], value: numpy.ndarray):
+    def __init__(self, axes: Iterable[Axis], value: array_calculus.Expr):
         self.axes = tuple(axes)
-        self.value = value
+        self.array = value
 
     def __repr__(self):
-        return f"{self.axes}:{self.value!r}"
+        return f"{self.axes}:{self.array!r}"
 
     @property
     def type(self) -> AxialType:
@@ -48,11 +50,11 @@ class Axial:
         )
 
     @staticmethod
-    def of_normal(array: numpy.ndarray):
-        return Axial(reversed(range(array.ndim)), array)
+    def of_normal(array: array_calculus.Expr):
+        return Axial(reversed(range(array.rank)), array)
 
     @property
-    def normal(self) -> numpy.ndarray:
+    def normal(self) -> array_calculus.Expr:
         assert not self.type.free_indices
         rank = self.type.array_type.rank
         inv: list[int | None] = [None for _ in range(rank)]
@@ -60,7 +62,7 @@ class Axial:
             assert isinstance(p, int)
             # Axes are numbered in reverse order
             inv[rank - p - 1] = i
-        return numpy.transpose(self.value, inv)
+        return array_calculus.Transpose(tuple(cast(list[int], inv)), self.array)
 
 
 # TODO: This is a silly baseline alignment algorithm.
@@ -73,74 +75,46 @@ def alignment(*args: Axes) -> Axes:
     return tuple(seen)
 
 
-def align(target: Axial, into_axes: Axes) -> numpy.ndarray:
+def align(target: Axial, into_axes: Axes) -> array_calculus.Expr:
     transposition = tuple(
         target.axes.index(axis) for axis in sorted(target.axes, key=into_axes.index)
     )
     expands = tuple(i for i, axis in enumerate(into_axes) if axis not in target.axes)
-    array = target.value
-    array = numpy.transpose(array, transposition)
-    array = numpy.expand_dims(array, expands)
+    array = target.array
+    array = array_calculus.Transpose(transposition, array)
+    array = array_calculus.Unsqueeze(expands, array)
     return array
 
 
+Expr: TypeAlias = (
+    "Const | Range | Var | At | Dim | Fold | Gather | Vector | Reduce | Elementwise"
+)
+
+
 @dataclass(frozen=True, eq=False)
-class Expr(abc.ABC):
+class AbstractExpr(abc.ABC):
     def __post_init__(self):
         assert self.type
 
     @property
     @abc.abstractmethod
-    def dependencies(self) -> tuple["Expr", ...]:
-        ...
-
-    @property
-    @abc.abstractmethod
     def type(self) -> AxialType:
         ...
 
-    @abc.abstractmethod
-    def apply(self, dependencies: dict["Expr", Axial], env: Env) -> Axial:
-        ...
-
-    def execute(self, env: Env, base: dict["Expr", Axial] | None = None):
-        results: dict[Expr, Axial] = base.copy() if base is not None else {}
-
-        def go(op: Expr) -> Axial:
-            print(op)
-            if op not in results:
-                results[op] = op.apply(
-                    {sub: go(sub) for sub in op.dependencies}, env=env
-                )
-            return results[op]
-
-        return go(self)
-
 
 @dataclass(frozen=True, eq=False)
-class Const(Expr):
+class Const(AbstractExpr):
     array: numpy.ndarray
-
-    @property
-    def dependencies(self) -> tuple[Expr, ...]:
-        return ()
 
     @property
     def type(self) -> AxialType:
         return AxialType(PrimitiveArrayType(self.array.ndim), set())
 
-    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
-        return Axial.of_normal(self.array)
-
 
 @dataclass(frozen=True, eq=False)
-class Range(Expr):
+class Range(AbstractExpr):
     index: Index
     size: Expr
-
-    @property
-    def dependencies(self) -> tuple[Expr, ...]:
-        return (self.size,)
 
     @cached_property
     def type(self) -> AxialType:
@@ -148,51 +122,30 @@ class Range(Expr):
         assert not self.size.type.free_indices, "Expected loop-independent size"
         return AxialType(PrimitiveArrayType(rank=0), {self.index})
 
-    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
-        return Axial([self.index], numpy.arange(int(dependencies[self.size].value)))
-
 
 @dataclass(frozen=True, eq=False)
-class Var(Expr):
+class Var(AbstractExpr):
     var: Variable
     var_type: PrimitiveArrayType
-
-    @property
-    def dependencies(self) -> tuple[Expr, ...]:
-        return ()
 
     @property
     def type(self) -> AxialType:
         return AxialType(self.var_type, set())
 
-    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
-        return Axial.of_normal(env.var[self.var])
-
 
 @dataclass(frozen=True, eq=False)
-class At(Expr):
+class At(AbstractExpr):
     index: Index
-
-    @property
-    def dependencies(self) -> tuple["Expr", ...]:
-        return ()
 
     @property
     def type(self) -> AxialType:
         return AxialType(PrimitiveArrayType(rank=0), set())
 
-    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
-        return Axial([], numpy.array(env.idx[self.index]))
-
 
 @dataclass(frozen=True, eq=False)
-class Dim(Expr):
+class Dim(AbstractExpr):
     pos: int
     target: Expr
-
-    @property
-    def dependencies(self) -> tuple["Expr", ...]:
-        return (self.target,)
 
     @cached_property
     def type(self) -> AxialType:
@@ -200,23 +153,14 @@ class Dim(Expr):
         assert not self.target.type.free_indices
         return AxialType(PrimitiveArrayType(rank=0), set())
 
-    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
-        target = dependencies[self.target]
-        pos = target.type.array_type.rank - self.pos - 1
-        return Axial([], target.value.shape[target.axes.index(pos)])
-
 
 @dataclass(frozen=True, eq=False)
-class Fold(Expr):
+class Fold(AbstractExpr):
     index: Index
     acc: Var
-    size: Expr
     init: Expr
+    size: Expr
     body: Expr
-
-    @property
-    def dependencies(self) -> tuple["Expr", ...]:
-        return self.size, self.init
 
     @cached_property
     def type(self) -> AxialType:
@@ -233,23 +177,11 @@ class Fold(Expr):
         assert not self.body.type.free_indices, "Expected outer-loop-independent body"
         return self.body.type
 
-    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
-        env = env.copy()
-        env.var[self.acc.var] = dependencies[self.init].normal
-        for i in range(int(dependencies[self.size].value)):
-            env.idx[self.index] = i
-            env.var[self.acc.var] = self.body.execute(env, dependencies).normal
-        return Axial.of_normal(env.var[self.acc.var])
-
 
 @dataclass(frozen=True, eq=False)
-class Gather(Expr):
+class Gather(AbstractExpr):
     target: Expr
     item: Expr
-
-    @property
-    def dependencies(self):
-        return self.target, self.item
 
     @cached_property
     def type(self) -> AxialType:
@@ -263,25 +195,12 @@ class Gather(Expr):
             },
         )
 
-    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
-        target, item = dependencies[self.target], dependencies[self.item]
-        used_axes = alignment(target.axes, item.axes)
-        k = used_axes.index(target.type.array_type.rank - 1)
-        result = numpy.take_along_axis(
-            align(target, used_axes), align(item, used_axes), axis=k
-        )
-        return Axial(used_axes[:k] + used_axes[k + 1 :], numpy.squeeze(result, axis=k))
-
 
 @dataclass(frozen=True, eq=False)
-class Vector(Expr):
+class Vector(AbstractExpr):
     index: Index
     size: Expr
     target: Expr
-
-    @property
-    def dependencies(self):
-        return self.size, self.target
 
     @cached_property
     def type(self) -> AxialType:
@@ -292,32 +211,12 @@ class Vector(Expr):
             self.target.type.free_indices - {self.index},
         )
 
-    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
-        size, target = dependencies[self.size], dependencies[self.target]
-        if self.index in target.axes:
-            return Axial(
-                (
-                    target.type.array_type.rank if axis == self.index else axis
-                    for axis in target.axes
-                ),
-                target.value,
-            )
-        else:
-            return Axial(
-                (target.type.array_type.rank, *target.axes),
-                numpy.repeat(numpy.expand_dims(target.value, axis=0), int(size.value)),
-            )
-
 
 @dataclass(frozen=True, eq=False)
-class Reduce(Expr):
+class Reduce(AbstractExpr):
     ufunc: numpy.ufunc
     index: Index
     target: Expr
-
-    @property
-    def dependencies(self):
-        return (self.target,)
 
     @cached_property
     def type(self, *args: AxialType) -> AxialType:
@@ -329,24 +228,11 @@ class Reduce(Expr):
             PrimitiveArrayType(rank=0), self.target.type.free_indices - {self.index}
         )
 
-    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
-        target = dependencies[self.target]
-        # FIXME: target might not depend on the reduction index, though this is a rather degenerate corner case.
-        #  This manifests with a failing `axes.index`.
-        return Axial(
-            (axis for axis in target.axes if axis != self.index),
-            self.ufunc.reduce(target.value, axis=target.axes.index(self.index)),
-        )
-
 
 @dataclass(frozen=True, eq=False)
-class Elementwise(Expr):
+class Elementwise(AbstractExpr):
     ufunc: numpy.ufunc
     operands: tuple[Expr, ...]
-
-    @property
-    def dependencies(self) -> tuple["Expr", ...]:
-        return self.operands
 
     @cached_property
     def type(self) -> AxialType:
@@ -356,11 +242,4 @@ class Elementwise(Expr):
         return AxialType(
             PrimitiveArrayType(rank=0),
             {index for op in self.operands for index in op.type.free_indices},
-        )
-
-    def apply(self, dependencies: dict[Expr, Axial], env: Env) -> Axial:
-        used_axes = alignment(*(dependencies[op].axes for op in self.operands))
-        return Axial(
-            used_axes,
-            self.ufunc(*(align(dependencies[op], used_axes) for op in self.operands)),
         )

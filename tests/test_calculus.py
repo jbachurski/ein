@@ -1,7 +1,7 @@
 import numpy
 import pytest
 
-from ein import Scalar, interpret_with_arrays, interpret_with_naive, matrix, vector
+from ein import Scalar, interpret_with_naive, interpret_with_numpy, matrix, vector
 from ein.calculus import (
     Add,
     At,
@@ -25,7 +25,7 @@ from ein.calculus import (
 )
 
 with_interpret = pytest.mark.parametrize(
-    "interpret", [interpret_with_naive, interpret_with_arrays], ids=["base", "numpy"]
+    "interpret", [interpret_with_naive, interpret_with_numpy], ids=["base", "numpy"]
 )
 
 

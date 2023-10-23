@@ -7,8 +7,8 @@ from ein import (
     array,
     fold,
     function,
-    interpret_with_arrays,
     interpret_with_naive,
+    interpret_with_numpy,
     matrix,
     max,
     min,
@@ -17,7 +17,7 @@ from ein import (
 )
 
 with_interpret = pytest.mark.parametrize(
-    "interpret", [interpret_with_naive, interpret_with_arrays], ids=["base", "numpy"]
+    "interpret", [interpret_with_naive, interpret_with_numpy], ids=["base", "numpy"]
 )
 
 
@@ -153,6 +153,6 @@ def test_attention():
     args = Attention.sample()
 
     numpy.testing.assert_allclose(
-        Attention.in_ein_function(interpret_with_arrays, *args),
+        Attention.in_ein_function(interpret_with_numpy, *args),
         Attention.in_numpy(*args),
     )
