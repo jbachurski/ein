@@ -132,11 +132,11 @@ class MinComprehension(MaxComprehension):
 
 class FoldComprehension(BaseComprehension):
     def __call__(
-        self, type_: Type, init: Array, constructor: Callable[[Array, Array], ArrayLike]
+        self, init: Array, constructor: Callable[[Array, Array], ArrayLike]
     ) -> Array:
         assert self.sizes is None or len(self.sizes) == 1
         index, acc = Index(), Variable()
-        typed_acc = calculus.Var(acc, type_)
+        typed_acc = calculus.Var(acc, init.expr.type)
         wrapped_index, wrapped_acc = Array(calculus.At(index)), Array(typed_acc)
         body = Array(constructor(wrapped_index, wrapped_acc)).expr
         size_of = self._get_sized(body, (index,))

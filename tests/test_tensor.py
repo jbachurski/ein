@@ -128,7 +128,6 @@ def test_switches(interpret):
 def test_fibonacci_fold(interpret):
     def fib(n: Array) -> Array:
         return fold[n](
-            vector(),
             array[n](lambda i: 0),
             lambda i, acc: array(
                 lambda j: Array(i == j).where(
