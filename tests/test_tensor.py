@@ -157,11 +157,9 @@ def test_attention():
 
 @with_backend
 def test_inline_interpret(backend):
-    a = numpy.random.randn(20, 30)
-    b = numpy.random.randn(30)
+    a = Array(numpy.random.randn(20, 30))
+    b = Array(numpy.random.randn(30))
     numpy.testing.assert_allclose(
-        array(lambda i: sum(lambda j: Array(a)[i, j] * Array(b)[j])).numpy(
-            backend=backend
-        ),
-        a @ b,
+        array(lambda i: sum(lambda j: a[i, j] * b[j])).numpy(backend=backend),
+        a.numpy(backend=backend) @ b.numpy(backend=backend),
     )
