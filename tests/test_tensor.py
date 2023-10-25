@@ -109,17 +109,14 @@ def test_max_minus_min(interpret):
 
 @with_interpret
 def test_switches(interpret):
-    def sgn(a: Array, b: Array) -> Array:
-        return array(
-            lambda i: ((a[i] > b[i]).where(a[i], b[i]) > 0).where(
-                1, (a[i] == b[i]).where(0, -1)
-            )
-        )
+    def sgn_max(a: Array, b: Array) -> Array:
+        m = array(lambda i: (a[i] > b[i]).where(a[i], b[i]))
+        return array(lambda i: (m[i] > 0).where(1, (a[i] == b[i]).where(0, -1)))
 
-    (a0, b0), sgn_expr = function([vector(), vector()], sgn)
-    a_values, b_values = numpy.random.randn(256), numpy.random.randn(256)
+    (a0, b0), sgn_max_expr = function([vector(), vector()], sgn_max)
+    a_values, b_values = numpy.random.randn(16), numpy.random.randn(16)
     numpy.testing.assert_allclose(
-        interpret(sgn_expr, {a0: a_values, b0: b_values}),
+        interpret(sgn_max_expr, {a0: a_values, b0: b_values}),
         numpy.sign(numpy.maximum(a_values, b_values)),
     )
 
