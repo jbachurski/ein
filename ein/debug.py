@@ -8,6 +8,16 @@ except ImportError:
     pydot = None
 
 
+def _snip_limit(s: str, n: int) -> str:
+    return s[: n // 2 - 1] + "..." + s[-n // 2 + 1 :] if len(s) > n else s
+
+
+def _meta_value_repr(value):
+    return _snip_limit(
+        str(value if not hasattr(value, "__call__") else value.__name__), 24
+    )
+
+
 def graph(program):
     dot = pydot.Dot(graph_type="digraph")
     vis: dict[Any, str] = {}
@@ -29,8 +39,7 @@ def graph(program):
                 else ""
             )
             + "<br/>".join(
-                f"{key}={value if not hasattr(value, '__call__') else value.__name__}"
-                for key, value in meta.items()
+                f"{key}={_meta_value_repr(value)}" for key, value in meta.items()
             )
             + ">"
         )

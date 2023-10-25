@@ -7,8 +7,9 @@ from typing import Any, ClassVar, TypeAlias
 import numpy
 
 from ein.symbols import Index, Variable
-from ein.type_system import Scalar, Type, Vector
+from ein.type_system import UFUNC_SIGNATURES, Scalar, Type, Vector
 from ein.type_system import ndarray as ndarray_type
+from ein.type_system import number, resolve_scalar_signature, to_float
 
 
 @dataclass(frozen=True, eq=False)
@@ -17,12 +18,12 @@ class Value:
 
     @property
     def type(self) -> Type:
-        return ndarray_type(self.array.ndim)
+        return ndarray_type(self.array.ndim, Scalar.from_dtype(self.array.dtype).kind)
 
 
 Expr: TypeAlias = (
     "Const | At | Var | Dim | Get | Vec | Fold | Sum | Maximum | "
-    "Negate | Reciprocal | Exp | LogicalNot | Add | Multiply | Less | LogicalAnd | Where"
+    "Negate | Reciprocal | Exp | LogicalNot | CastToFloat | Add | Multiply | Less | LogicalAnd | Where"
 )
 
 
@@ -112,7 +113,7 @@ class At(AbstractExpr):
 
     @cached_property
     def type(self) -> Type:
-        return Scalar()
+        return Scalar(int)
 
     @property
     def dependencies(self) -> set[Expr]:
@@ -156,7 +157,7 @@ class Dim(AbstractExpr):
 
     @cached_property
     def type(self) -> Type:
-        return Scalar()
+        return Scalar(int)
 
     @cached_property
     def dependencies(self) -> set[Expr]:
@@ -178,6 +179,8 @@ class Get(AbstractExpr):
             raise TypeError(f"Cannot index a non-array type {self.operand.type}")
         if not isinstance(self.item.type, Scalar):
             raise TypeError(f"Cannot index with a non-scalar type {self.item.type}")
+        if not isinstance(self.item.type, Scalar):
+            raise TypeError(f"Cannot index with a non-integer type {self.item.type}")
         return self.operand.type.elem
 
     @cached_property
@@ -205,6 +208,8 @@ class AbstractVectorization(AbstractExpr, ABC):
     def _validate_size(self) -> None:
         if not isinstance(self.size.type, Scalar):
             raise TypeError(f"Size must be a scalar, not {self.size.type}")
+        if self.size.type.kind != int:
+            raise TypeError(f"Size must be an integer, not {self.size.type}")
 
     @cached_property
     def dependencies(self) -> set[Expr]:
@@ -265,7 +270,11 @@ class AbstractScalarReduction(AbstractVectorization):
     def type(self) -> Type:
         self._validate_size()
         if not isinstance(self.body.type, Scalar):
-            raise TypeError(f"Can only reduce over scalar types, not {self.body.type}")
+            raise TypeError(f"Can only reduce over scalars, not {self.body.type}")
+        if self.body.type.kind not in number:
+            raise TypeError(
+                f"Can only reduce over numeric scalars, not {self.body.type}"
+            )
         return self.body.type
 
 
@@ -294,11 +303,13 @@ class AbstractScalarOperator(AbstractExpr, abc.ABC):
 
     @cached_property
     def type(self) -> Type:
-        # TODO: This should also do some dtype checks.
-        types = [operand.type for operand in self.operands]
-        if not all(isinstance(typ, Scalar) for typ in types):
-            raise TypeError(f"Scalar operator expected only scalars, got {types}")
-        return Scalar()
+        signature, constraints = UFUNC_SIGNATURES[self.ufunc]
+        return resolve_scalar_signature(
+            [op.type for op in self.operands],
+            signature,
+            constraints,
+            f"Operator {type(self).__name__} of ",
+        )
 
 
 @dataclass(frozen=True, eq=False)
@@ -324,6 +335,11 @@ class Exp(AbstractUnaryScalarOperator):
 @dataclass(frozen=True, eq=False)
 class LogicalNot(AbstractUnaryScalarOperator):
     ufunc = numpy.logical_not
+
+
+@dataclass(frozen=True, eq=False)
+class CastToFloat(AbstractUnaryScalarOperator):
+    ufunc = staticmethod(to_float)  # type: ignore
 
 
 @dataclass(frozen=True, eq=False)

@@ -8,9 +8,9 @@ from ..case import Case
 
 class Attention(Case):
     ein_types = (
-        [matrix()] * 4
-        + [vector()] * 3
-        + [Vector(matrix()), Vector(vector()), Vector(vector())]
+        [matrix(float)] * 4
+        + [vector(float)] * 3
+        + [Vector(matrix(float)), Vector(vector(float)), Vector(vector(float))]
     )
 
     @staticmethod

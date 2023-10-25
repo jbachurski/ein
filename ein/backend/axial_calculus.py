@@ -6,7 +6,13 @@ from typing import Any, Iterable, ParamSpec, TypeAlias, cast
 import numpy
 
 from ein.symbols import Index, Variable
-from ein.type_system import PrimitiveArrayType
+from ein.type_system import (
+    UFUNC_SIGNATURES,
+    PrimitiveArrayType,
+    Scalar,
+    ScalarKind,
+    resolve_scalar_signature,
+)
 
 from . import array_calculus
 
@@ -38,21 +44,27 @@ class Env:
 class Axial:
     axes: Axes
     array: array_calculus.Expr
+    kind: ScalarKind
 
-    def __init__(self, axes: Iterable[Axis], value: array_calculus.Expr):
+    def __init__(
+        self, axes: Iterable[Axis], array: array_calculus.Expr, kind: ScalarKind
+    ):
         self.axes = tuple(axes)
-        self.array = value
+        self.array = array
+        self.kind = kind
+        assert len(self.axes) == self.array.rank
 
     @property
     def type(self) -> AxialType:
         free_indices = {index for index in self.axes if isinstance(index, Index)}
         return AxialType(
-            PrimitiveArrayType(rank=len(self.axes) - len(free_indices)), free_indices
+            PrimitiveArrayType(rank=len(self.axes) - len(free_indices), kind=self.kind),
+            free_indices,
         )
 
     @staticmethod
-    def of_normal(array: array_calculus.Expr):
-        return Axial(reversed(range(array.rank)), array)
+    def of_normal(array: array_calculus.Expr, kind: ScalarKind):
+        return Axial(reversed(range(array.rank)), array, kind)
 
     @property
     def normal(self) -> array_calculus.Expr:
@@ -118,7 +130,12 @@ class Const(AbstractExpr):
 
     @property
     def type(self) -> AxialType:
-        return AxialType(PrimitiveArrayType(self.array.ndim), set())
+        return AxialType(
+            PrimitiveArrayType(
+                self.array.ndim, Scalar.from_dtype(self.array.dtype).kind
+            ),
+            set(),
+        )
 
 
 @dataclass(frozen=True, eq=False)
@@ -133,8 +150,9 @@ class Range(AbstractExpr):
     @cached_property
     def type(self) -> AxialType:
         assert not self.size.type.array_type.rank, "Expected scalar size"
+        assert self.size.type.array_type.kind, "Expected integer size"
         assert not self.size.type.free_indices, "Expected loop-independent size"
-        return AxialType(PrimitiveArrayType(rank=0), {self.index})
+        return AxialType(PrimitiveArrayType(rank=0, kind=int), {self.index})
 
 
 @dataclass(frozen=True, eq=False)
@@ -161,7 +179,7 @@ class At(AbstractExpr):
 
     @property
     def type(self) -> AxialType:
-        return AxialType(PrimitiveArrayType(rank=0), set())
+        return AxialType(PrimitiveArrayType(rank=0, kind=int), set())
 
 
 @dataclass(frozen=True, eq=False)
@@ -177,7 +195,7 @@ class Dim(AbstractExpr):
     def type(self) -> AxialType:
         assert 0 <= self.pos < self.target.type.array_type.rank
         assert not self.target.type.free_indices
-        return AxialType(PrimitiveArrayType(rank=0), set())
+        return AxialType(PrimitiveArrayType(rank=0, kind=int), set())
 
 
 @dataclass(frozen=True, eq=False)
@@ -195,7 +213,7 @@ class Fold(AbstractExpr):
     @cached_property
     def type(self) -> AxialType:
         assert self.size.type.array_type == PrimitiveArrayType(
-            rank=0
+            rank=0, kind=int
         ), "Expected scalar fold size"
         # TODO: This, similarly to loop-dependent arrays and reductions, is possible to implement.
         #  But it does not have any benefits from vectorisation, so maybe it doesn't have to be.
@@ -220,9 +238,10 @@ class Gather(AbstractExpr):
     @cached_property
     def type(self) -> AxialType:
         assert self.target.type.array_type.rank > 0, "Expected vector target"
-        assert self.item.type.array_type.rank == 0, "Expected scalar item"
+        assert self.item.type.array_type.rank == 0, "Expected scalar index"
+        assert self.item.type.array_type.kind == int, "Expected integer index"
         return AxialType(
-            PrimitiveArrayType(rank=self.target.type.array_type.rank - 1),
+            self.target.type.array_type.item,
             {
                 index
                 for index in self.target.type.free_indices | self.item.type.free_indices
@@ -244,6 +263,7 @@ class Vector(AbstractExpr):
     def type(self) -> AxialType:
         assert not self.size.type.array_type.rank, "Expected scalar size"
         assert not self.size.type.free_indices, "Expected loop-independent size"
+        assert self.size.type.array_type.kind == int, "Expected integer size"
         return AxialType(
             self.target.type.array_type.in_vector,
             self.target.type.free_indices - {self.index},
@@ -267,7 +287,8 @@ class Reduce(AbstractExpr):
             self.index in self.target.type.free_indices
         ), "Can only reduce over free index"
         return AxialType(
-            PrimitiveArrayType(rank=0), self.target.type.free_indices - {self.index}
+            PrimitiveArrayType(rank=0, kind=self.target.type.array_type.kind),
+            self.target.type.free_indices - {self.index},
         )
 
 
@@ -285,7 +306,16 @@ class Elementwise(AbstractExpr):
         assert all(
             not op.type.array_type.rank for op in self.operands
         ), "Expected scalar elementwise"
+        signature, constraints = UFUNC_SIGNATURES[self.ufunc]
         return AxialType(
-            PrimitiveArrayType(rank=0),
+            PrimitiveArrayType(
+                rank=0,
+                kind=resolve_scalar_signature(
+                    [op.type.array_type.type for op in self.operands],
+                    signature,
+                    constraints,
+                    f"Elementwise {self.ufunc} of ",
+                ).kind,
+            ),
             {index for op in self.operands for index in op.type.free_indices},
         )

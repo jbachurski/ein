@@ -61,6 +61,9 @@ class Array:
     def dim(self, axis: int) -> "Array":
         return Array(calculus.Dim(self.expr, axis))
 
+    def to_float(self) -> "Array":
+        return Array(calculus.CastToFloat((self.expr,)))
+
     def __add__(self, other: ArrayLike) -> "Array":
         return Array(calculus.Add((self.expr, Array(other).expr)))
 

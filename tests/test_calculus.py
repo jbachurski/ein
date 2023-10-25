@@ -59,7 +59,7 @@ def test_basic_indices(interpret):
 @with_interpret
 def test_basic_variables(interpret):
     x0, y0 = Variable(), Variable()
-    x, y = Var(x0, Scalar()), Var(y0, Scalar())
+    x, y = Var(x0, Scalar(float)), Var(y0, Scalar(float))
     x_minus_y = Add((x, Negate((y,))))
     numpy.testing.assert_allclose(
         interpret(x_minus_y, {x0: numpy.array(4.0), y0: numpy.array(3.0)}),
@@ -80,7 +80,7 @@ def test_basic_reduction_and_get(interpret):
 def test_matmul(interpret):
     a0, b0 = Variable(), Variable()
     i, j, t = Index(), Index(), Index()
-    a, b = Var(a0, matrix()), Var(b0, matrix())
+    a, b = Var(a0, matrix(float)), Var(b0, matrix(float))
     matmul = Vec(
         i,
         Dim(a, 0),
@@ -117,8 +117,8 @@ def test_matmul(interpret):
 def test_power_fold(interpret):
     a0, n0, x0 = Variable(), Variable(), Variable()
     i = Index()
-    a, n, x = Var(a0, Scalar()), Var(n0, Scalar()), Var(x0, Scalar())
-    power_expr = Fold(i, n, Multiply((x, a)), Const(Value(numpy.array(1))), x)
+    a, n, x = Var(a0, Scalar(float)), Var(n0, Scalar(int)), Var(x0, Scalar(float))
+    power_expr = Fold(i, n, Multiply((x, a)), Const(Value(numpy.array(1.0))), x)
     numpy.testing.assert_allclose(
         interpret(power_expr, {a0: numpy.array(3), n0: numpy.array(7)}), 3**7
     )
@@ -128,7 +128,7 @@ def test_power_fold(interpret):
 def test_fibonacci_vector_fold(interpret):
     fib0, n0 = Variable(), Variable()
     i, j, j0 = Index(), Index(), Index()
-    fib, n = Var(fib0, vector()), Var(n0, Scalar())
+    fib, n = Var(fib0, vector(int)), Var(n0, Scalar(int))
     zero = Const(Value(numpy.array(0)))
     one = Const(Value(numpy.array(1)))
     zeros = Vec(j0, n, Negate((one,)))

@@ -24,14 +24,14 @@ with_interpret = pytest.mark.parametrize(
 
 def test_type_checks():
     with pytest.raises(TypeError):
-        _ = function([Scalar()], lambda n: 1 + array[n](lambda i: 0))
+        _ = function([Scalar(int)], lambda n: 1 + array[n](lambda i: 0))
 
 
 @with_interpret
 def test_mul_grid(interpret):
-    # FIXME: This should have proper casting behaviour.
     (n0,), grid_expr = function(
-        [Scalar()], lambda n: array[n, n](lambda i, j: (i + 1.0) / (j + 1.0))
+        [Scalar(int)],
+        lambda n: array[n, n](lambda i, j: (i.to_float() + 1.0) / (j.to_float() + 1.0)),
     )
 
     numpy.testing.assert_allclose(
@@ -55,7 +55,7 @@ def test_matmul(interpret, with_bounds_inference):
         sum_ = sum if with_bounds_inference else sum[k]
         return array_(lambda i, j: sum_(lambda t: a[i, t] * b[t, j]))
 
-    (a0, b0), matmul_expr = function([matrix(), matrix()], matmul)
+    (a0, b0), matmul_expr = function([matrix(float), matrix(float)], matmul)
     first = numpy.array([[1, 2, 3], [4, 5, 6]])
     second = numpy.array([[1], [0], [-1]])
     numpy.testing.assert_allclose(
@@ -75,7 +75,7 @@ def test_matmul(interpret, with_bounds_inference):
     "with_bounds_inference", [False, True], ids=["give-sizes", "infer-sizes"]
 )
 def test_uv_loss(backend, with_bounds_inference):
-    m, k, n = 16, 8, 12
+    m, k, n = 12, 8, 10
     x_values = numpy.random.randn(m, n)
     u_values = numpy.random.randn(m, k)
     v_values = numpy.random.randn(n, k)
@@ -98,7 +98,7 @@ def test_uv_loss(backend, with_bounds_inference):
 @with_interpret
 def test_max_minus_min(interpret):
     (a, b), expr = function(
-        [vector(), vector()],
+        [vector(float), vector(float)],
         lambda a, b: max(lambda i: a[i] * b[i]) - min(lambda i: a[i] * b[i]),
     )
     a_values, b_values = numpy.random.randn(256), numpy.random.randn(256)
@@ -112,9 +112,9 @@ def test_max_minus_min(interpret):
 def test_switches(interpret):
     def sgn_max(a: Array, b: Array) -> Array:
         m = array(lambda i: (a[i] > b[i]).where(a[i], b[i]))
-        return array(lambda i: (m[i] > 0).where(1, (a[i] == b[i]).where(0, -1)))
+        return array(lambda i: (m[i] > 0.0).where(1, (a[i] == b[i]).where(0, -1)))
 
-    (a0, b0), sgn_max_expr = function([vector(), vector()], sgn_max)
+    (a0, b0), sgn_max_expr = function([vector(float), vector(float)], sgn_max)
     a_values, b_values = numpy.random.randn(16), numpy.random.randn(16)
     numpy.testing.assert_allclose(
         interpret(sgn_max_expr, {a0: a_values, b0: b_values}),
@@ -137,7 +137,7 @@ def test_fibonacci_fold(interpret):
             ),
         )
 
-    (n0,), fib_expr = function([Scalar()], fib)
+    (n0,), fib_expr = function([Scalar(int)], fib)
     numpy.testing.assert_allclose(
         interpret(fib_expr, {n0: numpy.array(8)}),
         [0, 1, 1, 2, 3, 5, 8, 13],

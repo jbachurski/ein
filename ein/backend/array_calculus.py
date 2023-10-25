@@ -10,7 +10,7 @@ from ein.symbols import Variable
 
 Expr: TypeAlias = (
     "Const | Var | Dim | Range | Transpose | Squeeze | Unsqueeze | Gather | Repeat | "
-    "Reduce | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold"
+    "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold"
 )
 
 
@@ -182,6 +182,20 @@ class Reduce(AbstractExpr):
     def rank(self) -> int:
         assert 0 <= self.axis <= self.target.rank, "Mismatched reduction axis"
         return self.target.rank - 1
+
+
+@dataclass(frozen=True, eq=False)
+class Cast(AbstractExpr):
+    dtype: numpy.dtype
+    target: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"dtype": self.dtype}, {self.target}
+
+    @cached_property
+    def rank(self) -> int:
+        return self.target.rank
 
 
 @dataclass(frozen=True, eq=False)

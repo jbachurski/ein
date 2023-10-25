@@ -76,6 +76,9 @@ def stage(program: array_calculus.Expr) -> Callable[[Env], numpy.ndarray]:
                 target = go(target_)
                 call = reduce_kind[kind]
                 return lambda env: call(target(env), axis=axis)
+            case array_calculus.Cast(dtype, target_):
+                target = go(target_)
+                return lambda env: target(env).astype(dtype)
             case array_calculus.UnaryElementwise(kind, target_):
                 target = go(target_)
                 call = unary_kind[kind]
