@@ -171,7 +171,7 @@ def resolve_scalar_signature(
                 )
             if sig in type_vars and type_vars[sig] != typ.kind:
                 raise TypeError(
-                    f"{_fail_msg} found conflicting assignments for {sig} at position {i}, got {typ} != {type_vars[sig]}"
+                    f"{_fail_msg} found conflicting assignments for {sig} at position {i}, got {typ.kind} != {type_vars[sig]}"
                 )
             type_vars[sig] = typ.kind
         elif typ.kind != sig:
