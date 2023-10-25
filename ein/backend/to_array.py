@@ -1,3 +1,4 @@
+from functools import cache
 from typing import assert_never
 
 import numpy
@@ -124,3 +125,21 @@ def transform(program: axial_calculus.Expr) -> array_calculus.Expr:
         return transformed[expr]
 
     return go(program, {}).normal
+
+
+def optimize(program: array_calculus.Expr) -> array_calculus.Expr:
+    @cache
+    def go(expr: array_calculus.Expr) -> array_calculus.Expr:
+        match expr:
+            case array_calculus.Transpose(permutation, target):
+                if permutation == tuple(range(len(permutation))):
+                    return go(target)
+            case array_calculus.Unsqueeze(axes, target):
+                if not axes:
+                    return go(target)
+            case array_calculus.Squeeze(axes, target):
+                if not axes:
+                    return go(target)
+        return expr.map(go)
+
+    return go(program)

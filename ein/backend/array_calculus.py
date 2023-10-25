@@ -2,7 +2,7 @@ import abc
 import enum
 from dataclasses import dataclass
 from functools import cached_property, partial
-from typing import Any, TypeAlias
+from typing import Any, Callable, TypeAlias
 
 import numpy
 
@@ -19,6 +19,10 @@ class AbstractExpr(abc.ABC):
     def __post_init__(self):
         assert self.rank >= 0
 
+    @abc.abstractmethod
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        ...
+
     @property
     @abc.abstractmethod
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -34,6 +38,9 @@ class AbstractExpr(abc.ABC):
 class Const(AbstractExpr):
     array: numpy.ndarray
 
+    def map(self, f: Callable[[Expr], Expr]) -> "Const":
+        return self
+
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
         return {"array": self.array}, set()
@@ -47,6 +54,9 @@ class Const(AbstractExpr):
 class Var(AbstractExpr):
     var: Variable
     var_rank: int
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Var":
+        return self
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -62,6 +72,9 @@ class Dim(AbstractExpr):
     axis: int
     target: Expr
 
+    def map(self, f: Callable[[Expr], Expr]) -> "Dim":
+        return Dim(self.axis, f(self.target))
+
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
         return {"axis": self.axis}, {self.target}
@@ -74,6 +87,9 @@ class Dim(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class Range(AbstractExpr):
     size: Expr
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Range":
+        return Range(f(self.size))
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -90,6 +106,9 @@ class Transpose(AbstractExpr):
     permutation: tuple[int, ...]
     target: Expr
 
+    def map(self, f: Callable[[Expr], Expr]) -> "Transpose":
+        return Transpose(self.permutation, f(self.target))
+
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
         return {"axes": self.permutation}, {self.target}
@@ -105,6 +124,9 @@ class Squeeze(AbstractExpr):
     axes: tuple[int, ...]
     target: Expr
 
+    def map(self, f: Callable[[Expr], Expr]) -> "Squeeze":
+        return Squeeze(self.axes, f(self.target))
+
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
         return {"axes": self.axes}, {self.target}
@@ -118,6 +140,9 @@ class Squeeze(AbstractExpr):
 class Unsqueeze(AbstractExpr):
     axes: tuple[int, ...]
     target: Expr
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Unsqueeze":
+        return Unsqueeze(self.axes, f(self.target))
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -133,6 +158,9 @@ class Gather(AbstractExpr):
     axis: int
     target: Expr
     item: Expr
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Gather":
+        return Gather(self.axis, f(self.target), f(self.item))
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -152,6 +180,9 @@ class Repeat(AbstractExpr):
     axis: int
     count: Expr
     target: Expr
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Repeat":
+        return Repeat(self.axis, f(self.count), f(self.target))
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -174,6 +205,9 @@ class Reduce(AbstractExpr):
     axis: int
     target: Expr
 
+    def map(self, f: Callable[[Expr], Expr]) -> "Reduce":
+        return Reduce(self.kind, self.axis, f(self.target))
+
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
         return {"kind": self.kind.name, "axis": self.axis}, {self.target}
@@ -188,6 +222,9 @@ class Reduce(AbstractExpr):
 class Cast(AbstractExpr):
     dtype: numpy.dtype
     target: Expr
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Cast":
+        return Cast(self.dtype, f(self.target))
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -204,6 +241,9 @@ class AbstractElementwise(AbstractExpr):
     @abc.abstractmethod
     def operands(self) -> tuple[Expr, ...]:
         ...
+
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return type(self)(self.kind, *(f(op) for op in self.operands))  # type: ignore
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -274,6 +314,9 @@ class Fold(AbstractExpr):
     init: Expr
     size: Expr
     body: Expr
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Fold":
+        return Fold(self.index, self.acc, f(self.init), f(self.size), f(self.body))
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
