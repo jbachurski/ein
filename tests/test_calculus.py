@@ -89,7 +89,7 @@ def test_matmul(interpret):
             Dim(b, 1),
             Sum(
                 t,
-                Dim(a, 1),  # == Dim(Var(b), 0)
+                Dim(a, 1),  # == Dim(b, 0)
                 Multiply(
                     (
                         Get(Get(a, At(i)), At(t)),

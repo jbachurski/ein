@@ -59,17 +59,26 @@ class AbstractExpr(abc.ABC):
         return set()
 
     @property
+    def _variables(self) -> set[Variable]:
+        return set()
+
+    @property
     def _captured_indices(self) -> set[Index]:
+        return set()
+
+    @property
+    def _captured_variables(self) -> set[Variable]:
         return set()
 
     @cached_property
     def free_indices(self) -> set[Index]:
-        deps = self.dependencies
-        sub_free_indices = (
-            set.union(*(sub.free_indices for sub in deps)) if deps else set()
-        )
-        indices = self._indices | sub_free_indices
-        return indices - self._captured_indices
+        free_indices = set().union(*(sub.free_indices for sub in self.dependencies))
+        return (self._indices | free_indices) - self._captured_indices
+
+    @cached_property
+    def free_variables(self) -> set[Variable]:
+        free_variables = set().union(*(sub.free_variables for sub in self.dependencies))
+        return (self._variables | free_variables) - self._captured_variables
 
     @cached_property
     def direct_indices(self) -> dict[Index, set[Expr]]:
@@ -130,6 +139,10 @@ class Var(AbstractExpr):
     @property
     def dependencies(self) -> set[Expr]:
         return set()
+
+    @property
+    def _variables(self) -> set[Variable]:
+        return {self.var}
 
 
 @dataclass(frozen=True, eq=False)
@@ -234,6 +247,10 @@ class Fold(AbstractVectorization):
                 f"Initial value and accumulator must be of the same type, got {self.init.type} != {self.acc.type}"
             )
         return self.acc.type
+
+    @property
+    def _captured_variables(self) -> set[Variable]:
+        return {self.acc.var}
 
 
 @dataclass(frozen=True, eq=False)

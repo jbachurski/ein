@@ -16,8 +16,9 @@ from ein import (
     vector,
 )
 
+with_backend = pytest.mark.parametrize("backend", ["naive", "numpy"])
 with_interpret = pytest.mark.parametrize(
-    "interpret", [interpret_with_naive, interpret_with_numpy], ids=["base", "numpy"]
+    "interpret", [interpret_with_naive, interpret_with_numpy], ids=["naive", "numpy"]
 )
 
 
@@ -69,11 +70,11 @@ def test_matmul(interpret, with_bounds_inference):
     )
 
 
-@with_interpret
+@with_backend
 @pytest.mark.parametrize(
     "with_bounds_inference", [False, True], ids=["give-sizes", "infer-sizes"]
 )
-def test_uv_loss(interpret, with_bounds_inference):
+def test_uv_loss(backend, with_bounds_inference):
     m, k, n = 16, 8, 12
     x_values = numpy.random.randn(m, n)
     u_values = numpy.random.randn(m, k)
@@ -90,7 +91,7 @@ def test_uv_loss(interpret, with_bounds_inference):
     )
 
     numpy.testing.assert_allclose(
-        interpret(loss.expr, {}), ((x_values - u_values @ v_values.T) ** 2).sum()
+        loss.numpy(backend=backend), ((x_values - u_values @ v_values.T) ** 2).sum()
     )
 
 
@@ -151,4 +152,16 @@ def test_attention():
     numpy.testing.assert_allclose(
         Attention.in_ein_function(interpret_with_numpy, *args),
         Attention.in_numpy(*args),
+    )
+
+
+@with_backend
+def test_inline_interpret(backend):
+    a = numpy.random.randn(20, 30)
+    b = numpy.random.randn(30)
+    numpy.testing.assert_allclose(
+        array(lambda i: sum(lambda j: Array(a)[i, j] * Array(b)[j])).numpy(
+            backend=backend
+        ),
+        a @ b,
     )

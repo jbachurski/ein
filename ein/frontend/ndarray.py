@@ -4,7 +4,9 @@ import numpy
 import numpy.typing
 
 from ein import calculus
+from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
 from ein.calculus import AbstractExpr, Expr, Value
+from ein.symbols import Variable
 
 ArrayLike: TypeAlias = Expr | numpy.typing.ArrayLike | "Array"
 ArrayItem: TypeAlias = ArrayLike
@@ -27,6 +29,19 @@ class Array:
             ), array.dtype
             expr = calculus.Const(Value(array))
         self.expr = expr
+
+    def numpy(
+        self,
+        *,
+        env: dict[Variable, numpy.ndarray] | None = None,
+        backend: Backend = DEFAULT_BACKEND,
+    ) -> numpy.ndarray:
+        env = env if env is not None else {}
+        if not self.expr.free_variables <= set(env):
+            raise ValueError(
+                f"Cannot evaluate array, as it depends on free variables: {self.expr.free_variables}"
+            )
+        return BACKENDS[backend](self.expr, env)
 
     def __getitem__(self, item_like: ArrayItem | tuple[ArrayItem, ...]) -> "Array":
         item: tuple[ArrayItem, ...] = (
