@@ -23,6 +23,7 @@ unary_kind = {
 binary_kind = {
     array_calculus.BinaryElementwise.Kind.add: numpy.add,
     array_calculus.BinaryElementwise.Kind.multiply: numpy.multiply,
+    array_calculus.BinaryElementwise.Kind.mod: numpy.mod,
     array_calculus.BinaryElementwise.Kind.less: numpy.less,
     array_calculus.BinaryElementwise.Kind.logical_and: numpy.logical_and,
 }

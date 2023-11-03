@@ -88,6 +88,9 @@ class Array:
     def __rtruediv__(self, other: ArrayLike) -> "Array":
         return Array(other) / self
 
+    def __mod__(self, other: ArrayLike) -> "Array":
+        return Array(calculus.Modulo((self.expr, Array(other).expr)))
+
     def __invert__(self) -> "Array":
         return Array(calculus.LogicalNot((self.expr,)))
 
@@ -108,14 +111,14 @@ class Array:
         return ~(self != other)
 
     def __gt__(self, other: ArrayLike) -> "Array":
-        return Array(other) < self
+        return Array(other).__lt__(self)
 
     def __le__(self, other: ArrayLike) -> "Array":
         other_ = Array(other)
         return (self < other_) | (self == other_)
 
     def __ge__(self, other: ArrayLike) -> "Array":
-        return Array(other) <= self
+        return Array(other).__le__(self)
 
     def where(self, true: ArrayLike, false: ArrayLike) -> "Array":
         return Array(calculus.Where((self.expr, Array(true).expr, Array(false).expr)))

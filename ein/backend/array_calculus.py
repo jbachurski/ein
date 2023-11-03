@@ -280,6 +280,7 @@ class BinaryElementwise(AbstractElementwise):
     class Kind(enum.Enum):
         add = enum.auto()
         multiply = enum.auto()
+        mod = enum.auto()
         less = enum.auto()
         logical_and = enum.auto()
 
@@ -343,6 +344,7 @@ ELEMENTWISE: dict[Any, Any] = {
     numpy.logical_not: partial(UnaryElementwise, UnaryElementwise.Kind.logical_not),
     numpy.add: partial(BinaryElementwise, BinaryElementwise.Kind.add),
     numpy.multiply: partial(BinaryElementwise, BinaryElementwise.Kind.multiply),
+    numpy.mod: partial(BinaryElementwise, BinaryElementwise.Kind.mod),
     numpy.less: partial(BinaryElementwise, BinaryElementwise.Kind.less),
     numpy.logical_and: partial(BinaryElementwise, BinaryElementwise.Kind.logical_and),
     numpy.where: partial(TernaryElementwise, TernaryElementwise.Kind.where),

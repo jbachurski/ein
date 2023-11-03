@@ -290,8 +290,8 @@ class Maximum(AbstractScalarReduction):
 
 @dataclass(frozen=True, eq=False)
 class AbstractScalarOperator(AbstractExpr, abc.ABC):
-    operands: tuple[Expr, ...]
     ufunc: ClassVar[numpy.ufunc]
+    operands: tuple[Expr, ...]
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -355,6 +355,11 @@ class Add(AbstractBinaryScalarOperator):
 @dataclass(frozen=True, eq=False)
 class Multiply(AbstractBinaryScalarOperator):
     ufunc = numpy.multiply
+
+
+@dataclass(frozen=True, eq=False)
+class Modulo(AbstractBinaryScalarOperator):
+    ufunc = numpy.mod
 
 
 @dataclass(frozen=True, eq=False)

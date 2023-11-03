@@ -199,6 +199,7 @@ UFUNC_SIGNATURES: dict[
     numpy.logical_not: (((bool,), bool), {}),
     numpy.add: ((("T", "T"), "T"), {"T": number}),
     numpy.multiply: ((("T", "T"), "T"), {"T": number}),
+    numpy.mod: (((int, int), int), {}),
     numpy.less: ((("T", "T"), bool), {"T": number}),
     numpy.logical_and: (((bool, bool), bool), {}),
     numpy.where: (((bool, "T", "T"), "T"), {}),
