@@ -173,8 +173,11 @@ def _primes(n) -> list[bool]:
 def test_trial_division_primes(interpret):
     def trial_division(n: Array) -> Array:
         return array[n](
-            lambda i: (i > 1)
-            & fold[n](True, lambda d, acc: (acc & ~((i % d == 0) & (1 < d) & (d < i))))
+            lambda i: (
+                fold[n](
+                    i > 1, lambda d, acc: (acc & ~((i % d == 0) & (1 < d) & (d < i)))
+                )
+            )
         )
 
     (n0,), expr = function([Scalar(int)], trial_division)
