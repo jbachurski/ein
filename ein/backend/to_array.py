@@ -52,10 +52,19 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                     expr.type.primitive_type.single.kind,
                 )
             case calculus.Fold(index, size_, body_, init_, acc):
-                init = go(init_, index_sizes, index_vars)
                 size = go(size_, index_sizes, index_vars)
+                assert (
+                    not size.type.free_indices
+                ), "Cannot compile fold with vector-index-dependent size"
+                init = go(init_, index_sizes, index_vars)
+                assert (
+                    not init.type.free_indices
+                ), "Cannot compile axial fold initialiser (with free indices)"
                 index_var = Variable()
                 body = go(body_, index_sizes, index_vars | {index: index_var})
+                assert (
+                    not init.type.free_indices
+                ), "Cannot compile axial fold body (with free indices)"
                 return Axial.of_normal(
                     array_calculus.Fold(
                         index_var, acc.var, init.normal, size.normal, body.normal
@@ -80,6 +89,9 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                 )
             case calculus.Vec(index, size_, target_):
                 size = go(size_, index_sizes, index_vars)
+                assert (
+                    not size.type.free_indices
+                ), "Cannot compile index comprehension with vector-index-dependent size"
                 target = go(target_, index_sizes | {index: size.normal}, index_vars)
                 if index in target.axes:
                     return Axial(
