@@ -6,7 +6,7 @@ import numpy
 from ein import calculus
 from ein.symbols import Variable
 
-from . import array_calculus, to_array, to_axial
+from . import array_calculus, to_array
 
 Env: TypeAlias = dict[Variable, numpy.ndarray]
 
@@ -98,4 +98,4 @@ def stage(program: array_calculus.Expr) -> Callable[[Env], numpy.ndarray]:
 def interpret(
     program: calculus.Expr, env: dict[Variable, numpy.ndarray]
 ) -> numpy.ndarray:
-    return stage(to_array.transform(to_axial.transform(program)))(env)
+    return stage(to_array.transform(program))(env)

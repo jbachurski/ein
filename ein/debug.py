@@ -54,11 +54,10 @@ def graph(program):
 
 def transform_graphs(
     program: calculus.Expr, optimize: bool = False
-) -> "tuple[pydot.Dot, pydot.Dot, pydot.Dot]":
-    from backend import to_array, to_axial
+) -> "tuple[pydot.Dot, pydot.Dot]":
+    from backend import to_array
 
-    axial_program = to_axial.transform(program)
-    array_program = to_array.transform(axial_program)
+    array_program = to_array.transform(program)
     if optimize:
         array_program = to_array.optimize(array_program)
-    return graph(program), graph(axial_program), graph(array_program)
+    return graph(program), graph(array_program)
