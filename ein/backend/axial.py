@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Iterable, ParamSpec, TypeAlias, cast
 
-from ein.symbols import Index
+from ein.symbols import Index, Variable
 from ein.type_system import PrimitiveArrayType, ScalarKind
 
 from . import array_calculus
@@ -43,10 +43,6 @@ class Axial:
             free_indices,
         )
 
-    @staticmethod
-    def of_normal(array: array_calculus.Expr, kind: ScalarKind):
-        return Axial(reversed(range(array.rank)), array, kind)
-
     @property
     def normal(self) -> array_calculus.Expr:
         assert not self.type.free_indices
@@ -57,6 +53,9 @@ class Axial:
             # Axes are numbered in reverse order
             inv[rank - p - 1] = i
         return array_calculus.Transpose(tuple(cast(list[int], inv)), self.array)
+
+    def within(self, *args: tuple[Variable, array_calculus.Expr]) -> "Axial":
+        return Axial(self.axes, array_calculus.Let(args, self.array), self.kind)
 
 
 # TODO: This is a silly baseline alignment algorithm.

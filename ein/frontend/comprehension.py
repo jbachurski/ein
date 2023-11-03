@@ -1,7 +1,7 @@
 import abc
 import inspect
 from dataclasses import dataclass
-from typing import Callable, Iterable, Self, TypeVar, assert_never
+from typing import Callable, Iterable, Self, TypeVar
 
 from ein import calculus
 from ein.calculus import Expr, Index, Var, Variable
@@ -45,15 +45,6 @@ class BaseComprehension(abc.ABC):
                 yield expr.size
             case calculus.Const() | calculus.Var() | calculus.Fold():
                 yield calculus.Dim(expr, 0)
-            case (
-                calculus.At()
-                | calculus.Dim()
-                | calculus.AbstractScalarReduction()
-                | calculus.AbstractScalarOperator()
-            ):
-                assert False, f"Cannot take size of scalar {expr}"
-            case _:
-                assert_never(expr)
 
     def _get_sized(self, body: Expr, indices: tuple[Index, ...]) -> dict[Index, Expr]:
         if self.sizes is None:

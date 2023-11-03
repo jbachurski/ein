@@ -40,6 +40,11 @@ def stage(program: array_calculus.Expr) -> Callable[[Env], numpy.ndarray]:
                 return lambda env: array
             case array_calculus.Var(var, _var_rank):
                 return lambda env: env[var]
+            case array_calculus.Let(bindings, body_):
+                body = go(body_)
+                return lambda env: body(
+                    env | {bound: go(binding)(env) for bound, binding in bindings}
+                )
             case array_calculus.Dim(axis, target_):
                 target = go(target_)
                 return lambda env: target(env).shape[axis]

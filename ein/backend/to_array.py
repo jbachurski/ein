@@ -18,10 +18,12 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
         expr: calculus.Expr,
         index_sizes: dict[Index, array_calculus.Expr],
         index_vars: dict[Index, Variable],
+        var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
         match expr:
             case calculus.Const(value):
-                return Axial.of_normal(
+                return Axial(
+                    reversed(range(value.array.ndim)),
                     array_calculus.Const(value.array),
                     expr.type.primitive_type.single.kind,
                 )
@@ -39,12 +41,25 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                         expr.type.primitive_type.single.kind,
                     )
             case calculus.Var(var, var_type):
-                return Axial.of_normal(
-                    array_calculus.Var(var, var_type.primitive_type.single.rank),
+                rank = var_type.primitive_type.single.rank
+                return Axial(
+                    var_axes.get(var, reversed(range(rank))),
+                    array_calculus.Var(var, rank),
                     expr.type.primitive_type.single.kind,
                 )
+            case calculus.Let(bindings_, body_):
+                bindings = tuple(
+                    (var, go(binding, index_sizes, index_vars, var_axes))
+                    for var, binding in bindings_
+                )
+                return go(
+                    body_,
+                    index_sizes,
+                    index_vars,
+                    var_axes | {var: binding.axes for var, binding in bindings},
+                ).within(*((var, binding.normal) for var, binding in bindings))
             case calculus.Dim(target_, pos):
-                target = go(target_, index_sizes, index_vars)
+                target = go(target_, index_sizes, index_vars, var_axes)
                 pos = target.type.array_type.rank - pos - 1
                 return Axial(
                     [],
@@ -52,29 +67,30 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                     expr.type.primitive_type.single.kind,
                 )
             case calculus.Fold(index, size_, body_, init_, acc):
-                size = go(size_, index_sizes, index_vars)
+                size = go(size_, index_sizes, index_vars, var_axes)
                 assert (
                     not size.type.free_indices
                 ), "Cannot compile fold with vector-index-dependent size"
-                init = go(init_, index_sizes, index_vars)
+                init = go(init_, index_sizes, index_vars, var_axes)
                 assert (
                     not init.type.free_indices
                 ), "Cannot compile axial fold initialiser (with free indices)"
                 index_var = Variable()
-                body = go(body_, index_sizes, index_vars | {index: index_var})
+                body = go(body_, index_sizes, index_vars | {index: index_var}, var_axes)
                 assert (
                     not init.type.free_indices
                 ), "Cannot compile axial fold body (with free indices)"
-                return Axial.of_normal(
+                # FIXME: Allow compiling folds with free indices.
+                return Axial(
+                    reversed(range(expr.type.primitive_type.single.rank)),
                     array_calculus.Fold(
                         index_var, acc.var, init.normal, size.normal, body.normal
                     ),
                     expr.type.primitive_type.single.kind,
                 )
             case calculus.Get(target_, item_):
-                target, item = go(target_, index_sizes, index_vars), go(
-                    item_, index_sizes, index_vars
-                )
+                target = go(target_, index_sizes, index_vars, var_axes)
+                item = go(item_, index_sizes, index_vars, var_axes)
                 used_axes = axial.alignment(target.axes, item.axes)
                 k = used_axes.index(target.type.array_type.rank - 1)
                 result = array_calculus.Gather(
@@ -88,11 +104,13 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                     expr.type.primitive_type.single.kind,
                 )
             case calculus.Vec(index, size_, target_):
-                size = go(size_, index_sizes, index_vars)
+                size = go(size_, index_sizes, index_vars, var_axes)
                 assert (
                     not size.type.free_indices
                 ), "Cannot compile index comprehension with vector-index-dependent size"
-                target = go(target_, index_sizes | {index: size.normal}, index_vars)
+                target = go(
+                    target_, index_sizes | {index: size.normal}, index_vars, var_axes
+                )
                 if index in target.axes:
                     return Axial(
                         (
@@ -111,8 +129,10 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                         expr.type.primitive_type.single.kind,
                     )
             case calculus.AbstractScalarReduction(index, size_, target_):
-                size = go(size_, index_sizes, index_vars)
-                target = go(target_, index_sizes | {index: size.normal}, index_vars)
+                size = go(size_, index_sizes, index_vars, var_axes)
+                target = go(
+                    target_, index_sizes | {index: size.normal}, index_vars, var_axes
+                )
                 # FIXME: target might not depend on the reduction index, though this is a rather degenerate corner case.
                 #  This manifests with a failing `axes.index`.
                 return Axial(
@@ -123,7 +143,7 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                     expr.type.primitive_type.single.kind,
                 )
             case calculus.AbstractScalarOperator(operands):
-                ops = [go(op, index_sizes, index_vars) for op in operands]
+                ops = [go(op, index_sizes, index_vars, var_axes) for op in operands]
                 used_axes = axial.alignment(*(op.axes for op in ops))
                 if expr.ufunc == to_float:
                     (target,) = ops
@@ -147,12 +167,15 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
         expr: calculus.Expr,
         index_sizes: dict[Index, array_calculus.Expr],
         index_vars: dict[Index, Variable],
+        var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
         if expr not in transformed:
-            transformed[expr] = _go(expr, index_sizes, index_vars)
+            transformed[expr] = _go(expr, index_sizes, index_vars, var_axes)
         return transformed[expr]
 
-    return go(program, {}, {}).normal
+    # FIXME: Let-bound variables get different treatment here than free variables.
+    #  Free variables are always assumed to depend on no indices (empty free-index set).
+    return go(program, {}, {}, {}).normal
 
 
 def optimize(program: array_calculus.Expr) -> array_calculus.Expr:

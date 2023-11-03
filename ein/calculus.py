@@ -22,7 +22,7 @@ class Value:
 
 
 Expr: TypeAlias = (
-    "Const | At | Var | Dim | Get | Vec | Fold | Sum | Maximum | "
+    "Const | At | Var | Let | Dim | Get | Vec | Fold | Sum | Maximum | "
     "Negate | Reciprocal | Exp | LogicalNot | CastToFloat | Add | Multiply | Less | LogicalAnd | Where"
 )
 
@@ -144,6 +144,28 @@ class Var(AbstractExpr):
     @property
     def _variables(self) -> set[Variable]:
         return {self.var}
+
+
+@dataclass(frozen=True, eq=False)
+class Let(AbstractExpr):
+    bindings: tuple[tuple[Variable, Expr], ...]
+    body: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"vars": [var for var, _ in self.bindings]}, self.dependencies
+
+    @cached_property
+    def type(self) -> Type:
+        return self.body.type
+
+    @property
+    def dependencies(self) -> set[Expr]:
+        return {expr for _, expr in self.bindings} | {self.body}
+
+    @property
+    def _variables(self) -> set[Variable]:
+        return {var for var, _ in self.bindings}
 
 
 @dataclass(frozen=True, eq=False)

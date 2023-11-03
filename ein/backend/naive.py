@@ -53,6 +53,9 @@ def _interpret(expr: Expr, env: dict[Variable, Value], idx: dict[Index, int]) ->
             return env[var]
         case calculus.Dim(operand, axis):
             return Value(_interpret(operand, env, idx).array.shape[axis])
+        case calculus.Let(bindings, body):
+            to_env = {var: _interpret(binding, env, idx) for var, binding in bindings}
+            return _interpret(body, env | to_env, idx)
         case calculus.AbstractScalarOperator(operands):
             return Value(
                 expr.ufunc(

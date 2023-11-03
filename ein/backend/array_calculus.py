@@ -9,7 +9,7 @@ import numpy
 from ein.symbols import Variable
 
 Expr: TypeAlias = (
-    "Const | Var | Dim | Range | Transpose | Squeeze | Unsqueeze | Gather | Repeat | "
+    "Const | Var | Let | Dim | Range | Transpose | Squeeze | Unsqueeze | Gather | Repeat | "
     "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold"
 )
 
@@ -65,6 +65,27 @@ class Var(AbstractExpr):
     @property
     def rank(self) -> int:
         return self.var_rank
+
+
+@dataclass(frozen=True, eq=False)
+class Let(AbstractExpr):
+    bindings: tuple[tuple[Variable, Expr], ...]
+    body: Expr
+
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return Let(
+            tuple((var, f(binding)) for var, binding in self.bindings), f(self.body)
+        )
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"vars": [var for var, _ in self.bindings]}, {
+            binding for _, binding in self.bindings
+        } | {self.body}
+
+    @cached_property
+    def rank(self) -> int:
+        return self.body.rank
 
 
 @dataclass(frozen=True, eq=False)

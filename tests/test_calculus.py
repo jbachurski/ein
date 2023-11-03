@@ -11,6 +11,7 @@ from ein.calculus import (
     Get,
     Index,
     Less,
+    Let,
     LogicalAnd,
     LogicalNot,
     Multiply,
@@ -25,7 +26,7 @@ from ein.calculus import (
 )
 
 with_interpret = pytest.mark.parametrize(
-    "interpret", [interpret_with_naive, interpret_with_numpy], ids=["base", "numpy"]
+    "interpret", [interpret_with_naive, interpret_with_numpy], ids=["naive", "numpy"]
 )
 
 
@@ -64,6 +65,19 @@ def test_basic_variables(interpret):
     numpy.testing.assert_allclose(
         interpret(x_minus_y, {x0: numpy.array(4.0), y0: numpy.array(3.0)}),
         1,
+    )
+
+
+@with_interpret
+def test_basic_let_bindings(interpret):
+    a0, b0, x0, y0, z0, w0 = (Variable() for _ in range(6))
+    a, b, x, y, z, w = (Var(v, Scalar(float)) for v in (a0, b0, x0, y0, z0, w0))
+    az = Let(((z0, a),), z)
+    bw = Let(((w0, b),), w)
+    expr = Let(((x0, Add((az, bw))),), Let(((y0, Multiply((x, b))),), Add((x, y))))
+    numpy.testing.assert_allclose(
+        interpret(expr, {a0: numpy.array(4.0), b0: numpy.array(3.0)}),
+        (4 + 3) + ((4 + 3) * 3),
     )
 
 
