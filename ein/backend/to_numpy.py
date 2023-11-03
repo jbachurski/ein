@@ -1,6 +1,5 @@
-from dataclasses import dataclass
 from functools import cache
-from typing import Callable, TypeAlias, assert_never, cast
+from typing import Callable, TypeAlias, assert_never
 
 import numpy
 
@@ -30,17 +29,6 @@ binary_kind = {
 ternary_kind = {
     array_calculus.TernaryElementwise.Kind.where: numpy.where,
 }
-
-
-@dataclass
-class Cell:
-    f: Callable[[Env], numpy.ndarray]
-    _last: tuple[Env, numpy.ndarray] | None = None
-
-    def __call__(self, env: Env) -> numpy.ndarray:
-        if self._last is None or self._last[0] is not env:
-            self._last = (env, self.f(env))
-        return cast(numpy.ndarray, self._last[1])
 
 
 def stage(program: array_calculus.Expr) -> Callable[[Env], numpy.ndarray]:
