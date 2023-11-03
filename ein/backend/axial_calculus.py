@@ -1,7 +1,7 @@
 import abc
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Iterable, ParamSpec, TypeAlias, cast
+from typing import Any, TypeAlias
 
 import numpy
 
@@ -10,94 +10,10 @@ from ein.type_system import (
     UFUNC_SIGNATURES,
     PrimitiveArrayType,
     Scalar,
-    ScalarKind,
     resolve_scalar_signature,
 )
 
-from . import array_calculus
-
-
-@dataclass(frozen=True)
-class AxialType:
-    array_type: PrimitiveArrayType
-    free_indices: set[Index]
-
-    @property
-    def pretty(self) -> str:
-        return f"{sorted(self.free_indices, key=lambda x: int(str(x)[1:]))}:{self.array_type.pretty}"
-
-
-P = ParamSpec("P")
-Axis: TypeAlias = Index | int
-Axes: TypeAlias = tuple[Axis, ...]
-
-
-@dataclass
-class Env:
-    var: dict[Variable, array_calculus.Expr]
-    idx: dict[Index, int]
-
-    def copy(self) -> "Env":
-        return Env(self.var.copy(), self.idx.copy())
-
-
-class Axial:
-    axes: Axes
-    array: array_calculus.Expr
-    kind: ScalarKind
-
-    def __init__(
-        self, axes: Iterable[Axis], array: array_calculus.Expr, kind: ScalarKind
-    ):
-        self.axes = tuple(axes)
-        self.array = array
-        self.kind = kind
-        assert len(self.axes) == self.array.rank
-
-    @property
-    def type(self) -> AxialType:
-        free_indices = {index for index in self.axes if isinstance(index, Index)}
-        return AxialType(
-            PrimitiveArrayType(rank=len(self.axes) - len(free_indices), kind=self.kind),
-            free_indices,
-        )
-
-    @staticmethod
-    def of_normal(array: array_calculus.Expr, kind: ScalarKind):
-        return Axial(reversed(range(array.rank)), array, kind)
-
-    @property
-    def normal(self) -> array_calculus.Expr:
-        assert not self.type.free_indices
-        rank = self.type.array_type.rank
-        inv: list[int | None] = [None for _ in range(rank)]
-        for i, p in enumerate(self.axes):
-            assert isinstance(p, int)
-            # Axes are numbered in reverse order
-            inv[rank - p - 1] = i
-        return array_calculus.Transpose(tuple(cast(list[int], inv)), self.array)
-
-
-# TODO: This is a silly baseline alignment algorithm.
-def alignment(*args: Axes) -> Axes:
-    seen = []
-    for axes in args:
-        for axis in axes:
-            if axis not in seen:
-                seen.append(axis)
-    return tuple(seen)
-
-
-def align(target: Axial, into_axes: Axes) -> array_calculus.Expr:
-    transposition = tuple(
-        target.axes.index(axis) for axis in sorted(target.axes, key=into_axes.index)
-    )
-    expands = tuple(i for i, axis in enumerate(into_axes) if axis not in target.axes)
-    array = target.array
-    array = array_calculus.Transpose(transposition, array)
-    array = array_calculus.Unsqueeze(expands, array)
-    return array
-
+from .axial import AxialType
 
 Expr: TypeAlias = (
     "Const | Range | Var | At | Dim | Fold | Gather | Vector | Reduce | Elementwise"

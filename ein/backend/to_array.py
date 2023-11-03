@@ -6,8 +6,8 @@ import numpy
 from ein.symbols import Index, Variable
 from ein.type_system import to_float
 
-from . import array_calculus, axial_calculus
-from .axial_calculus import Axial
+from . import array_calculus, axial, axial_calculus
+from .axial import Axial
 
 
 def transform(program: axial_calculus.Expr) -> array_calculus.Expr:
@@ -54,12 +54,12 @@ def transform(program: axial_calculus.Expr) -> array_calculus.Expr:
                 )
             case axial_calculus.Gather(target_, item_):
                 target, item = go(target_, index_vars), go(item_, index_vars)
-                used_axes = axial_calculus.alignment(target.axes, item.axes)
+                used_axes = axial.alignment(target.axes, item.axes)
                 k = used_axes.index(target.type.array_type.rank - 1)
                 result = array_calculus.Gather(
                     k,
-                    axial_calculus.align(target, used_axes),
-                    axial_calculus.align(item, used_axes),
+                    axial.align(target, used_axes),
+                    axial.align(item, used_axes),
                 )
                 return Axial(
                     used_axes[:k] + used_axes[k + 1 :],
@@ -69,6 +69,14 @@ def transform(program: axial_calculus.Expr) -> array_calculus.Expr:
             case axial_calculus.Vector(index, size_, target_):
                 size, target = go(size_, index_vars), go(target_, index_vars)
                 if index in target.axes:
+                    print(
+                        target.axes,
+                        target.type,
+                        [
+                            target.type.array_type.rank if axis == index else axis
+                            for axis in target.axes
+                        ],
+                    )
                     return Axial(
                         (
                             target.type.array_type.rank if axis == index else axis
@@ -98,7 +106,7 @@ def transform(program: axial_calculus.Expr) -> array_calculus.Expr:
                 )
             case axial_calculus.Elementwise(ufunc, operands):
                 ops = [go(op, index_vars) for op in operands]
-                used_axes = axial_calculus.alignment(*(op.axes for op in ops))
+                used_axes = axial.alignment(*(op.axes for op in ops))
                 if ufunc == to_float:
                     (target,) = ops
                     return Axial(
@@ -110,16 +118,14 @@ def transform(program: axial_calculus.Expr) -> array_calculus.Expr:
                     return Axial(
                         used_axes,
                         array_calculus.ELEMENTWISE[ufunc](
-                            *(axial_calculus.align(op, used_axes) for op in ops)
+                            *(axial.align(op, used_axes) for op in ops)
                         ),
                         expr.type.array_type.kind,
                     )
             case _:
                 assert_never(expr)
 
-    def go(
-        expr: axial_calculus.Expr, index_vars: dict[Index, Variable]
-    ) -> axial_calculus.Axial:
+    def go(expr: axial_calculus.Expr, index_vars: dict[Index, Variable]) -> Axial:
         if expr not in transformed:
             transformed[expr] = _go(expr, index_vars)
         return transformed[expr]
