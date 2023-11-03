@@ -42,9 +42,10 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                     )
             case calculus.Var(var, var_type):
                 rank = var_type.primitive_type.single.rank
+                axes = var_axes.get(var, list(reversed(range(rank))))
                 return Axial(
-                    var_axes.get(var, reversed(range(rank))),
-                    array_calculus.Var(var, rank),
+                    axes,
+                    array_calculus.Var(var, len(axes)),
                     expr.type.primitive_type.single.kind,
                 )
             case calculus.Let(bindings_, body_):
@@ -72,19 +73,33 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                     not size.type.free_indices
                 ), "Cannot compile fold with vector-index-dependent size"
                 init = go(init_, index_sizes, index_vars, var_axes)
-                assert (
-                    not init.type.free_indices
-                ), "Cannot compile axial fold initialiser (with free indices)"
                 index_var = Variable()
-                body = go(body_, index_sizes, index_vars | {index: index_var}, var_axes)
-                assert (
-                    not init.type.free_indices
-                ), "Cannot compile axial fold body (with free indices)"
-                # FIXME: Allow compiling folds with free indices.
+                # FIXME: We need to establish an alignment that includes free indices from both init and body.
+                #  Doing this by constructing the body twice is a really bad idea.
+                #  But just using body.free_indices isn't deterministic enough.
+                pre_transformed = transformed.copy()
+                acc_axes = go(
+                    body_,
+                    index_sizes,
+                    index_vars | {index: index_var},
+                    var_axes | {acc.var: init.axes},
+                ).axes
+                transformed.clear()
+                transformed.update(pre_transformed)
+                body = go(
+                    body_,
+                    index_sizes,
+                    index_vars | {index: index_var},
+                    var_axes | {acc.var: acc_axes},
+                )
                 return Axial(
-                    reversed(range(expr.type.primitive_type.single.rank)),
+                    acc_axes,
                     array_calculus.Fold(
-                        index_var, acc.var, init.normal, size.normal, body.normal
+                        index_var,
+                        acc.var,
+                        axial.align(init, acc_axes),
+                        size.normal,
+                        axial.align(body, acc_axes),
                     ),
                     expr.type.primitive_type.single.kind,
                 )
