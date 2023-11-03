@@ -163,3 +163,44 @@ def test_inline_interpret(backend):
         array(lambda i: sum(lambda j: a[i, j] * b[j])).numpy(backend=backend),
         a.numpy(backend=backend) @ b.numpy(backend=backend),
     )
+
+
+@with_interpret
+@pytest.mark.xfail(reason="Cannot compile axial folds yet")
+def test_trial_division_primes(interpret):
+    def trial_division(n: Array) -> Array:
+        return array[n](
+            lambda i: (i > 1)
+            & fold[n](False, lambda d, acc: (acc & (i % d == 0) & (1 < d) & (d < n)))
+        )
+
+    (n0,), expr = function([Scalar(int)], trial_division)
+    N = 30
+    numpy.testing.assert_allclose(
+        interpret(expr, {n0: numpy.array(N)}),
+        [
+            i > 1 and all(1 < d < N and i % d == 0 for d in range(1, N))
+            for i in range(N)
+        ],
+    )
+
+
+@with_interpret
+def test_sieve_primes(interpret):
+    def sieve(n: Array) -> Array:
+        return fold[n](
+            array[n](lambda i: False),
+            lambda d, siv: array[n](
+                lambda i: (siv[d] & ~((d >= i * i) & (i % d == 0)))
+            ),
+        )
+
+    (n0,), expr = function([Scalar(int)], sieve)
+    N = 30
+    numpy.testing.assert_allclose(
+        interpret(expr, {n0: numpy.array(N)}),
+        [
+            i > 1 and all(1 < d < N and i % d == 0 for d in range(1, N))
+            for i in range(N)
+        ],
+    )
