@@ -7,9 +7,15 @@ from typing import Any, ClassVar, TypeAlias
 import numpy
 
 from ein.symbols import Index, Variable
-from ein.type_system import UFUNC_SIGNATURES, Scalar, Type, Vector
-from ein.type_system import ndarray as ndarray_type
-from ein.type_system import number, resolve_scalar_signature, to_float
+from ein.type_system import (
+    UFUNC_SIGNATURES,
+    Scalar,
+    Type,
+    Vector,
+    ndarray,
+    resolve_scalar_signature,
+    to_float,
+)
 
 
 @dataclass(frozen=True, eq=False)
@@ -18,11 +24,11 @@ class Value:
 
     @property
     def type(self) -> Type:
-        return ndarray_type(self.array.ndim, Scalar.from_dtype(self.array.dtype).kind)
+        return ndarray(self.array.ndim, Scalar.from_dtype(self.array.dtype).kind)
 
 
 Expr: TypeAlias = (
-    "Const | At | Var | Let | Dim | Get | Vec | Fold | Sum | Maximum | "
+    "Const | At | Var | Let | Dim | Get | Vec | Fold | "
     "Negate | Reciprocal | Exp | LogicalNot | CastToFloat | Add | Multiply | Less | LogicalAnd | Where"
 )
 
@@ -278,36 +284,6 @@ class Fold(AbstractVectorization):
     @property
     def _captured_variables(self) -> set[Variable]:
         return {self.acc.var}
-
-
-@dataclass(frozen=True, eq=False)
-class AbstractScalarReduction(AbstractVectorization):
-    ufunc: ClassVar[numpy.ufunc]
-
-    @property
-    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"index": self.index, "ufunc": self.ufunc}, {self.size, self.body}
-
-    @cached_property
-    def type(self) -> Type:
-        self._validate_size()
-        if not isinstance(self.body.type, Scalar):
-            raise TypeError(f"Can only reduce over scalars, not {self.body.type}")
-        if self.body.type.kind not in number:
-            raise TypeError(
-                f"Can only reduce over numeric scalars, not {self.body.type}"
-            )
-        return self.body.type
-
-
-@dataclass(frozen=True, eq=False)
-class Sum(AbstractScalarReduction):
-    ufunc = numpy.add
-
-
-@dataclass(frozen=True, eq=False)
-class Maximum(AbstractScalarReduction):
-    ufunc = numpy.maximum
 
 
 @dataclass(frozen=True, eq=False)

@@ -143,20 +143,6 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                         ),
                         expr.type.primitive_type.single.kind,
                     )
-            case calculus.AbstractScalarReduction(index, size_, target_):
-                size = go(size_, index_sizes, index_vars, var_axes)
-                target = go(
-                    target_, index_sizes | {index: size.normal}, index_vars, var_axes
-                )
-                # FIXME: target might not depend on the reduction index, though this is a rather degenerate corner case.
-                #  This manifests with a failing `axes.index`.
-                return Axial(
-                    (axis for axis in target.axes if axis != index),
-                    array_calculus.REDUCE[expr.ufunc](
-                        target.axes.index(index), target.array
-                    ),
-                    expr.type.primitive_type.single.kind,
-                )
             case calculus.AbstractScalarOperator(operands):
                 ops = [go(op, index_sizes, index_vars, var_axes) for op in operands]
                 used_axes = axial.alignment(*(op.axes for op in ops))

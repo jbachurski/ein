@@ -7,6 +7,7 @@ from ein.calculus import (
     At,
     Const,
     Dim,
+    Expr,
     Fold,
     Get,
     Index,
@@ -17,7 +18,6 @@ from ein.calculus import (
     Multiply,
     Negate,
     Reciprocal,
-    Sum,
     Value,
     Var,
     Variable,
@@ -28,6 +28,15 @@ from ein.calculus import (
 with_interpret = pytest.mark.parametrize(
     "interpret", [interpret_with_naive, interpret_with_numpy], ids=["naive", "numpy"]
 )
+
+
+def fold_sum(index: Index, size: Expr, body: Expr):
+    if not isinstance(body.type, Scalar):
+        raise TypeError("Can only sum over scalars")
+    dtype = body.type.kind
+    init = Const(Value(numpy.array(0, dtype=dtype)))
+    acc = Var(Variable(), Scalar(dtype))
+    return Fold(index, size, Add((acc, body)), init, acc)
 
 
 @with_interpret
@@ -86,7 +95,7 @@ def test_basic_reduction_and_get(interpret):
     n = 5
     i = Index()
     a = Const(Value(numpy.arange(n)))
-    the_sum = Sum(i, Const(Value(numpy.array(n))), Get(a, At(i)))
+    the_sum = fold_sum(i, Const(Value(numpy.array(n))), Get(a, At(i)))
     numpy.testing.assert_allclose(interpret(the_sum, {}), numpy.arange(n).sum())
 
 
@@ -101,7 +110,7 @@ def test_matmul(interpret):
         Vec(
             j,
             Dim(b, 1),
-            Sum(
+            fold_sum(
                 t,
                 Dim(a, 1),  # == Dim(b, 0)
                 Multiply(

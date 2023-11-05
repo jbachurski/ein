@@ -27,16 +27,6 @@ def _interpret(expr: Expr, env: dict[Variable, Value], idx: dict[Index, int]) ->
             for i in range(evaluated_size):
                 env[acc.var] = _interpret(body, env, idx | {index: i})
             return env.pop(acc.var)
-        case calculus.AbstractScalarReduction(index, size, body):
-            evaluated_size = int(_interpret(size, env, idx).array)
-            return Value(
-                expr.ufunc.reduce(
-                    [
-                        _interpret(body, env, idx | {index: i}).array
-                        for i in range(evaluated_size)
-                    ]
-                )
-            )
         case calculus.Get(target, item):
             return Value(
                 numpy.take(
