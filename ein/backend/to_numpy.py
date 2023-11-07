@@ -1,5 +1,5 @@
 from functools import cache
-from typing import Callable, TypeAlias, assert_never
+from typing import Callable, TypeAlias, assert_never, cast
 
 import numpy
 
@@ -32,9 +32,16 @@ ternary_kind = {
 }
 
 
-def stage(program: array_calculus.Expr) -> Callable[[Env], numpy.ndarray]:
-    @cache
+def stage(
+    program: array_calculus.Expr,
+) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
     def go(expr: array_calculus.Expr) -> Callable[[Env], numpy.ndarray]:
+        return cast(Callable[[Env], numpy.ndarray], go_either(expr))
+
+    @cache
+    def go_either(
+        expr: array_calculus.Expr,
+    ) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
         match expr:
             case array_calculus.Const(array):
                 return lambda env: array
@@ -86,15 +93,21 @@ def stage(program: array_calculus.Expr) -> Callable[[Env], numpy.ndarray]:
                 call = ternary_kind[kind]
                 return lambda env: call(first(env), second(env), third(env))
             case array_calculus.Fold(index_var, acc_var, init_, size_, body_):
-                init, size, body = go(init_), go(size_), go(body_)
+                init, size, body = go_either(init_), go(size_), go_either(body_)
 
-                def fold(env: Env) -> numpy.ndarray:
+                def fold(env: Env) -> numpy.ndarray | tuple[numpy.ndarray, ...]:
                     acc, n = init(env), size(env)
                     for i in range(n):
                         acc = body(env | {acc_var: acc, index_var: numpy.array(i)})
                     return acc
 
                 return fold
+            case array_calculus.Tuple(operands_):
+                operands = tuple(go(op) for op in operands_)
+                return lambda env: tuple(op(env) for op in operands)
+            case array_calculus.Untuple(at, _arity, target_):
+                target = go_either(target_)
+                return lambda env: target(env)[at]
             case _:
                 assert_never(expr)
 

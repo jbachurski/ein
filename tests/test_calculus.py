@@ -5,9 +5,11 @@ from ein import Scalar, interpret_with_naive, interpret_with_numpy, matrix, vect
 from ein.calculus import (
     Add,
     At,
+    Cons,
     Const,
     Dim,
     Expr,
+    First,
     Fold,
     Get,
     Index,
@@ -18,6 +20,7 @@ from ein.calculus import (
     Multiply,
     Negate,
     Reciprocal,
+    Second,
     Value,
     Var,
     Variable,
@@ -97,6 +100,19 @@ def test_basic_reduction_and_get(interpret):
     a = Const(Value(numpy.arange(n)))
     the_sum = fold_sum(i, Const(Value(numpy.array(n))), Get(a, At(i)))
     numpy.testing.assert_allclose(interpret(the_sum, {}), numpy.arange(n).sum())
+
+
+@with_interpret
+def test_basic_pairs(interpret):
+    if interpret == interpret_with_numpy:
+        return pytest.mark.skip()
+    av, bv = numpy.array([1, 2, 3]), numpy.array([-1, 1])
+    a, b = Const(Value(av)), Const(Value(bv))
+    p = Cons(a, Cons(Cons(a, b), b))
+    numpy.testing.assert_allclose(interpret(First(p), {}), av)
+    numpy.testing.assert_allclose(interpret(Second(Second(p)), {}), bv)
+    numpy.testing.assert_allclose(interpret(First(First(Second(p))), {}), av)
+    numpy.testing.assert_allclose(interpret(Second(First(Second(p))), {}), bv)
 
 
 @with_interpret

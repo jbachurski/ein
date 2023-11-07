@@ -2,13 +2,15 @@ import abc
 from abc import ABC
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, ClassVar, TypeAlias
+from typing import Any, ClassVar, TypeAlias, cast
 
 import numpy
+import numpy.typing
 
 from ein.symbols import Index, Variable
 from ein.type_system import (
     UFUNC_SIGNATURES,
+    Pair,
     Scalar,
     Type,
     Vector,
@@ -18,17 +20,46 @@ from ein.type_system import (
 )
 
 
-@dataclass(frozen=True, eq=False)
 class Value:
-    array: numpy.ndarray
+    value: numpy.ndarray | tuple["Value", "Value"]
+
+    def __init__(
+        self,
+        value: "Value | tuple[Value, Value] | numpy.typing.ArrayLike",
+    ):
+        if isinstance(value, Value):
+            self.value = value.value
+        elif isinstance(value, tuple):
+            first, second = value
+            self.value = (Value(first), Value(second))
+        else:
+            self.value = numpy.array(value)
+
+    @property
+    def array(self) -> numpy.ndarray:
+        if not isinstance(self.value, numpy.ndarray):
+            raise TypeError(f"Value is not an array but one was expected: {self.value}")
+        return self.value
+
+    @property
+    def pair(self) -> tuple["Value", "Value"]:
+        if not isinstance(self.value, tuple):
+            raise TypeError(f"Value is not a pair but one was expected: {self.value}")
+        _, _ = self.value
+        return cast(tuple[Value, Value], self.value)
 
     @property
     def type(self) -> Type:
-        return ndarray(self.array.ndim, Scalar.from_dtype(self.array.dtype).kind)
+        if isinstance(self.value, numpy.ndarray):
+            return ndarray(self.array.ndim, Scalar.from_dtype(self.array.dtype).kind)
+        elif isinstance(self.value, tuple):
+            first, second = self.value
+            return Pair(first.type, second.type)
+        assert False
 
 
 Expr: TypeAlias = (
-    "Const | At | Var | Let | Dim | Get | Vec | Fold | "
+    "Const | At | Var | Let | Dim | Get | Vec | Fold | Cons | First | Second |"
     "Negate | Reciprocal | Exp | LogicalNot | CastToFloat | Add | Multiply | Less | LogicalAnd | Where"
 )
 
@@ -225,6 +256,56 @@ class Get(AbstractExpr):
         return _merge_adj(
             super().direct_indices, {index: {self.operand}} if index is not None else {}
         )
+
+
+@dataclass(frozen=True, eq=False)
+class Cons(AbstractExpr):
+    first: Expr
+    second: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, {self.first, self.second}
+
+    @cached_property
+    def type(self) -> Type:
+        return Pair(self.first.type, self.second.type)
+
+    @property
+    def dependencies(self) -> set[Expr]:
+        return {self.first, self.second}
+
+
+@dataclass(frozen=True, eq=False)
+class AbstractDecons(AbstractExpr, abc.ABC):
+    target: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, {self.target}
+
+    def _unwrap_pair(self) -> Pair:
+        if not isinstance(self.target.type, Pair):
+            raise TypeError(f"Can only take First of a Pair, not {self.target.type}")
+        return self.target.type
+
+    @property
+    def dependencies(self) -> set[Expr]:
+        return {self.target}
+
+
+@dataclass(frozen=True, eq=False)
+class First(AbstractDecons):
+    @cached_property
+    def type(self) -> Type:
+        return self._unwrap_pair().first
+
+
+@dataclass(frozen=True, eq=False)
+class Second(AbstractDecons):
+    @cached_property
+    def type(self) -> Type:
+        return self._unwrap_pair().second
 
 
 @dataclass(frozen=True, eq=False)

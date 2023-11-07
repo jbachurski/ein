@@ -161,6 +161,10 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                         ),
                         expr.type.primitive_type.single.kind,
                     )
+            case calculus.Cons() | calculus.First() | calculus.Second():
+                raise NotImplementedError(
+                    "Pairs are not yet implemented in the NumPy backend"
+                )
             case _:
                 assert_never(expr)
 

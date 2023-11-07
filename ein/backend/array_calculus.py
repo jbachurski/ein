@@ -10,7 +10,7 @@ from ein.symbols import Variable
 
 Expr: TypeAlias = (
     "Const | Var | Let | Dim | Range | Transpose | Squeeze | Unsqueeze | Gather | Repeat | "
-    "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold"
+    "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold | Tuple | Untuple"
 )
 
 
@@ -351,6 +351,41 @@ class Fold(AbstractExpr):
             self.init.rank == self.body.rank
         ), "Mismatched init and body accumulator rank"
         return self.body.rank
+
+
+# FIXME: Typing tuples doesn't work. Should be using type: PrimitiveType, not rank: int.
+@dataclass(frozen=True, eq=False)
+class Tuple(AbstractExpr):
+    operands: tuple[Expr, ...]
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Tuple":
+        return Tuple(tuple(f(op) for op in self.operands))
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, set(self.operands)
+
+    @cached_property
+    def rank(self):
+        assert False
+
+
+@dataclass(frozen=True, eq=False)
+class Untuple(AbstractExpr):
+    at: int
+    arity: int
+    target: Expr
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Untuple":
+        return Untuple(self.at, self.arity, f(self.target))
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"at": self.at, "arity": self.arity}, {self.target}
+
+    @cached_property
+    def rank(self):
+        assert False
 
 
 REDUCE: dict[Any, Any] = {
