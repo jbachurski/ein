@@ -16,7 +16,7 @@ class MriQ(Case):
         kx, ky, kz, x, y, z, phi_r, phi_i = args
         phi_mag = array(lambda i: phi_r[i] * phi_r[i] + phi_i[i] * phi_i[i])
         angles = array(
-            lambda i: sum(lambda j: tau * (kx[i] * x[j] + ky[i] * y[j] + kz[i] * z[j]))
+            lambda i: tau * sum(lambda j: kx[i] * x[j] + ky[i] * y[j] + kz[i] * z[j])
         )
         return array(lambda i: (phi_mag[i] * angles[i]).sin())
 
