@@ -126,6 +126,9 @@ class Array:
     def exp(self) -> "Array":
         return Array(calculus.Exp((self.expr,)))
 
+    def sin(self) -> "Array":
+        return Array(calculus.Sin((self.expr,)))
+
     def tanh(self) -> "Array":
         a, b = self.exp(), (-self).exp()
         return (a - b) / (a + b)

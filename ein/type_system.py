@@ -195,6 +195,7 @@ UFUNC_SIGNATURES: dict[
     numpy.negative: ((("T",), "T"), {"T": number}),
     numpy.reciprocal: (((float,), float), {}),
     numpy.exp: (((float,), float), {}),
+    numpy.sin: (((float,), float), {}),
     to_float: (((int,), float), {}),
     numpy.logical_not: (((bool,), bool), {}),
     numpy.add: ((("T", "T"), "T"), {"T": number}),

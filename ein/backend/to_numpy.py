@@ -18,6 +18,7 @@ unary_kind = {
     array_calculus.UnaryElementwise.Kind.negative: numpy.negative,
     array_calculus.UnaryElementwise.Kind.reciprocal: numpy.reciprocal,
     array_calculus.UnaryElementwise.Kind.exp: numpy.exp,
+    array_calculus.UnaryElementwise.Kind.sin: numpy.sin,
     array_calculus.UnaryElementwise.Kind.logical_not: numpy.logical_not,
 }
 binary_kind = {
