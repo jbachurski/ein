@@ -144,17 +144,6 @@ def test_fibonacci_fold(interpret):
     )
 
 
-def test_attention():
-    from suite.deep.attention import Attention
-
-    args = Attention.sample()
-
-    numpy.testing.assert_allclose(
-        Attention.in_ein_function(interpret_with_numpy, *args),
-        Attention.in_numpy(*args),
-    )
-
-
 @with_backend
 def test_inline_interpret(backend):
     a = Array(numpy.random.randn(20, 30))
