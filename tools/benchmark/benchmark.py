@@ -12,7 +12,7 @@ import seaborn
 import ein
 from tests.suite.parboil.mri_q import MriQ
 
-N = [(1, 2, 4, 6, 10)[i % 5] * 10 ** (i // 5) for i in range(23)]
+N = [(1, 2, 4, 6)[i % 4] * 10 ** (i // 4) for i in range(19)]
 
 
 def benchmark(
@@ -22,7 +22,7 @@ def benchmark(
     sample = MriQ.sample(sample_n, sample_n)
     seconds_passed = 0.0
     runs = 0
-    while runs < 3 or (runs < 100 and seconds_passed < 2):
+    while runs < 7 or (runs < 100 and seconds_passed < 5):
         times.append(timeit.timeit(lambda: run(*sample), number=1))
         gc.collect()
         seconds_passed += times[-1]
@@ -49,9 +49,9 @@ executors: list[tuple[str, Callable, list[int]]] = [
     # Uses over 40 GB RAM at 5e4
     ("NumPy", MriQ.in_numpy, [n for n in N if 100 <= n < 3 * 10**4]),
     # Saves memory by a non-idiomatic Python loop
-    ("NumPy (loop)", MriQ.in_numpy_frugal, [n for n in N if n >= 100]),
+    # ("NumPy (loop)", MriQ.in_numpy_frugal, [n for n in N if n >= 100]),
     # Uses einsum, which is probably best but not general
-    ("NumPy (\\texttt{einsum})", MriQ.in_numpy_einsum, [n for n in N if n >= 100]),
+    # ("NumPy (\\texttt{einsum})", MriQ.in_numpy_einsum, [n for n in N if n >= 100]),
     # Too slow at 1e4 (over 20 seconds)
     ("Python", MriQ.in_python, [n for n in N if 100 <= n < 10**4]),
     # Way too inefficient to be interesting

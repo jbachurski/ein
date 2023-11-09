@@ -41,8 +41,8 @@ class MriQ(Case):
         (k,), (n,) = kx.shape, x.shape
         angles = numpy.zeros(k)
         for i in range(n):
-            angles += kx * x[i] + ky * y[i] + kz * z[i]
-        angles *= tau
+            angles = angles + kx * x[i] + ky * y[i] + kz * z[i]
+        angles = tau * angles
         return numpy.sin(mag * angles)
 
     @staticmethod
