@@ -19,12 +19,14 @@ def test_mri_q():
 
     args = MriQ.sample()
 
-    numpy.testing.assert_allclose(
-        MriQ.in_ein_function(interpret_with_numpy, *args),
-        MriQ.in_numpy(*args),
-    )
+    ref = MriQ.in_numpy(*args)
 
     numpy.testing.assert_allclose(
-        MriQ.in_numpy(*args),
-        MriQ.in_python(*args),
+        MriQ.in_ein_function(interpret_with_numpy, *args), ref
     )
+
+    numpy.testing.assert_allclose(MriQ.in_numpy_frugal(*args), ref)
+
+    numpy.testing.assert_allclose(MriQ.in_numpy_einsum(*args), ref)
+
+    numpy.testing.assert_allclose(MriQ.in_python(*args), ref)

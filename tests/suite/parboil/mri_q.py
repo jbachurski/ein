@@ -35,6 +35,28 @@ class MriQ(Case):
         return numpy.sin(mag * angles)
 
     @staticmethod
+    def in_numpy_frugal(*args):
+        kx, ky, kz, x, y, z, phi_r, phi_i = args
+        mag = phi_r * phi_r + phi_i * phi_i
+        (k,), (n,) = kx.shape, x.shape
+        angles = numpy.zeros(k)
+        for i in range(n):
+            angles += kx * x[i] + ky * y[i] + kz * z[i]
+        angles *= tau
+        return numpy.sin(mag * angles)
+
+    @staticmethod
+    def in_numpy_einsum(*args):
+        kx, ky, kz, x, y, z, phi_r, phi_i = args
+        mag = phi_r * phi_r + phi_i * phi_i
+        angles = tau * (
+            numpy.einsum("i,j->i", kx, x)
+            + numpy.einsum("i,j->i", ky, y)
+            + numpy.einsum("i,j->i", kz, z)
+        )
+        return numpy.sin(mag * angles)
+
+    @staticmethod
     def in_python(*args: numpy.ndarray) -> numpy.ndarray:
         kxs, kys, kzs, xs, ys, zs, phi_rs, phi_is = args
         mags = [phi_r * phi_r + phi_i * phi_i for phi_r, phi_i in zip(phi_rs, phi_is)]
