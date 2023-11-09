@@ -32,6 +32,12 @@ ternary_kind = {
     array_calculus.TernaryElementwise.Kind.where: numpy.where,
 }
 
+NEVER_ALIAS = (
+    array_calculus.UnaryElementwise,
+    array_calculus.BinaryElementwise,
+    array_calculus.TernaryElementwise,
+)
+
 
 def stage(
     program: array_calculus.Expr,
@@ -114,7 +120,20 @@ def stage(
             case array_calculus.BinaryElementwise(kind, first_, second_):
                 first, second = go(first_), go(second_)
                 call = binary_kind[kind]
-                return lambda env: call(first(env), second(env))
+                can_reuse_first = first_.rank and isinstance(first_, NEVER_ALIAS)
+                can_reuse_second = second_.rank and isinstance(second_, NEVER_ALIAS)
+
+                def do_binary(env):
+                    fst, snd = first(env), second(env)
+                    if can_reuse_first or can_reuse_second:
+                        shape = tuple(max(x, y) for x, y in zip(fst.shape, snd.shape))
+                        if shape == fst.shape and can_reuse_first:
+                            return call(fst, snd, out=fst)
+                        elif shape == snd.shape and can_reuse_second:
+                            return call(fst, snd, out=snd)
+                    return call(fst, snd)
+
+                return do_binary
             case array_calculus.TernaryElementwise(kind, first_, second_, third_):
                 first, second, third = go(first_), go(second_), go(third_)
                 call = ternary_kind[kind]
