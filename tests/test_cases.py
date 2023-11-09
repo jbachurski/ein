@@ -4,7 +4,7 @@ from ein import interpret_with_numpy
 
 
 def test_attention():
-    from suite.deep.attention import Attention
+    from .suite.deep.attention import Attention
 
     args = Attention.sample()
 
@@ -15,7 +15,7 @@ def test_attention():
 
 
 def test_mri_q():
-    from suite.parboil.mri_q import MriQ
+    from .suite.parboil.mri_q import MriQ
 
     args = MriQ.sample()
 
