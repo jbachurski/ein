@@ -35,6 +35,9 @@ def _interpret(expr: Expr, env: dict[Variable, Value], idx: dict[Index, int]) ->
                     axis=0,
                 )
             )
+        case calculus.AssertEq(target, operands):
+            assert len({int(_interpret(op, env, idx).array) for op in operands}) == 1
+            return _interpret(target, env, idx)
         case calculus.Const(value):
             return value
         case calculus.At(index):

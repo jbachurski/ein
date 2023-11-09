@@ -55,7 +55,7 @@ def stage(
                 )
             case array_calculus.Dim(axis, target_):
                 target = go(target_)
-                return lambda env: target(env).shape[axis]
+                return lambda env: numpy.array(target(env).shape[axis])
             case array_calculus.Range(size_):
                 size = go(size_)
                 return lambda env: numpy.arange(size(env))

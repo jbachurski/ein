@@ -59,7 +59,8 @@ class Value:
 
 
 Expr: TypeAlias = (
-    "Const | At | Var | Let | Dim | Get | Vec | Fold | Cons | First | Second |"
+    "Const | At | Var | Let | AssertEq | Dim | Get | Vec | Fold | "
+    "Cons | First | Second |"
     "Negate | Reciprocal | Exp | Sin | LogicalNot | CastToFloat | "
     "Add | Multiply | Modulo | Less | LogicalAnd | Where"
 )
@@ -204,6 +205,29 @@ class Let(AbstractExpr):
     @property
     def _variables(self) -> set[Variable]:
         return {var for var, _ in self.bindings}
+
+
+@dataclass(frozen=True, eq=False)
+class AssertEq(AbstractExpr):
+    target: Expr
+    operands: tuple[Expr, ...]
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, {self.target, *self.operands}
+
+    @cached_property
+    def type(self) -> Type:
+        if any(op.type != self.operands[0].type for op in self.operands):
+            raise TypeError(
+                "Mismatched types in equality assertion: "
+                f"{[op.type for op in self.operands]}"
+            )
+        return self.target.type
+
+    @property
+    def dependencies(self) -> set[Expr]:
+        return {self.target, *self.operands}
 
 
 @dataclass(frozen=True, eq=False)

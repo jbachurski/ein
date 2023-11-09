@@ -58,6 +58,10 @@ def transform_graphs(
     from backend import to_array
 
     array_program = to_array.transform(
-        program, use_slices=optimize, use_takes=optimize, do_cancellations=optimize
+        program,
+        use_slices=optimize,
+        slice_elision=optimize,
+        use_takes=optimize,
+        do_cancellations=optimize,
     )
     return graph(program), graph(array_program)

@@ -69,8 +69,9 @@ class BaseComprehension(abc.ABC):
                     )
                 else:
                     # TODO: Handle the ignored cases here by requiring equivalence.
+                    shape_expr: Expr
                     shape_expr, *_ = candidates
-                    size_of[index] = shape_expr
+                    size_of[index] = calculus.AssertEq(shape_expr, tuple(candidates))
         else:
             size_of = {
                 index: Array(size).expr
