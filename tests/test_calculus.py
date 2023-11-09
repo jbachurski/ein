@@ -150,8 +150,8 @@ def test_matmul(interpret):
             ),
         ),
     )
-    first = numpy.array([[1, 2, 3], [4, 5, 6]])
-    second = numpy.array([[1], [0], [-1]])
+    first = numpy.array([[1, 2, 3], [4, 5, 6]], dtype=float)
+    second = numpy.array([[1], [0], [-1]], dtype=float)
     numpy.testing.assert_allclose(
         interpret(
             matmul,
