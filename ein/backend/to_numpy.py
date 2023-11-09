@@ -125,7 +125,7 @@ def stage(
 
                 def do_binary(env):
                     fst, snd = first(env), second(env)
-                    if can_reuse_first or can_reuse_second:
+                    if can_reuse_first or can_reuse_second and fst.ndim == snd.ndim:
                         shape = tuple(max(x, y) for x, y in zip(fst.shape, snd.shape))
                         if shape == fst.shape and can_reuse_first:
                             return call(fst, snd, out=fst)

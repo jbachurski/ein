@@ -158,8 +158,8 @@ def transform(
                         (k,),
                         array_calculus.Gather(
                             k,
-                            axial.align(target, used_axes),
-                            axial.align(item, used_axes),
+                            axial.align(target, used_axes, leftpad=False),
+                            axial.align(item, used_axes, leftpad=False),
                         ),
                     )
                 return Axial(
@@ -218,7 +218,7 @@ def transform(
                     return Axial(
                         used_axes,
                         array_calculus.ELEMENTWISE[expr.ufunc](
-                            *(axial.align(op, used_axes) for op in ops)
+                            *(axial.align(op, used_axes, leftpad=False) for op in ops)
                         ),
                         expr.type.primitive_type.single.kind,
                     )

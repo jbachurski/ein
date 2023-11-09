@@ -321,12 +321,7 @@ class AbstractElementwise(AbstractExpr):
 
     @cached_property
     def rank(self) -> int:
-        ranks = {op.rank for op in self.operands}
-        assert (
-            len(ranks) == 1
-        ), f"Expected unique rank for elementwise broadcast, not {ranks}"
-        (rank,) = ranks
-        return rank
+        return max(op.rank for op in self.operands)
 
 
 @dataclass(frozen=True, eq=False)

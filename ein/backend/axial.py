@@ -68,12 +68,17 @@ def alignment(*args: Axes) -> Axes:
     return tuple(seen)
 
 
-def align(target: Axial, into_axes: Axes) -> array_calculus.Expr:
+def align(
+    target: Axial, into_axes: Axes, *, leftpad: bool = True
+) -> array_calculus.Expr:
     transposition = tuple(
         target.axes.index(axis) for axis in sorted(target.axes, key=into_axes.index)
     )
     expands = tuple(i for i, axis in enumerate(into_axes) if axis not in target.axes)
     array = target.array
     array = array_calculus.Transpose(transposition, array)
+    if not leftpad:
+        while expands and not expands[0]:
+            expands = tuple(x - 1 for x in expands[1:])
     array = array_calculus.Unsqueeze(expands, array)
     return array
