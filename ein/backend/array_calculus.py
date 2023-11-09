@@ -2,14 +2,15 @@ import abc
 import enum
 from dataclasses import dataclass
 from functools import cached_property, partial
-from typing import Any, Callable, TypeAlias
+from typing import Any, Callable, Optional, TypeAlias
 
 import numpy
 
 from ein.symbols import Variable
 
 Expr: TypeAlias = (
-    "Const | Var | Let | Dim | Range | Transpose | Squeeze | Unsqueeze | Gather | Repeat | "
+    "Const | Var | Let | Dim | Range | "
+    "Transpose | Squeeze | Unsqueeze | Gather | Slice | Repeat | "
     "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold | Tuple | Untuple"
 )
 
@@ -193,6 +194,30 @@ class Gather(AbstractExpr):
             self.target.rank == self.item.rank
         ), "Gather assumes broadcast of target and item"
         assert 0 <= self.axis < self.target.rank, "Gather axis not in range"
+        return self.target.rank
+
+
+@dataclass(frozen=True, eq=False)
+class Slice(AbstractExpr):
+    target: Expr
+    stops: tuple[Optional[Expr], ...]
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Slice":
+        return Slice(
+            f(self.target),
+            tuple(f(stop) if stop is not None else None for stop in self.stops),
+        )
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, {
+            self.target,
+            *(stop for stop in self.stops if stop is not None),
+        }
+
+    @cached_property
+    def rank(self) -> int:
+        assert len(self.stops) == self.target.rank
         return self.target.rank
 
 

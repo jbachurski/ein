@@ -11,7 +11,9 @@ from . import array_calculus, axial
 from .axial import Axial
 
 
-def transform(program: calculus.Expr) -> array_calculus.Expr:
+def transform(
+    program: calculus.Expr, *, use_slices: bool = True
+) -> array_calculus.Expr:
     transformed: dict[calculus.Expr, Axial] = {}
 
     def _go(
@@ -103,6 +105,22 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                     ),
                     expr.type.primitive_type.single.kind,
                 )
+            case calculus.Get(
+                target_, calculus.At(index)
+            ) if index in index_sizes and use_slices:
+                target = go(target_, index_sizes, index_vars, var_axes)
+                at_axis = target.type.array_type.rank - 1
+                return Axial(
+                    [axis if axis != at_axis else index for axis in target.axes],
+                    array_calculus.Slice(
+                        target.array,
+                        tuple(
+                            index_sizes[index] if axis == at_axis else None
+                            for axis in target.axes
+                        ),
+                    ),
+                    expr.type.primitive_type.single.kind,
+                )
             case calculus.Get(target_, item_):
                 target = go(target_, index_sizes, index_vars, var_axes)
                 item = go(item_, index_sizes, index_vars, var_axes)
@@ -167,6 +185,7 @@ def transform(program: calculus.Expr) -> array_calculus.Expr:
                 )
             case _:
                 assert_never(expr)
+        assert False  # noqa
 
     def go(
         expr: calculus.Expr,

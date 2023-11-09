@@ -71,6 +71,14 @@ def stage(
             case array_calculus.Gather(axis, target_, item_):
                 target, item = go(target_), go(item_)
                 return lambda env: numpy.take_along_axis(target(env), item(env), axis)
+            case array_calculus.Slice(target_, stops_):
+                target = go(target_)
+                stops = [go(stop) if stop is not None else None for stop in stops_]
+                return lambda env: target(env)[
+                    tuple(
+                        slice(stop(env) if stop is not None else None) for stop in stops
+                    )
+                ]
             case array_calculus.Repeat(axis, count_, target_):
                 count, target = go(count_), go(target_)
                 return lambda env: numpy.repeat(target(env), count(env), axis=axis)
