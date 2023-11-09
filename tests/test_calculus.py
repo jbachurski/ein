@@ -103,6 +103,18 @@ def test_basic_reduction_and_get(interpret):
 
 
 @with_interpret
+def test_indexing_with_shift(interpret):
+    i = Index()
+    a = Var(Variable(), vector(int))
+    drop_last = Vec(
+        i, Add((Dim(a, 0), Negate((Const(Value(numpy.array(1))),)))), Get(a, At(i))
+    )
+    numpy.testing.assert_allclose(
+        interpret(drop_last, {a.var: numpy.arange(5)}), numpy.arange(4)
+    )
+
+
+@with_interpret
 def test_basic_pairs(interpret):
     if interpret == interpret_with_numpy:
         return pytest.mark.skip()

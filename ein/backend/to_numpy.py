@@ -92,7 +92,7 @@ def stage(
                         slice(stop) if stop is not None and d != stop else slice(None)
                         for d, stop in zip(arr.shape, stops_env)
                     ]
-                    cop = any(s is None for s in slices)
+                    cop = any(s is not None for s in slices)
                     return arr[tuple(slices)] if cop else arr
 
                 return lambda env: apply_slice(env)
