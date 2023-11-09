@@ -2,7 +2,6 @@ import cProfile
 import gc
 import statistics
 import timeit
-from functools import partial
 from typing import Callable, Sequence
 
 import matplotlib.pyplot as plt
@@ -10,10 +9,10 @@ import numpy
 import pandas
 import seaborn
 
-from ein import interpret_with_numpy
+import ein
 from tests.suite.parboil.mri_q import MriQ
 
-N = [(1, 2, 5)[i % 3] * 10 ** (i // 3) for i in range(15)]
+N = [(1, 2, 4, 6, 10)[i % 5] * 10 ** (i // 5) for i in range(23)]
 
 
 def benchmark(
@@ -39,16 +38,22 @@ def mean_stdev(ts: Sequence[float]) -> float:
     return statistics.stdev(ts) / numpy.sqrt(len(ts))
 
 
+def in_precompiled_ein_function():
+    varargs, program = MriQ.ein_function()
+    staged = ein.backend.to_numpy.stage(ein.backend.to_array.transform(program))
+    return lambda *args: staged({var: arg for var, arg in zip(varargs, args)})
+
+
 executors: list[tuple[str, Callable, list[int]]] = [
-    # Too slow at 1e4 (over 20 seconds)
-    ("python", MriQ.in_python, [n for n in N if 10 < n < 10**4]),
+    ("Ein $\\to$ NumPy", in_precompiled_ein_function(), [n for n in N if n >= 100]),
     # Uses over 40 GB RAM at 5e4
-    ("numpy", MriQ.in_numpy, [n for n in N if 10 < n < 3 * 10**4]),
-    (
-        "ein-numpy",
-        partial(MriQ.in_ein_function, interpret_with_numpy),
-        [n for n in N if n > 10],
-    ),
+    ("NumPy", MriQ.in_numpy, [n for n in N if 100 <= n < 3 * 10**4]),
+    # Saves memory by a non-idiomatic Python loop
+    ("NumPy (loop)", MriQ.in_numpy_frugal, [n for n in N if n >= 100]),
+    # Uses einsum, which is probably best but not general
+    ("NumPy (\\texttt{einsum})", MriQ.in_numpy_einsum, [n for n in N if n >= 100]),
+    # Too slow at 1e4 (over 20 seconds)
+    ("Python", MriQ.in_python, [n for n in N if 100 <= n < 10**4]),
     # Way too inefficient to be interesting
     # ("ein-naive", partial(MriQ.in_ein_function, interpret_with_naive, N[4:7])),
 ]
@@ -74,14 +79,16 @@ def main() -> dict[str, dict[int, list[float]]]:
 def plots(result: dict[str, dict[int, list[float]]]) -> None:
     print(result)
     seaborn.set_style("whitegrid")
+    plt.style.use("seaborn-v0_8-pastel")
+    seaborn.set(rc={"text.usetex": True})
 
     for name, _, _ in executors:
         ax = seaborn.lineplot(
-            x="n",
+            x="$n$",
             y="runtime",
             data=pandas.DataFrame.from_records(
                 [
-                    {"n": n, "runtime": ts}
+                    {"$n$": n, "runtime": ts}
                     for n, runs in result[name].items()
                     for ts in runs
                 ]

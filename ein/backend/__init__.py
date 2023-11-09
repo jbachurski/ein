@@ -5,7 +5,7 @@ import numpy
 from ein.calculus import Expr
 from ein.symbols import Variable
 
-from . import naive, to_numpy
+from . import naive, to_array, to_numpy  # noqa
 
 Backend: TypeAlias = Literal["naive", "numpy"]
 BACKENDS: dict[
