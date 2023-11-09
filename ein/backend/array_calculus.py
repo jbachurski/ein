@@ -10,7 +10,7 @@ from ein.symbols import Variable
 
 Expr: TypeAlias = (
     "Const | Var | Let | Dim | Range | "
-    "Transpose | Squeeze | Unsqueeze | Gather | Slice | Repeat | "
+    "Transpose | Squeeze | Unsqueeze | Gather | Take | Slice | Repeat | "
     "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold | Tuple | Untuple"
 )
 
@@ -195,6 +195,30 @@ class Gather(AbstractExpr):
         ), "Gather assumes broadcast of target and item"
         assert 0 <= self.axis < self.target.rank, "Gather axis not in range"
         return self.target.rank
+
+
+@dataclass(frozen=True, eq=False)
+class Take(AbstractExpr):
+    target: Expr
+    items: tuple[Optional[Expr], ...]
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Take":
+        return Take(
+            f(self.target),
+            tuple(f(item) if item is not None else None for item in self.items),
+        )
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, {
+            self.target,
+            *(item for item in self.items if item is not None),
+        }
+
+    @cached_property
+    def rank(self) -> int:
+        assert len(self.items) == self.target.rank
+        return self.target.rank - sum(item is not None for item in self.items)
 
 
 @dataclass(frozen=True, eq=False)

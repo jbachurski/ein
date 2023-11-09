@@ -71,14 +71,32 @@ def stage(
             case array_calculus.Gather(axis, target_, item_):
                 target, item = go(target_), go(item_)
                 return lambda env: numpy.take_along_axis(target(env), item(env), axis)
+            case array_calculus.Take(target_, items_):
+                target = go(target_)
+                items = [go(item) if item is not None else None for item in items_]
+                return lambda env: target(env)[
+                    tuple(
+                        item(env) if item is not None else slice(None) for item in items
+                    )
+                ]
             case array_calculus.Slice(target_, stops_):
                 target = go(target_)
                 stops = [go(stop) if stop is not None else None for stop in stops_]
-                return lambda env: target(env)[
-                    tuple(
-                        slice(stop(env) if stop is not None else None) for stop in stops
-                    )
-                ]
+
+                def apply_slice(env: Env) -> numpy.ndarray:
+                    arr = target(env)
+                    stops_env = [
+                        stop(env) if stop is not None else None for stop in stops
+                    ]
+                    slices = [
+                        slice(stop) if stop is not None and d != stop else slice(None)
+                        for d, stop in zip(arr.shape, stops_env)
+                    ]
+                    cop = any(s is None for s in slices)
+                    return arr[tuple(slices)] if cop else arr
+
+                return lambda env: apply_slice(env)
+
             case array_calculus.Repeat(axis, count_, target_):
                 count, target = go(count_), go(target_)
                 return lambda env: numpy.repeat(target(env), count(env), axis=axis)

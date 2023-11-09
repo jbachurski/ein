@@ -12,7 +12,11 @@ from .axial import Axial
 
 
 def transform(
-    program: calculus.Expr, *, use_slices: bool = True
+    program: calculus.Expr,
+    *,
+    use_slices: bool = True,
+    use_takes: bool = True,
+    do_cancellations: bool = True,
 ) -> array_calculus.Expr:
     transformed: dict[calculus.Expr, Axial] = {}
 
@@ -22,6 +26,7 @@ def transform(
         index_vars: dict[Index, Variable],
         var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
+        result: array_calculus.Expr
         match expr:
             case calculus.Const(value):
                 return Axial(
@@ -125,15 +130,28 @@ def transform(
                 target = go(target_, index_sizes, index_vars, var_axes)
                 item = go(item_, index_sizes, index_vars, var_axes)
                 used_axes = axial.alignment(target.axes, item.axes)
-                k = used_axes.index(target.type.array_type.rank - 1)
-                result = array_calculus.Gather(
-                    k,
-                    axial.align(target, used_axes),
-                    axial.align(item, used_axes),
-                )
+                at_axis = target.type.array_type.rank - 1
+                k = used_axes.index(at_axis)
+                if use_takes and not item.axes:
+                    result = array_calculus.Take(
+                        target.array,
+                        tuple(
+                            item.array if axis == at_axis else None
+                            for axis in used_axes
+                        ),
+                    )
+                else:
+                    result = array_calculus.Squeeze(
+                        (k,),
+                        array_calculus.Gather(
+                            k,
+                            axial.align(target, used_axes),
+                            axial.align(item, used_axes),
+                        ),
+                    )
                 return Axial(
                     used_axes[:k] + used_axes[k + 1 :],
-                    array_calculus.Squeeze((k,), result),
+                    result,
                     expr.type.primitive_type.single.kind,
                 )
             case calculus.Vec(index, size_, target_):
@@ -199,10 +217,14 @@ def transform(
 
     # FIXME: Let-bound variables get different treatment here than free variables.
     #  Free variables are always assumed to depend on no indices (empty free-index set).
-    return go(program, {}, {}, {}).normal
+    array_program = go(program, {}, {}, {}).normal
+    if do_cancellations:
+        array_program = cancel_ops(array_program)
+
+    return array_program
 
 
-def optimize(program: array_calculus.Expr) -> array_calculus.Expr:
+def cancel_ops(program: array_calculus.Expr) -> array_calculus.Expr:
     @cache
     def go(expr: array_calculus.Expr) -> array_calculus.Expr:
         match expr:
