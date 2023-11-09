@@ -1,6 +1,7 @@
 import abc
 from typing import Callable, ClassVar, Sequence
 
+import calculus
 import numpy
 
 from ein import Array, Type, function
@@ -26,10 +27,14 @@ class Case(abc.ABC):
         ...
 
     @classmethod
+    def ein_function(cls) -> tuple[tuple[Variable, ...], calculus.Expr]:
+        return function(cls.ein_types, cls.in_ein)
+
+    @classmethod
     def in_ein_function(
         cls,
         interpret: Callable[[Expr, dict[Variable, numpy.ndarray]], numpy.ndarray],
         *args: numpy.ndarray,
-    ):
-        arg_vars, expr = function(cls.ein_types, cls.in_ein)
+    ) -> numpy.ndarray:
+        arg_vars, expr = cls.ein_function()
         return interpret(expr, {v: a for v, a in zip(arg_vars, args)})

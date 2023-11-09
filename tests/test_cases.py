@@ -23,3 +23,8 @@ def test_mri_q():
         MriQ.in_ein_function(interpret_with_numpy, *args),
         MriQ.in_numpy(*args),
     )
+
+    numpy.testing.assert_allclose(
+        MriQ.in_numpy(*args),
+        MriQ.in_python(*args),
+    )
