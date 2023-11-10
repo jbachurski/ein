@@ -12,7 +12,7 @@ import seaborn
 import ein
 from tests.suite.parboil.mri_q import MriQ
 
-N = [(1, 2, 4, 6)[i % 4] * 10 ** (i // 4) for i in range(19)]
+N = [int(10 ** (i / 10)) for i in range(48)]
 
 
 def benchmark(
@@ -87,11 +87,7 @@ def plots(result: dict[str, dict[int, list[float]]]) -> None:
             x="$n$",
             y="runtime",
             data=pandas.DataFrame.from_records(
-                [
-                    {"$n$": n, "runtime": ts}
-                    for n, runs in result[name].items()
-                    for ts in runs
-                ]
+                [{"$n$": n, "runtime": t} for n, ts in result[name].items() for t in ts]
             ),
             label=name,
         )
