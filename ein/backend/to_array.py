@@ -18,6 +18,7 @@ def transform(
     slice_elision: bool = True,
     use_takes: bool = True,
     do_cancellations: bool = True,
+    do_inplace_on_temporaries: bool = True,
 ) -> array_calculus.Expr:
     transformed: dict[calculus.Expr, Axial] = {}
 
@@ -248,6 +249,8 @@ def transform(
     array_program = go(program, {}, {}, {}, {}).normal
     if do_cancellations:
         array_program = cancel_ops(array_program)
+    if do_inplace_on_temporaries:
+        array_program = inplace_on_temporaries(array_program)
 
     return array_program
 
@@ -266,5 +269,38 @@ def cancel_ops(program: array_calculus.Expr) -> array_calculus.Expr:
                 if not axes:
                     return go(target)
         return expr.map(go)
+
+    return go(program)
+
+
+def inplace_on_temporaries(program: array_calculus.Expr) -> array_calculus.Expr:
+    # Assumes that an elementwise operation used as an operand to another one
+    # will not be broadcast (already has the same shape as the result).
+    # Additionally, we assume that the result will not be reused anywhere else (needs to be let-bound).
+    # This will also interact with any implicit-promotion optimisations, as here we assume dtypes are consistent.
+    # This is why we only do this for BinaryElementwise and assume we have already done an explicit Cast.
+    TEMPORARIES = (
+        array_calculus.UnaryElementwise,
+        array_calculus.BinaryElementwise,
+        array_calculus.TernaryElementwise,
+        array_calculus.Range,
+        array_calculus.Cast,
+    )
+
+    @cache
+    def go(expr: array_calculus.Expr) -> array_calculus.Expr:
+        first: array_calculus.Expr
+        second: array_calculus.Expr
+        expr = expr.map(go)
+        match expr:
+            case array_calculus.BinaryElementwise(kind, first, second, None):
+                # This logic is really shaky and interacts with optimisations to the number of axis manipulation calls.
+                # Should have more in-depth analysis on what broadcasting might occur
+                if first.rank == second.rank:
+                    if first.rank and isinstance(first, TEMPORARIES):
+                        return array_calculus.BinaryElementwise(kind, first, second, 0)
+                    if second.rank and isinstance(second, TEMPORARIES):
+                        return array_calculus.BinaryElementwise(kind, first, second, 1)
+        return expr
 
     return go(program)

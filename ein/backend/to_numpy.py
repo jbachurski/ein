@@ -117,23 +117,24 @@ def stage(
                 target = go(target_)
                 call = unary_kind[kind]
                 return lambda env: call(target(env))
-            case array_calculus.BinaryElementwise(kind, first_, second_):
+            case array_calculus.BinaryElementwise(kind, first_, second_, inplace):
                 first, second = go(first_), go(second_)
                 call = binary_kind[kind]
-                can_reuse_first = first_.rank and isinstance(first_, NEVER_ALIAS)
-                can_reuse_second = second_.rank and isinstance(second_, NEVER_ALIAS)
+                if inplace == 0:
 
-                def do_binary(env):
-                    fst, snd = first(env), second(env)
-                    if can_reuse_first or can_reuse_second and fst.ndim == snd.ndim:
-                        shape = tuple(max(x, y) for x, y in zip(fst.shape, snd.shape))
-                        if shape == fst.shape and can_reuse_first:
-                            return call(fst, snd, out=fst)
-                        elif shape == snd.shape and can_reuse_second:
-                            return call(fst, snd, out=snd)
-                    return call(fst, snd)
+                    def call_to_first(env: Env) -> numpy.ndarray:
+                        out = first(env)
+                        return call(out, second(env), out=out)
 
-                return do_binary
+                    return call_to_first
+                elif inplace == 1:
+
+                    def call_to_second(env: Env) -> numpy.ndarray:
+                        out = second(env)
+                        return call(first(env), out, out=out)
+
+                    return call_to_second
+                return lambda env: call(first(env), second(env))
             case array_calculus.TernaryElementwise(kind, first_, second_, third_):
                 first, second, third = go(first_), go(second_), go(third_)
                 call = ternary_kind[kind]

@@ -353,6 +353,15 @@ class BinaryElementwise(AbstractElementwise):
     kind: Kind
     first: Expr
     second: Expr
+    inplace: int | None = None
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        base, deps = super().debug
+        return (
+            base | {"inplace": self.inplace} if self.inplace is not None else base,
+            deps,
+        )
 
     @property
     def operands(self) -> tuple[Expr, Expr]:
