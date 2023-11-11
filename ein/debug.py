@@ -1,3 +1,4 @@
+import os.path
 from typing import Any
 
 from . import calculus
@@ -55,7 +56,7 @@ def graph(program):
 def transform_graphs(
     program: calculus.Expr, optimize: bool = True
 ) -> "tuple[pydot.Dot, pydot.Dot]":
-    from backend import to_array
+    from ein.backend import to_array
 
     array_program = to_array.transform(
         program,
@@ -63,5 +64,34 @@ def transform_graphs(
         slice_elision=optimize,
         use_takes=optimize,
         do_cancellations=optimize,
+        do_inplace_on_temporaries=optimize,
     )
     return graph(program), graph(array_program)
+
+
+def plot_graph(dot: pydot.Dot) -> None:
+    import io
+
+    import matplotlib.image as img
+    import matplotlib.pyplot as plt
+
+    arr = img.imread(io.BytesIO(bytes(dot.create(format="png"))))
+    dpi = 100
+    w, h = arr.shape[:2]
+    fig = plt.figure(figsize=(w / dpi, h / dpi), dpi=dpi, frameon=False)
+    ax = plt.Axes(fig, [0.0, 0.0, 1.0, 1.0])
+    ax.set_axis_off()
+    fig.add_axes(ax)
+    plt.imshow(arr)
+    plt.show()
+
+
+def save_graph(dot: pydot.Dot, path: str, fmt: str | None = None) -> None:
+    if fmt is None:
+        path_no_ext, ext = os.path.splitext(path)
+        if ext:
+            fmt = ext
+            path = path_no_ext
+        else:
+            fmt = "png"
+    dot.write(os.path.expanduser(path) + f".{fmt}", format=fmt)
