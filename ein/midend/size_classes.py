@@ -34,9 +34,12 @@ def find_size_classes(program: calculus.Expr) -> SizeEquivalence:
             case calculus.AssertEq(_target, operands):
                 for sub in operands:
                     sizes.unite(expr, sub)
-            case calculus.AbstractVectorization(index, size, _body):
+            case calculus.Vec(index, size, body):
                 sizes.unite(index, size)
                 sizes.unite(index, calculus.Dim(expr, 0))
+                rank = expr.type.primitive_type.single.rank
+                for axis in range(1, rank):
+                    sizes.unite(calculus.Dim(expr, rank), calculus.Dim(body, rank - 1))
             case calculus.Get(target, _item):
                 rank = expr.type.primitive_type.single.rank
                 for axis in range(rank):
