@@ -122,13 +122,6 @@ def transform(
             ) if index in index_sizes and use_slices:
                 target = go(target_, index_sizes, index_vars, var_axes)
                 at_axis = target.type.array_type.rank - 1
-                print(
-                    "elide?",
-                    index,
-                    id(size_class._get_parent(index))
-                    - id(size_class._get_parent(calculus.Dim(target_, 0))),
-                    target_,
-                )
                 if slice_elision and size_class.equiv(index, calculus.Dim(target_, 0)):
                     result = target.array
                 else:
