@@ -20,7 +20,7 @@ def _interpret(expr: Expr, env: dict[Variable, Value], idx: dict[Index, int]) ->
                     ]
                 )
             )
-        case calculus.Fold(index, size, body, init, acc):
+        case calculus.Fold(index, size, acc, init, body):
             evaluated_size = int(_interpret(size, env, idx).array)
             env = env.copy()
             env[acc.var] = _interpret(init, env, idx)

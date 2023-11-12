@@ -118,7 +118,7 @@ class SumComprehension(CommutativeComprehension):
     def application(index: Index, size: Expr, body: Expr) -> Expr:
         init = calculus.Const(calculus.Value(numpy.array(0.0)))
         acc = Var(Variable(), Scalar(float))
-        return calculus.Fold(index, size, calculus.Add((acc, body)), init, acc)
+        return calculus.Fold(index, size, acc, init, calculus.Add((acc, body)))
 
 
 class MaxComprehension(CommutativeComprehension):
@@ -127,7 +127,7 @@ class MaxComprehension(CommutativeComprehension):
         init = calculus.Const(calculus.Value(numpy.array(float("-inf"))))
         acc = Var(Variable(), Scalar(float))
         max_body = calculus.Where((calculus.Less((body, acc)), acc, body))
-        return calculus.Fold(index, size, max_body, init, acc)
+        return calculus.Fold(index, size, acc, init, max_body)
 
 
 class MinComprehension(MaxComprehension):
@@ -136,7 +136,7 @@ class MinComprehension(MaxComprehension):
         init = calculus.Const(calculus.Value(numpy.array(float("inf"))))
         acc = Var(Variable(), Scalar(float))
         min_body = calculus.Where((calculus.Less((acc, body)), acc, body))
-        return calculus.Fold(index, size, min_body, init, acc)
+        return calculus.Fold(index, size, acc, init, min_body)
 
 
 class FoldComprehension(BaseComprehension):
@@ -150,7 +150,7 @@ class FoldComprehension(BaseComprehension):
         wrapped_index, wrapped_acc = Array(calculus.At(index)), Array(typed_acc)
         body = Array(constructor(wrapped_index, wrapped_acc)).expr
         size_of = self._get_sized(body, (index,))
-        return Array(calculus.Fold(index, size_of[index], body, init.expr, typed_acc))
+        return Array(calculus.Fold(index, size_of[index], typed_acc, init.expr, body))
 
 
 class VariableArray(Array):

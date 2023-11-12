@@ -386,13 +386,13 @@ class TernaryElementwise(AbstractElementwise):
 @dataclass(frozen=True, eq=False)
 class Fold(AbstractExpr):
     index: Variable
+    size: Expr
     acc: Variable
     init: Expr
-    size: Expr
     body: Expr
 
     def map(self, f: Callable[[Expr], Expr]) -> "Fold":
-        return Fold(self.index, self.acc, f(self.init), f(self.size), f(self.body))
+        return Fold(self.index, f(self.size), self.acc, f(self.init), f(self.body))
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:

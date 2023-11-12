@@ -139,7 +139,7 @@ def stage(
                 first, second, third = go(first_), go(second_), go(third_)
                 call = ternary_kind[kind]
                 return lambda env: call(first(env), second(env), third(env))
-            case array_calculus.Fold(index_var, acc_var, init_, size_, body_):
+            case array_calculus.Fold(index_var, size_, acc_var, init_, body_):
                 init, size, body = go_either(init_), go(size_), go_either(body_)
 
                 def fold(env: Env) -> numpy.ndarray | tuple[numpy.ndarray, ...]:

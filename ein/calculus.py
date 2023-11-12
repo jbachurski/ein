@@ -411,9 +411,9 @@ class Vec(AbstractExpr):
 class Fold(AbstractExpr):
     index: Index
     size: Expr
-    body: Expr
-    init: Expr
     acc: Var
+    init: Expr
+    body: Expr
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -444,7 +444,7 @@ class Fold(AbstractExpr):
         return {self.acc.var}
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
-        return Fold(self.index, f(self.size), f(self.body), f(self.init), self.acc)
+        return Fold(self.index, f(self.size), self.acc, f(self.init), f(self.body))
 
 
 @dataclass(frozen=True, eq=False)

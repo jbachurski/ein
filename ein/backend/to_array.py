@@ -81,7 +81,7 @@ def transform(
                     array_calculus.Dim(target.axes.index(pos), target.array),
                     expr.type.primitive_type.single.kind,
                 )
-            case calculus.Fold(index, size_, body_, init_, acc):
+            case calculus.Fold(index, size_, acc, init_, body_):
                 size = go(size_, index_sizes, index_vars, var_axes)
                 assert (
                     not size.type.free_indices
@@ -110,9 +110,9 @@ def transform(
                     acc_axes,
                     array_calculus.Fold(
                         index_var,
+                        size.normal,
                         acc.var,
                         axial.align(init, acc_axes),
-                        size.normal,
                         axial.align(body, acc_axes),
                     ),
                     expr.type.primitive_type.single.kind,

@@ -39,7 +39,7 @@ def fold_sum(index: Index, size: Expr, body: Expr):
     dtype = body.type.kind
     init = Const(Value(numpy.array(0, dtype=dtype)))
     acc = Var(Variable(), Scalar(dtype))
-    return Fold(index, size, Add((acc, body)), init, acc)
+    return Fold(index, size, acc, init, Add((acc, body)))
 
 
 @with_interpret
@@ -169,7 +169,7 @@ def test_power_fold(interpret):
     a0, n0, x0 = Variable(), Variable(), Variable()
     i = Index()
     a, n, x = Var(a0, Scalar(float)), Var(n0, Scalar(int)), Var(x0, Scalar(float))
-    power_expr = Fold(i, n, Multiply((x, a)), Const(Value(numpy.array(1.0))), x)
+    power_expr = Fold(i, n, x, Const(Value(numpy.array(1.0))), Multiply((x, a)))
     numpy.testing.assert_allclose(
         interpret(power_expr, {a0: numpy.array(3), n0: numpy.array(7)}), 3**7
     )
@@ -192,6 +192,8 @@ def test_fibonacci_vector_fold(interpret):
     fib_expr = Fold(
         i,
         n,
+        fib,
+        zeros,
         Vec(
             j,
             n,
@@ -211,8 +213,6 @@ def test_fibonacci_vector_fold(interpret):
                 )
             ),
         ),
-        zeros,
-        fib,
     )
     numpy.testing.assert_allclose(
         interpret(fib_expr, {n0: numpy.array(8)}), [0, 1, 1, 2, 3, 5, 8, 13]
