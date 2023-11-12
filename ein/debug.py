@@ -77,7 +77,7 @@ def plot_graph(dot: pydot.Dot) -> None:
 
     arr = img.imread(io.BytesIO(bytes(dot.create(format="png"))))
     dpi = 100
-    w, h = arr.shape[:2]
+    h, w = arr.shape[:2]
     fig = plt.figure(figsize=(w / dpi, h / dpi), dpi=dpi, frameon=False)
     ax = plt.Axes(fig, [0.0, 0.0, 1.0, 1.0])
     ax.set_axis_off()
