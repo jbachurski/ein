@@ -193,3 +193,12 @@ def test_sieve_primes(interpret):
         interpret(expr, {n0: numpy.array(N)}),
         _primes(N),
     )
+
+
+@with_interpret
+def test_double_transpose(interpret):
+    (a0,), expr = function(
+        [matrix(float)], lambda a: array(lambda i, j: array(lambda k, l: a[l, k])[j, i])
+    )
+    arr = numpy.random.randn(3, 3)
+    numpy.testing.assert_allclose(interpret(expr, {a0: arr}), arr)

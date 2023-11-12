@@ -4,6 +4,7 @@ from typing import assert_never
 import numpy
 
 from ein import calculus
+from ein.midend.size_classes import find_size_classes
 from ein.symbols import Index, Variable
 from ein.type_system import to_float
 
@@ -22,10 +23,11 @@ def transform(
 ) -> array_calculus.Expr:
     transformed: dict[calculus.Expr, Axial] = {}
 
+    size_class = find_size_classes(program)
+
     def _go(
         expr: calculus.Expr,
         index_sizes: dict[Index, array_calculus.Expr],
-        index_class: dict[Index, set[calculus.Dim]],
         index_vars: dict[Index, Variable],
         var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
@@ -60,20 +62,19 @@ def transform(
                 )
             case calculus.Let(bindings_, body_):
                 bindings = tuple(
-                    (var, go(binding, index_sizes, index_class, index_vars, var_axes))
+                    (var, go(binding, index_sizes, index_vars, var_axes))
                     for var, binding in bindings_
                 )
                 return go(
                     body_,
                     index_sizes,
-                    index_class,
                     index_vars,
                     var_axes | {var: binding.axes for var, binding in bindings},
                 ).within(*((var, binding.normal) for var, binding in bindings))
             case calculus.AssertEq(target_, _):
-                return go(target_, index_sizes, index_class, index_vars, var_axes)
+                return go(target_, index_sizes, index_vars, var_axes)
             case calculus.Dim(target_, pos):
-                target = go(target_, index_sizes, index_class, index_vars, var_axes)
+                target = go(target_, index_sizes, index_vars, var_axes)
                 pos = target.type.array_type.rank - pos - 1
                 return Axial(
                     [],
@@ -81,11 +82,11 @@ def transform(
                     expr.type.primitive_type.single.kind,
                 )
             case calculus.Fold(index, size_, body_, init_, acc):
-                size = go(size_, index_sizes, index_class, index_vars, var_axes)
+                size = go(size_, index_sizes, index_vars, var_axes)
                 assert (
                     not size.type.free_indices
                 ), "Cannot compile fold with vector-index-dependent size"
-                init = go(init_, index_sizes, index_class, index_vars, var_axes)
+                init = go(init_, index_sizes, index_vars, var_axes)
                 index_var = Variable()
                 # FIXME: We need to establish an alignment that includes free indices from both init and body.
                 #  Doing this by constructing the body twice is a really bad idea.
@@ -94,7 +95,6 @@ def transform(
                 acc_axes = go(
                     body_,
                     index_sizes,
-                    index_class,
                     index_vars | {index: index_var},
                     var_axes | {acc.var: init.axes},
                 ).axes
@@ -103,7 +103,6 @@ def transform(
                 body = go(
                     body_,
                     index_sizes,
-                    index_class,
                     index_vars | {index: index_var},
                     var_axes | {acc.var: acc_axes},
                 )
@@ -121,11 +120,18 @@ def transform(
             case calculus.Get(
                 target_, calculus.At(index)
             ) if index in index_sizes and use_slices:
-                target = go(target_, index_sizes, index_class, index_vars, var_axes)
+                target = go(target_, index_sizes, index_vars, var_axes)
                 at_axis = target.type.array_type.rank - 1
-                if not slice_elision or not any(
-                    dim.operand == target_ for dim in index_class[index]
-                ):
+                print(
+                    "elide?",
+                    index,
+                    id(size_class._get_parent(index))
+                    - id(size_class._get_parent(calculus.Dim(target_, 0))),
+                    target_,
+                )
+                if slice_elision and size_class.equiv(index, calculus.Dim(target_, 0)):
+                    result = target.array
+                else:
                     result = array_calculus.Slice(
                         target.array,
                         tuple(
@@ -133,16 +139,14 @@ def transform(
                             for axis in target.axes
                         ),
                     )
-                else:
-                    result = target.array
                 return Axial(
                     [axis if axis != at_axis else index for axis in target.axes],
                     result,
                     expr.type.primitive_type.single.kind,
                 )
             case calculus.Get(target_, item_):
-                target = go(target_, index_sizes, index_class, index_vars, var_axes)
-                item = go(item_, index_sizes, index_class, index_vars, var_axes)
+                target = go(target_, index_sizes, index_vars, var_axes)
+                item = go(item_, index_sizes, index_vars, var_axes)
                 used_axes = axial.alignment(target.axes, item.axes)
                 at_axis = target.type.array_type.rank - 1
                 k = used_axes.index(at_axis)
@@ -169,21 +173,12 @@ def transform(
                     expr.type.primitive_type.single.kind,
                 )
             case calculus.Vec(index, size_, target_):
-                size = go(size_, index_sizes, index_class, index_vars, var_axes)
+                size = go(size_, index_sizes, index_vars, var_axes)
                 assert (
                     not size.type.free_indices
                 ), "Cannot compile index comprehension with vector-index-dependent size"
-                size_class = set()
-                if isinstance(size_, calculus.AssertEq):
-                    size_class = {
-                        e for e in size_.operands if isinstance(e, calculus.Dim)
-                    }
                 target = go(
-                    target_,
-                    index_sizes | {index: size.normal},
-                    index_class | {index: size_class},
-                    index_vars,
-                    var_axes,
+                    target_, index_sizes | {index: size.normal}, index_vars, var_axes
                 )
                 if index in target.axes:
                     return Axial(
@@ -203,10 +198,7 @@ def transform(
                         expr.type.primitive_type.single.kind,
                     )
             case calculus.AbstractScalarOperator(operands):
-                ops = [
-                    go(op, index_sizes, index_class, index_vars, var_axes)
-                    for op in operands
-                ]
+                ops = [go(op, index_sizes, index_vars, var_axes) for op in operands]
                 used_axes = axial.alignment(*(op.axes for op in ops))
                 if expr.ufunc == to_float:
                     (target,) = ops
@@ -234,19 +226,16 @@ def transform(
     def go(
         expr: calculus.Expr,
         index_sizes: dict[Index, array_calculus.Expr],
-        index_class: dict[Index, set[calculus.Dim]],
         index_vars: dict[Index, Variable],
         var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
         if expr not in transformed:
-            transformed[expr] = _go(
-                expr, index_sizes, index_class, index_vars, var_axes
-            )
+            transformed[expr] = _go(expr, index_sizes, index_vars, var_axes)
         return transformed[expr]
 
     # FIXME: Let-bound variables get different treatment here than free variables.
     #  Free variables are always assumed to depend on no indices (empty free-index set).
-    array_program = go(program, {}, {}, {}, {}).normal
+    array_program = go(program, {}, {}, {}).normal
     if do_cancellations:
         array_program = cancel_ops(array_program)
     if do_inplace_on_temporaries:

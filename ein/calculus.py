@@ -2,7 +2,7 @@ import abc
 from abc import ABC
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, ClassVar, TypeAlias, cast
+from typing import Any, Callable, ClassVar, TypeAlias, cast
 
 import numpy
 import numpy.typing
@@ -34,6 +34,20 @@ class Value:
             self.value = (Value(first), Value(second))
         else:
             self.value = numpy.array(value)
+
+    def __eq__(self, other) -> bool:
+        return isinstance(other, Value) and (
+            self.value is other.value
+            if isinstance(self.value, numpy.ndarray)
+            else self.value == other.value
+        )
+
+    def __hash__(self) -> int:
+        return (
+            hash(id(self.value))
+            if isinstance(self.value, numpy.ndarray)
+            else hash(self.value)
+        )
 
     @property
     def array(self) -> numpy.ndarray:
@@ -94,6 +108,10 @@ class AbstractExpr(abc.ABC):
     def dependencies(self) -> set[Expr]:
         ...
 
+    @abc.abstractmethod
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        ...
+
     @property
     def _indices(self) -> set[Index]:
         return set()
@@ -125,7 +143,7 @@ class AbstractExpr(abc.ABC):
         return _merge_adj(*(sub.direct_indices for sub in self.dependencies))
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True)
 class Const(AbstractExpr):
     value: Value
 
@@ -141,8 +159,11 @@ class Const(AbstractExpr):
     def dependencies(self) -> set[Expr]:
         return set()
 
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return self
 
-@dataclass(frozen=True, eq=False)
+
+@dataclass(frozen=True)
 class At(AbstractExpr):
     index: Index
 
@@ -158,12 +179,15 @@ class At(AbstractExpr):
     def dependencies(self) -> set[Expr]:
         return set()
 
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return self
+
     @property
     def _indices(self) -> set[Index]:
         return {self.index}
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True)
 class Var(AbstractExpr):
     var: Variable
     var_type: Type
@@ -179,6 +203,9 @@ class Var(AbstractExpr):
     @property
     def dependencies(self) -> set[Expr]:
         return set()
+
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return self
 
     @property
     def _variables(self) -> set[Variable]:
@@ -201,6 +228,9 @@ class Let(AbstractExpr):
     @property
     def dependencies(self) -> set[Expr]:
         return {expr for _, expr in self.bindings} | {self.body}
+
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return Let(tuple((var, f(expr)) for var, expr in self.bindings), f(self.body))
 
     @property
     def _variables(self) -> set[Variable]:
@@ -229,8 +259,11 @@ class AssertEq(AbstractExpr):
     def dependencies(self) -> set[Expr]:
         return {self.target, *self.operands}
 
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return AssertEq(f(self.target), tuple(f(op) for op in self.operands))
 
-@dataclass(frozen=True, eq=False)
+
+@dataclass(frozen=True)
 class Dim(AbstractExpr):
     operand: Expr
     axis: int
@@ -246,6 +279,9 @@ class Dim(AbstractExpr):
     @cached_property
     def dependencies(self) -> set[Expr]:
         return {self.operand}
+
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return Dim(f(self.operand), self.axis)
 
 
 @dataclass(frozen=True, eq=False)
@@ -270,6 +306,9 @@ class Get(AbstractExpr):
     @cached_property
     def dependencies(self) -> set[Expr]:
         return {self.operand, self.item}
+
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return Get(f(self.operand), f(self.item))
 
     @property
     def direct_index(self) -> Index | None:
@@ -300,8 +339,11 @@ class Cons(AbstractExpr):
     def dependencies(self) -> set[Expr]:
         return {self.first, self.second}
 
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return Cons(f(self.first), f(self.second))
 
-@dataclass(frozen=True, eq=False)
+
+@dataclass(frozen=True)
 class AbstractDecons(AbstractExpr, abc.ABC):
     target: Expr
 
@@ -318,15 +360,18 @@ class AbstractDecons(AbstractExpr, abc.ABC):
     def dependencies(self) -> set[Expr]:
         return {self.target}
 
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return type(self)(f(self.target))  # type: ignore
 
-@dataclass(frozen=True, eq=False)
+
+@dataclass(frozen=True)
 class First(AbstractDecons):
     @cached_property
     def type(self) -> Type:
         return self._unwrap_pair().first
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True)
 class Second(AbstractDecons):
     @cached_property
     def type(self) -> Type:
@@ -364,6 +409,9 @@ class Vec(AbstractVectorization):
     def type(self) -> Type:
         return Vector(self.body.type)
 
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return Vec(self.index, f(self.size), f(self.body))
+
 
 @dataclass(frozen=True, eq=False)
 class Fold(AbstractVectorization):
@@ -391,6 +439,9 @@ class Fold(AbstractVectorization):
     def _captured_variables(self) -> set[Variable]:
         return {self.acc.var}
 
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return Fold(self.index, f(self.size), f(self.body), f(self.init), self.acc)
+
 
 @dataclass(frozen=True, eq=False)
 class AbstractScalarOperator(AbstractExpr, abc.ABC):
@@ -414,6 +465,9 @@ class AbstractScalarOperator(AbstractExpr, abc.ABC):
             constraints,
             f"Operator {type(self).__name__} of ",
         )
+
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return type(self)(tuple(f(op) for op in self.operands))  # type: ignore
 
 
 @dataclass(frozen=True, eq=False)
