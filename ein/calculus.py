@@ -1,5 +1,4 @@
 import abc
-from abc import ABC
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Callable, ClassVar, TypeAlias, cast
@@ -379,18 +378,24 @@ class Second(AbstractDecons):
 
 
 @dataclass(frozen=True, eq=False)
-class AbstractVectorization(AbstractExpr, ABC):
+class Vec(AbstractExpr):
     index: Index
     size: Expr
     body: Expr
 
-    def _validate_size(self) -> None:
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"index": self.index}, {self.size, self.body}
+
+    @cached_property
+    def type(self) -> Type:
         if not isinstance(self.size.type, Scalar):
             raise TypeError(f"Size must be a scalar, not {self.size.type}")
         if self.size.type.kind != int:
             raise TypeError(f"Size must be an integer, not {self.size.type}")
+        return Vector(self.body.type)
 
-    @cached_property
+    @property
     def dependencies(self) -> set[Expr]:
         return {self.size, self.body}
 
@@ -398,23 +403,15 @@ class AbstractVectorization(AbstractExpr, ABC):
     def _captured_indices(self) -> set[Index]:
         return {self.index}
 
-
-@dataclass(frozen=True, eq=False)
-class Vec(AbstractVectorization):
-    @property
-    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"index": self.index}, {self.size, self.body}
-
-    @cached_property
-    def type(self) -> Type:
-        return Vector(self.body.type)
-
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Vec(self.index, f(self.size), f(self.body))
 
 
 @dataclass(frozen=True, eq=False)
-class Fold(AbstractVectorization):
+class Fold(AbstractExpr):
+    index: Index
+    size: Expr
+    body: Expr
     init: Expr
     acc: Var
 
@@ -422,13 +419,20 @@ class Fold(AbstractVectorization):
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
         return {"index": self.index, "acc": self.acc.var}, {
             self.size,
-            self.body,
             self.init,
+            self.body,
         }
+
+    @property
+    def dependencies(self) -> set[Expr]:
+        return {self.size, self.init, self.body}
 
     @cached_property
     def type(self) -> Type:
-        self._validate_size()
+        if not isinstance(self.size.type, Scalar):
+            raise TypeError(f"Size must be a scalar, not {self.size.type}")
+        if self.size.type.kind != int:
+            raise TypeError(f"Size must be an integer, not {self.size.type}")
         if self.init.type != self.acc.type:
             raise TypeError(
                 f"Initial value and accumulator must be of the same type, got {self.init.type} != {self.acc.type}"
