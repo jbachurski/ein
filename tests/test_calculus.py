@@ -5,6 +5,7 @@ from ein import Scalar, interpret_with_naive, interpret_with_numpy, matrix, vect
 from ein.calculus import (
     Add,
     At,
+    CastToFloat,
     Cons,
     Const,
     Dim,
@@ -19,8 +20,10 @@ from ein.calculus import (
     LogicalNot,
     Multiply,
     Negate,
+    Pair,
     Reciprocal,
     Second,
+    Sin,
     Value,
     Var,
     Variable,
@@ -117,8 +120,7 @@ def test_indexing_with_shift(interpret):
 @with_interpret
 def test_basic_pairs(interpret):
     if interpret == interpret_with_numpy:
-        pytest.mark.skip()
-        return
+        pytest.skip()
     av, bv = numpy.array([1, 2, 3]), numpy.array([-1, 1])
     a, b = Const(Value(av)), Const(Value(bv))
     p = Cons(a, Cons(Cons(a, b), b))
@@ -217,4 +219,33 @@ def test_fibonacci_vector_fold(interpret):
     )
     numpy.testing.assert_allclose(
         interpret(fib_expr, {n0: numpy.array(8)}), [0, 1, 1, 2, 3, 5, 8, 13]
+    )
+
+
+@with_interpret
+def test_argmin(interpret):
+    if interpret == interpret_with_numpy:
+        pytest.skip()
+    i, j = Index(), Index()
+    a = Var(Variable(), vector(float))
+    n = Var(Variable(), Scalar(int))
+    r = Var(Variable(), Pair(Scalar(float), Scalar(int)))
+    a_at_i_j = Sin((Add((Get(a, At(i)), CastToFloat((At(j),)))),))
+    cond_i_j = Less((First(r), a_at_i_j))
+    argmin_expr = Fold(
+        i,
+        n,
+        r,
+        Cons(Const(Value(-float("inf"))), Const(Value(0))),
+        Cons(
+            Where((cond_i_j, a_at_i_j, First(r))), Where((cond_i_j, At(i), Second(r)))
+        ),
+    )
+    expr = Vec(j, n, Second(argmin_expr))
+
+    sample_n = 5
+    sample_a = numpy.random.randn(sample_n)
+    numpy.testing.assert_allclose(
+        interpret(expr, {a.var: sample_a, n.var: sample_n}),
+        numpy.sin(numpy.arange(sample_n)[:, numpy.newaxis] + sample_a).argmax(axis=1),
     )

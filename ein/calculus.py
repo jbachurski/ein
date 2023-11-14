@@ -48,6 +48,9 @@ class Value:
             else hash(self.value)
         )
 
+    def __repr__(self) -> str:
+        return repr(self.value)
+
     @property
     def array(self) -> numpy.ndarray:
         if not isinstance(self.value, numpy.ndarray):
