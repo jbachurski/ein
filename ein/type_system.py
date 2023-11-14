@@ -1,7 +1,7 @@
 import abc
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Iterable, TypeAlias
+from typing import Any, Iterable, Self, TypeAlias
 
 import numpy
 
@@ -58,7 +58,7 @@ class Vector(AbstractType):
 
     @property
     def primitive_type(self) -> "PrimitiveType":
-        return PrimitiveType((self.elem.primitive_type.single.in_vector,))
+        return PrimitiveType((self.elem.primitive_type.single.with_rank_delta(+1),))
 
 
 @dataclass(frozen=True)
@@ -107,21 +107,17 @@ class PrimitiveArrayType:
         return self.type.pretty
 
     @property
-    def in_vector(self) -> "PrimitiveArrayType":
-        return PrimitiveArrayType(self.rank + 1, self.kind)
-
-    @property
-    def item(self) -> "PrimitiveArrayType":
-        assert self.rank, "Expected non-scalar array to index"
-        return PrimitiveArrayType(self.rank - 1, self.kind)
-
-    @property
     def type(self) -> Type:
-        return (
-            Vector(PrimitiveArrayType(self.rank - 1, self.kind).type)
-            if self.rank
-            else Scalar(self.kind)
-        )
+        return Vector(self.with_rank_delta(-1).type) if self.rank else Scalar(self.kind)
+
+    def with_rank(self, rank: int) -> "PrimitiveArrayType":
+        return PrimitiveArrayType(rank, self.kind)
+
+    def with_rank_delta(self, delta: int) -> "PrimitiveArrayType":
+        return self.with_rank(self.rank + delta)
+
+    def with_kind(self, kind: ScalarKind) -> "PrimitiveArrayType":
+        return PrimitiveArrayType(self.rank, kind)
 
 
 @dataclass(frozen=True)
@@ -148,6 +144,19 @@ class PrimitiveType:
             case (elem, *elems):
                 return Pair(elem.type, PrimitiveType(tuple(elems)).type)
         assert False, "Unit is not a primitive type"
+
+    @classmethod
+    def of_array(cls, rank: int, kind: ScalarKind) -> Self:
+        return cls((PrimitiveArrayType(rank, kind),))
+
+    def single_with_rank(self, rank: int) -> "PrimitiveType":
+        return PrimitiveType((self.single.with_rank(rank),))
+
+    def single_with_rank_delta(self, delta: int) -> "PrimitiveType":
+        return PrimitiveType((self.single.with_rank_delta(delta),))
+
+    def single_with_kind(self, kind: ScalarKind) -> "PrimitiveType":
+        return PrimitiveType((self.single.with_kind(kind),))
 
 
 def resolve_scalar_signature(

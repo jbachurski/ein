@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Iterable, ParamSpec, TypeAlias, cast
 
 from ein.symbols import Index, Variable
-from ein.type_system import PrimitiveArrayType, ScalarKind
+from ein.type_system import PrimitiveArrayType
 
 from . import array_calculus
 
@@ -25,28 +25,25 @@ Axes: TypeAlias = tuple[Axis, ...]
 class Axial:
     axes: Axes
     array: array_calculus.Expr
-    kind: ScalarKind
 
-    def __init__(
-        self, axes: Iterable[Axis], array: array_calculus.Expr, kind: ScalarKind
-    ):
+    def __init__(self, axes: Iterable[Axis], array: array_calculus.Expr):
         self.axes = tuple(axes)
         self.array = array
-        self.kind = kind
-        assert len(self.axes) == self.array.rank
+        assert len(self.axes) == self.array.type.single.rank
 
     @property
     def type(self) -> AxialType:
         free_indices = {index for index in self.axes if isinstance(index, Index)}
+        typ = self.array.type.single
         return AxialType(
-            PrimitiveArrayType(rank=len(self.axes) - len(free_indices), kind=self.kind),
+            typ.with_rank_delta(-len(free_indices)),
             free_indices,
         )
 
     @property
     def normal(self) -> array_calculus.Expr:
         assert not self.type.free_indices
-        rank = self.type.array_type.rank
+        rank = self.array.type.single.rank
         inv: list[int | None] = [None for _ in range(rank)]
         for i, p in enumerate(self.axes):
             assert isinstance(p, int)
@@ -55,7 +52,7 @@ class Axial:
         return array_calculus.Transpose(tuple(cast(list[int], inv)), self.array)
 
     def within(self, *args: tuple[Variable, array_calculus.Expr]) -> "Axial":
-        return Axial(self.axes, array_calculus.Let(args, self.array), self.kind)
+        return Axial(self.axes, array_calculus.Let(args, self.array))
 
 
 # TODO: This is a silly baseline alignment algorithm.

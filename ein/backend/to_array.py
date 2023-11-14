@@ -1,12 +1,10 @@
 from functools import cache
 from typing import assert_never
 
-import numpy
-
 from ein import calculus
 from ein.midend.size_classes import find_size_classes
 from ein.symbols import Index, Variable
-from ein.type_system import to_float
+from ein.type_system import PrimitiveType, to_float
 
 from . import array_calculus, axial
 from .axial import Axial
@@ -37,28 +35,29 @@ def transform(
                 return Axial(
                     reversed(range(value.array.ndim)),
                     array_calculus.Const(value.array),
-                    expr.type.primitive_type.single.kind,
                 )
             case calculus.At(index):
                 if index in index_sizes:  # vector index
                     return Axial(
                         [index],
                         array_calculus.Range(index_sizes[index]),
-                        expr.type.primitive_type.single.kind,
                     )
                 else:  # fold index
                     return Axial(
                         [],
-                        array_calculus.Var(index_vars[index], 0),
-                        expr.type.primitive_type.single.kind,
+                        array_calculus.Var(
+                            index_vars[index],
+                            PrimitiveType.of_array(0, int),
+                        ),
                     )
             case calculus.Var(var, var_type):
                 rank = var_type.primitive_type.single.rank
                 axes = var_axes.get(var, list(reversed(range(rank))))
                 return Axial(
                     axes,
-                    array_calculus.Var(var, len(axes)),
-                    expr.type.primitive_type.single.kind,
+                    array_calculus.Var(
+                        var, var_type.primitive_type.single_with_rank(len(axes))
+                    ),
                 )
             case calculus.Let(bindings_, body_):
                 bindings = tuple(
@@ -79,7 +78,6 @@ def transform(
                 return Axial(
                     [],
                     array_calculus.Dim(target.axes.index(pos), target.array),
-                    expr.type.primitive_type.single.kind,
                 )
             case calculus.Fold(index, size_, acc, init_, body_):
                 size = go(size_, index_sizes, index_vars, var_axes)
@@ -115,7 +113,6 @@ def transform(
                         axial.align(init, acc_axes),
                         axial.align(body, acc_axes),
                     ),
-                    expr.type.primitive_type.single.kind,
                 )
             case calculus.Get(
                 target_, calculus.At(index)
@@ -135,7 +132,6 @@ def transform(
                 return Axial(
                     [axis if axis != at_axis else index for axis in target.axes],
                     result,
-                    expr.type.primitive_type.single.kind,
                 )
             case calculus.Get(target_, item_):
                 target = go(target_, index_sizes, index_vars, var_axes)
@@ -163,7 +159,6 @@ def transform(
                 return Axial(
                     used_axes[:k] + used_axes[k + 1 :],
                     result,
-                    expr.type.primitive_type.single.kind,
                 )
             case calculus.Vec(index, size_, target_):
                 size = go(size_, index_sizes, index_vars, var_axes)
@@ -180,7 +175,6 @@ def transform(
                             for axis in target.axes
                         ),
                         target.array,
-                        expr.type.primitive_type.single.kind,
                     )
                 else:
                     return Axial(
@@ -188,7 +182,6 @@ def transform(
                         array_calculus.Repeat(
                             0, size.array, array_calculus.Unsqueeze((0,), target.array)
                         ),
-                        expr.type.primitive_type.single.kind,
                     )
             case calculus.AbstractScalarOperator(operands):
                 ops = [go(op, index_sizes, index_vars, var_axes) for op in operands]
@@ -197,16 +190,14 @@ def transform(
                     (target,) = ops
                     return Axial(
                         used_axes,
-                        array_calculus.Cast(numpy.dtype(float), target.array),
-                        expr.type.primitive_type.single.kind,
+                        array_calculus.Cast(float, target.array),
                     )
                 else:
                     return Axial(
                         used_axes,
-                        array_calculus.ELEMENTWISE[expr.ufunc](
+                        array_calculus.ELEMENTWISE_UFUNCS[expr.ufunc](
                             *(axial.align(op, used_axes, leftpad=False) for op in ops)
                         ),
-                        expr.type.primitive_type.single.kind,
                     )
             case calculus.Cons() | calculus.First() | calculus.Second():
                 raise NotImplementedError(
@@ -278,10 +269,11 @@ def inplace_on_temporaries(program: array_calculus.Expr) -> array_calculus.Expr:
             case array_calculus.BinaryElementwise(kind, first, second, None):
                 # This logic is really shaky and interacts with optimisations to the number of axis manipulation calls.
                 # Should have more in-depth analysis on what broadcasting might occur
-                if first.rank == second.rank:
-                    if first.rank and isinstance(first, TEMPORARIES):
+                rank1, rank2 = first.type.single.rank, second.type.single.rank
+                if rank1 == rank2:
+                    if rank1 and isinstance(first, TEMPORARIES):
                         return array_calculus.BinaryElementwise(kind, first, second, 0)
-                    if second.rank and isinstance(second, TEMPORARIES):
+                    if rank2 and isinstance(second, TEMPORARIES):
                         return array_calculus.BinaryElementwise(kind, first, second, 1)
         return expr
 

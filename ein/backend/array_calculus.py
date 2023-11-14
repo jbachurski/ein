@@ -6,7 +6,16 @@ from typing import Any, Callable, Optional, TypeAlias
 
 import numpy
 
+from ein.calculus import Value
 from ein.symbols import Variable
+from ein.type_system import (
+    UFUNC_SIGNATURES,
+    PrimitiveArrayType,
+    PrimitiveType,
+    Scalar,
+    ScalarKind,
+    resolve_scalar_signature,
+)
 
 Expr: TypeAlias = (
     "Const | Var | Let | Dim | Range | "
@@ -18,7 +27,7 @@ Expr: TypeAlias = (
 @dataclass(frozen=True, eq=False)
 class AbstractExpr(abc.ABC):
     def __post_init__(self):
-        assert self.rank >= 0
+        assert self.type
 
     @abc.abstractmethod
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -31,7 +40,7 @@ class AbstractExpr(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def rank(self) -> int:
+    def type(self) -> PrimitiveType:
         ...
 
 
@@ -47,14 +56,14 @@ class Const(AbstractExpr):
         return {"array": self.array}, set()
 
     @property
-    def rank(self) -> int:
-        return self.array.ndim
+    def type(self) -> PrimitiveType:
+        return Value(self.array).type.primitive_type
 
 
 @dataclass(frozen=True, eq=False)
 class Var(AbstractExpr):
     var: Variable
-    var_rank: int
+    var_type: PrimitiveType
 
     def map(self, f: Callable[[Expr], Expr]) -> "Var":
         return self
@@ -64,8 +73,8 @@ class Var(AbstractExpr):
         return {"var": self.var}, set()
 
     @property
-    def rank(self) -> int:
-        return self.var_rank
+    def type(self) -> PrimitiveType:
+        return self.var_type
 
 
 @dataclass(frozen=True, eq=False)
@@ -85,8 +94,8 @@ class Let(AbstractExpr):
         } | {self.body}
 
     @cached_property
-    def rank(self) -> int:
-        return self.body.rank
+    def type(self) -> PrimitiveType:
+        return self.body.type
 
 
 @dataclass(frozen=True, eq=False)
@@ -101,9 +110,10 @@ class Dim(AbstractExpr):
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
         return {"axis": self.axis}, {self.target}
 
-    @property
-    def rank(self) -> int:
-        return 0
+    @cached_property
+    def type(self) -> PrimitiveType:
+        assert 0 <= self.axis < self.target.type.single.rank
+        return PrimitiveType.of_array(0, int)
 
 
 @dataclass(frozen=True, eq=False)
@@ -118,9 +128,9 @@ class Range(AbstractExpr):
         return {}, {self.size}
 
     @cached_property
-    def rank(self) -> int:
-        assert not self.size.rank
-        return 1
+    def type(self) -> PrimitiveType:
+        assert not self.size.type.single.rank
+        return PrimitiveType.of_array(1, int)
 
 
 @dataclass(frozen=True, eq=False)
@@ -136,9 +146,9 @@ class Transpose(AbstractExpr):
         return {"axes": self.permutation}, {self.target}
 
     @cached_property
-    def rank(self) -> int:
-        assert len(self.permutation) == self.target.rank
-        return self.target.rank
+    def type(self) -> PrimitiveType:
+        assert len(self.permutation) == self.target.type.single.rank
+        return self.target.type
 
 
 @dataclass(frozen=True, eq=False)
@@ -154,8 +164,9 @@ class Squeeze(AbstractExpr):
         return {"axes": self.axes}, {self.target}
 
     @cached_property
-    def rank(self) -> int:
-        return self.target.rank - len(self.axes)
+    def type(self) -> PrimitiveType:
+        assert len(self.axes) == len(set(self.axes))
+        return self.target.type.single_with_rank_delta(-len(self.axes))
 
 
 @dataclass(frozen=True, eq=False)
@@ -171,8 +182,9 @@ class Unsqueeze(AbstractExpr):
         return {"axes": self.axes}, {self.target}
 
     @cached_property
-    def rank(self) -> int:
-        return self.target.rank + len(self.axes)
+    def type(self) -> PrimitiveType:
+        assert len(self.axes) == len(set(self.axes))
+        return self.target.type.single_with_rank_delta(+len(self.axes))
 
 
 @dataclass(frozen=True, eq=False)
@@ -189,12 +201,13 @@ class Gather(AbstractExpr):
         return {"axis": self.axis}, {self.target, self.item}
 
     @cached_property
-    def rank(self) -> int:
+    def type(self) -> PrimitiveType:
         assert (
-            self.target.rank == self.item.rank
-        ), "Gather assumes broadcast of target and item"
-        assert 0 <= self.axis < self.target.rank, "Gather axis not in range"
-        return self.target.rank
+            self.target.type.single.rank == self.item.type.single.rank
+        ), "Gather broadcasts target and item"
+        assert 0 <= self.axis < self.target.type.single.rank, "Gather axis not in range"
+        assert self.item.type.single.kind == int
+        return self.target.type
 
 
 @dataclass(frozen=True, eq=False)
@@ -216,9 +229,11 @@ class Take(AbstractExpr):
         }
 
     @cached_property
-    def rank(self) -> int:
-        assert len(self.items) == self.target.rank
-        return self.target.rank - sum(item is not None for item in self.items)
+    def type(self) -> PrimitiveType:
+        assert len(self.items) == self.target.type.single.rank
+        return self.target.type.single_with_rank_delta(
+            -sum(item is not None for item in self.items)
+        )
 
 
 @dataclass(frozen=True, eq=False)
@@ -240,9 +255,12 @@ class Slice(AbstractExpr):
         }
 
     @cached_property
-    def rank(self) -> int:
-        assert len(self.stops) == self.target.rank
-        return self.target.rank
+    def type(self) -> PrimitiveType:
+        assert all(
+            isinstance(stop, AbstractExpr) or stop is None for stop in self.stops
+        )
+        assert len(self.stops) == self.target.type.single.rank
+        return self.target.type
 
 
 @dataclass(frozen=True, eq=False)
@@ -259,10 +277,12 @@ class Repeat(AbstractExpr):
         return {"axis": self.axis}, {self.count, self.target}
 
     @cached_property
-    def rank(self) -> int:
-        assert self.count.rank == 0, "Can only repeat scalar number of times"
-        assert 0 <= self.axis < self.target.rank, "Repeat axis not in range"
-        return self.target.rank
+    def type(self) -> PrimitiveType:
+        assert (
+            self.count.type.single.rank == 0
+        ), "Can only repeat scalar number of times"
+        assert 0 <= self.axis < self.target.type.single.rank, "Repeat axis not in range"
+        return self.target.type
 
 
 @dataclass(frozen=True, eq=False)
@@ -283,14 +303,16 @@ class Reduce(AbstractExpr):
         return {"kind": self.kind.name, "axis": self.axis}, {self.target}
 
     @cached_property
-    def rank(self) -> int:
-        assert 0 <= self.axis <= self.target.rank, "Mismatched reduction axis"
-        return self.target.rank - 1
+    def type(self) -> PrimitiveType:
+        assert (
+            0 <= self.axis <= self.target.type.single.rank
+        ), "Mismatched reduction axis"
+        return self.target.type.single_with_rank_delta(-1)
 
 
 @dataclass(frozen=True, eq=False)
 class Cast(AbstractExpr):
-    dtype: numpy.dtype
+    dtype: ScalarKind
     target: Expr
 
     def map(self, f: Callable[[Expr], Expr]) -> "Cast":
@@ -301,8 +323,8 @@ class Cast(AbstractExpr):
         return {"dtype": self.dtype}, {self.target}
 
     @cached_property
-    def rank(self) -> int:
-        return self.target.rank
+    def type(self) -> PrimitiveType:
+        return self.target.type.single_with_kind(self.dtype)
 
 
 @dataclass(frozen=True, eq=False)
@@ -320,8 +342,15 @@ class AbstractElementwise(AbstractExpr):
         return {"kind": getattr(self, "kind").name}, set(self.operands)
 
     @cached_property
-    def rank(self) -> int:
-        return max(op.rank for op in self.operands)
+    def type(self) -> PrimitiveType:
+        signature, constraints = UFUNC_SIGNATURES[ELEMENTWISE_KINDS[self.kind]]  # type: ignore
+        rank = max(op.type.single.rank for op in self.operands)
+        kind = resolve_scalar_signature(
+            (Scalar(op.type.single.kind) for op in self.operands),
+            signature,
+            constraints,
+        ).kind
+        return PrimitiveType((PrimitiveArrayType(rank, kind),))
 
 
 @dataclass(frozen=True, eq=False)
@@ -399,12 +428,12 @@ class Fold(AbstractExpr):
         return {"index": self.index, "acc": self.acc}, {self.init, self.size, self.body}
 
     @cached_property
-    def rank(self) -> int:
-        assert self.size.rank == 0, "Expected scalar size"
+    def type(self) -> PrimitiveType:
+        assert self.size.type.single.rank == 0, "Expected scalar size"
         assert (
-            self.init.rank == self.body.rank
-        ), "Mismatched init and body accumulator rank"
-        return self.body.rank
+            self.init.type == self.body.type
+        ), "Mismatched init and body accumulator types"
+        return self.body.type
 
 
 # FIXME: Typing tuples doesn't work. Should be using type: PrimitiveType, not rank: int.
@@ -420,8 +449,8 @@ class Tuple(AbstractExpr):
         return {}, set(self.operands)
 
     @cached_property
-    def rank(self):
-        assert False
+    def type(self) -> PrimitiveType:
+        return PrimitiveType(tuple(op.type.single for op in self.operands))
 
 
 @dataclass(frozen=True, eq=False)
@@ -438,8 +467,9 @@ class Untuple(AbstractExpr):
         return {"at": self.at, "arity": self.arity}, {self.target}
 
     @cached_property
-    def rank(self):
-        assert False
+    def type(self) -> PrimitiveType:
+        assert len(self.target.type.elems) == self.arity
+        return PrimitiveType((self.target.type.elems[self.at],))
 
 
 REDUCE: dict[Any, Any] = {
@@ -447,7 +477,7 @@ REDUCE: dict[Any, Any] = {
     numpy.maximum: partial(Reduce, Reduce.Kind.max),
 }
 
-ELEMENTWISE: dict[Any, Any] = {
+ELEMENTWISE_UFUNCS: dict[Any, Any] = {
     numpy.negative: partial(UnaryElementwise, UnaryElementwise.Kind.negative),
     numpy.reciprocal: partial(UnaryElementwise, UnaryElementwise.Kind.reciprocal),
     numpy.exp: partial(UnaryElementwise, UnaryElementwise.Kind.exp),
@@ -459,4 +489,20 @@ ELEMENTWISE: dict[Any, Any] = {
     numpy.less: partial(BinaryElementwise, BinaryElementwise.Kind.less),
     numpy.logical_and: partial(BinaryElementwise, BinaryElementwise.Kind.logical_and),
     numpy.where: partial(TernaryElementwise, TernaryElementwise.Kind.where),
+}
+
+ELEMENTWISE_KINDS = {
+    Reduce.Kind.sum: numpy.sum,
+    Reduce.Kind.max: numpy.max,
+    UnaryElementwise.Kind.negative: numpy.negative,
+    UnaryElementwise.Kind.reciprocal: numpy.reciprocal,
+    UnaryElementwise.Kind.exp: numpy.exp,
+    UnaryElementwise.Kind.sin: numpy.sin,
+    UnaryElementwise.Kind.logical_not: numpy.logical_not,
+    BinaryElementwise.Kind.add: numpy.add,
+    BinaryElementwise.Kind.multiply: numpy.multiply,
+    BinaryElementwise.Kind.mod: numpy.mod,
+    BinaryElementwise.Kind.less: numpy.less,
+    BinaryElementwise.Kind.logical_and: numpy.logical_and,
+    TernaryElementwise.Kind.where: numpy.where,
 }
