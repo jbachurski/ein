@@ -119,8 +119,6 @@ def test_indexing_with_shift(interpret):
 
 @with_interpret
 def test_basic_pairs(interpret):
-    if interpret == interpret_with_numpy:
-        pytest.skip()
     av, bv = numpy.array([1, 2, 3]), numpy.array([-1, 1])
     a, b = Const(Value(av)), Const(Value(bv))
     p = Cons(a, Cons(Cons(a, b), b))
@@ -224,8 +222,6 @@ def test_fibonacci_vector_fold(interpret):
 
 @with_interpret
 def test_argmin(interpret):
-    if interpret == interpret_with_numpy:
-        pytest.skip()
     i, j = Index(), Index()
     a = Var(Variable(), vector(float))
     n = Var(Variable(), Scalar(int))

@@ -166,7 +166,8 @@ class Squeeze(AbstractExpr):
     @cached_property
     def type(self) -> PrimitiveType:
         assert len(self.axes) == len(set(self.axes))
-        return self.target.type.single_with_rank_delta(-len(self.axes))
+        assert self.target.type.single
+        return self.target.type.with_rank_delta(-len(self.axes))
 
 
 @dataclass(frozen=True, eq=False)
@@ -184,7 +185,8 @@ class Unsqueeze(AbstractExpr):
     @cached_property
     def type(self) -> PrimitiveType:
         assert len(self.axes) == len(set(self.axes))
-        return self.target.type.single_with_rank_delta(+len(self.axes))
+        assert self.target.type.single
+        return self.target.type.with_rank_delta(+len(self.axes))
 
 
 @dataclass(frozen=True, eq=False)
@@ -231,7 +233,7 @@ class Take(AbstractExpr):
     @cached_property
     def type(self) -> PrimitiveType:
         assert len(self.items) == self.target.type.single.rank
-        return self.target.type.single_with_rank_delta(
+        return self.target.type.with_rank_delta(
             -sum(item is not None for item in self.items)
         )
 
@@ -307,7 +309,7 @@ class Reduce(AbstractExpr):
         assert (
             0 <= self.axis <= self.target.type.single.rank
         ), "Mismatched reduction axis"
-        return self.target.type.single_with_rank_delta(-1)
+        return self.target.type.with_rank_delta(-1)
 
 
 @dataclass(frozen=True, eq=False)
@@ -324,7 +326,8 @@ class Cast(AbstractExpr):
 
     @cached_property
     def type(self) -> PrimitiveType:
-        return self.target.type.single_with_kind(self.dtype)
+        assert self.target.type.single
+        return self.target.type.with_kind(self.dtype)
 
 
 @dataclass(frozen=True, eq=False)
@@ -436,7 +439,6 @@ class Fold(AbstractExpr):
         return self.body.type
 
 
-# FIXME: Typing tuples doesn't work. Should be using type: PrimitiveType, not rank: int.
 @dataclass(frozen=True, eq=False)
 class Tuple(AbstractExpr):
     operands: tuple[Expr, ...]

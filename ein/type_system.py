@@ -124,12 +124,9 @@ class PrimitiveArrayType:
 class PrimitiveType:
     elems: tuple[PrimitiveArrayType, ...]
 
-    def __post_init__(self):
-        assert self.elems, "No unit types in the language"
-
     @property
     def pretty(self) -> str:
-        return "(" + ", ".join(elem.pretty for elem in self.elems) + ")"
+        return " * ".join(elem.pretty for elem in self.elems)
 
     @property
     def single(self) -> PrimitiveArrayType:
@@ -149,14 +146,14 @@ class PrimitiveType:
     def of_array(cls, rank: int, kind: ScalarKind) -> Self:
         return cls((PrimitiveArrayType(rank, kind),))
 
-    def single_with_rank(self, rank: int) -> "PrimitiveType":
-        return PrimitiveType((self.single.with_rank(rank),))
+    def with_rank(self, rank: int) -> "PrimitiveType":
+        return PrimitiveType(tuple(arr.with_rank(rank) for arr in self.elems))
 
-    def single_with_rank_delta(self, delta: int) -> "PrimitiveType":
-        return PrimitiveType((self.single.with_rank_delta(delta),))
+    def with_rank_delta(self, delta: int) -> "PrimitiveType":
+        return PrimitiveType(tuple(arr.with_rank_delta(delta) for arr in self.elems))
 
-    def single_with_kind(self, kind: ScalarKind) -> "PrimitiveType":
-        return PrimitiveType((self.single.with_kind(kind),))
+    def with_kind(self, kind: ScalarKind) -> "PrimitiveType":
+        return PrimitiveType(tuple(arr.with_kind(kind) for arr in self.elems))
 
 
 def resolve_scalar_signature(

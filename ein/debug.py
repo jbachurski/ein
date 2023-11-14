@@ -1,4 +1,6 @@
+import html
 import os.path
+import traceback
 from typing import Any
 
 from . import calculus
@@ -15,7 +17,12 @@ def _snip_limit(s: str, n: int) -> str:
 
 def _meta_value_repr(value):
     return _snip_limit(
-        str(value if not hasattr(value, "__call__") else value.__name__), 24
+        str(
+            html.escape(repr(value))
+            if not hasattr(value, "__call__") or not hasattr(value, "__name__")
+            else value.__name__
+        ),
+        24,
     )
 
 
@@ -58,15 +65,22 @@ def transform_graphs(
 ) -> "tuple[pydot.Dot, pydot.Dot]":
     from ein.backend import to_array
 
-    array_program = to_array.transform(
-        program,
-        use_slices=optimize,
-        slice_elision=optimize,
-        use_takes=optimize,
-        do_cancellations=optimize,
-        do_inplace_on_temporaries=optimize,
-    )
-    return graph(program), graph(array_program)
+    program_graph = graph(program)
+    try:
+        array_program = to_array.transform(
+            program,
+            use_slices=optimize,
+            slice_elision=optimize,
+            use_takes=optimize,
+            do_shape_cancellations=optimize,
+            do_tuple_cancellations=optimize,
+            do_inplace_on_temporaries=optimize,
+        )
+        array_graph = graph(array_program)
+    except Exception:
+        array_graph = None  # type: ignore
+        traceback.print_exc()
+    return program_graph, array_graph
 
 
 def plot_graph(dot: pydot.Dot) -> None:

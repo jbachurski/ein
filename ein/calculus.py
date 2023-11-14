@@ -457,7 +457,7 @@ class AbstractScalarOperator(AbstractExpr, abc.ABC):
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"ufunc": self.ufunc}, set(self.operands)
+        return {}, set(self.operands)
 
     @cached_property
     def dependencies(self) -> set[Expr]:

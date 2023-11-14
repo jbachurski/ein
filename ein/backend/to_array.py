@@ -4,7 +4,7 @@ from typing import assert_never
 from ein import calculus
 from ein.midend.size_classes import find_size_classes
 from ein.symbols import Index, Variable
-from ein.type_system import PrimitiveType, to_float
+from ein.type_system import Pair, PrimitiveType, to_float
 
 from . import array_calculus, axial
 from .axial import Axial
@@ -16,7 +16,8 @@ def transform(
     use_slices: bool = True,
     slice_elision: bool = True,
     use_takes: bool = True,
-    do_cancellations: bool = True,
+    do_shape_cancellations: bool = True,
+    do_tuple_cancellations: bool = True,
     do_inplace_on_temporaries: bool = True,
 ) -> array_calculus.Expr:
     transformed: dict[calculus.Expr, Axial] = {}
@@ -51,12 +52,12 @@ def transform(
                         ),
                     )
             case calculus.Var(var, var_type):
-                rank = var_type.primitive_type.single.rank
+                (rank,) = {elem.rank for elem in var_type.primitive_type.elems}
                 axes = var_axes.get(var, list(reversed(range(rank))))
                 return Axial(
                     axes,
                     array_calculus.Var(
-                        var, var_type.primitive_type.single_with_rank(len(axes))
+                        var, var_type.primitive_type.with_rank(len(axes))
                     ),
                 )
             case calculus.Let(bindings_, body_):
@@ -74,10 +75,10 @@ def transform(
                 return go(target_, index_sizes, index_vars, var_axes)
             case calculus.Dim(target_, pos):
                 target = go(target_, index_sizes, index_vars, var_axes)
-                pos = target.type.array_type.rank - pos - 1
+                pos = target.type.type.single.rank - pos - 1
                 return Axial(
                     [],
-                    array_calculus.Dim(target.axes.index(pos), target.array),
+                    array_calculus.Dim(target.axes.index(pos), target.expr),
                 )
             case calculus.Fold(index, size_, acc, init_, body_):
                 size = go(size_, index_sizes, index_vars, var_axes)
@@ -118,12 +119,12 @@ def transform(
                 target_, calculus.At(index)
             ) if index in index_sizes and use_slices:
                 target = go(target_, index_sizes, index_vars, var_axes)
-                at_axis = target.type.array_type.rank - 1
+                at_axis = target.type.type.single.rank - 1
                 if slice_elision and size_class.equiv(index, calculus.Dim(target_, 0)):
-                    result = target.array
+                    result = target.expr
                 else:
                     result = array_calculus.Slice(
-                        target.array,
+                        target.expr,
                         tuple(
                             index_sizes[index] if axis == at_axis else None
                             for axis in target.axes
@@ -137,14 +138,13 @@ def transform(
                 target = go(target_, index_sizes, index_vars, var_axes)
                 item = go(item_, index_sizes, index_vars, var_axes)
                 used_axes = axial.alignment(target.axes, item.axes)
-                at_axis = target.type.array_type.rank - 1
+                at_axis = target.type.type.single.rank - 1
                 k = used_axes.index(at_axis)
                 if use_takes and not item.axes:
                     result = array_calculus.Take(
-                        target.array,
+                        target.expr,
                         tuple(
-                            item.array if axis == at_axis else None
-                            for axis in used_axes
+                            item.expr if axis == at_axis else None for axis in used_axes
                         ),
                     )
                 else:
@@ -171,16 +171,16 @@ def transform(
                 if index in target.axes:
                     return Axial(
                         (
-                            target.type.array_type.rank if axis == index else axis
+                            target.type.type.single.rank if axis == index else axis
                             for axis in target.axes
                         ),
-                        target.array,
+                        target.expr,
                     )
                 else:
                     return Axial(
-                        (target.type.array_type.rank, *target.axes),
+                        (target.type.type.single.rank, *target.axes),
                         array_calculus.Repeat(
-                            0, size.array, array_calculus.Unsqueeze((0,), target.array)
+                            0, size.expr, array_calculus.Unsqueeze((0,), target.expr)
                         ),
                     )
             case calculus.AbstractScalarOperator(operands):
@@ -190,7 +190,7 @@ def transform(
                     (target,) = ops
                     return Axial(
                         used_axes,
-                        array_calculus.Cast(float, target.array),
+                        array_calculus.Cast(float, target.expr),
                     )
                 else:
                     return Axial(
@@ -199,10 +199,19 @@ def transform(
                             *(axial.align(op, used_axes, leftpad=False) for op in ops)
                         ),
                     )
-            case calculus.Cons() | calculus.First() | calculus.Second():
-                raise NotImplementedError(
-                    "Pairs are not yet implemented in the NumPy backend"
-                )
+            case calculus.Cons(first_, second_):
+                first = go(first_, index_sizes, index_vars, var_axes)
+                second = go(second_, index_sizes, index_vars, var_axes)
+                return first.cons(second)
+            case calculus.First(target_):
+                assert isinstance(target_.type, Pair)
+                k = len(target_.type.first.primitive_type.elems)
+                return go(target_, index_sizes, index_vars, var_axes).slice_tuple(0, k)
+            case calculus.Second(target_):
+                assert isinstance(target_.type, Pair)
+                k = len(target_.type.first.primitive_type.elems)
+                n = len(target_.type.primitive_type.elems)
+                return go(target_, index_sizes, index_vars, var_axes).slice_tuple(k, n)
             case _:
                 assert_never(expr)
         assert False  # noqa
@@ -220,15 +229,17 @@ def transform(
     # FIXME: Let-bound variables get different treatment here than free variables.
     #  Free variables are always assumed to depend on no indices (empty free-index set).
     array_program = go(program, {}, {}, {}).normal
-    if do_cancellations:
-        array_program = cancel_ops(array_program)
+    if do_shape_cancellations:
+        array_program = cancel_shape_ops(array_program)
+    if do_tuple_cancellations:
+        array_program = cancel_tuple_ops(array_program)
     if do_inplace_on_temporaries:
         array_program = inplace_on_temporaries(array_program)
 
     return array_program
 
 
-def cancel_ops(program: array_calculus.Expr) -> array_calculus.Expr:
+def cancel_shape_ops(program: array_calculus.Expr) -> array_calculus.Expr:
     @cache
     def go(expr: array_calculus.Expr) -> array_calculus.Expr:
         match expr:
@@ -241,6 +252,17 @@ def cancel_ops(program: array_calculus.Expr) -> array_calculus.Expr:
             case array_calculus.Squeeze(axes, target):
                 if not axes:
                     return go(target)
+        return expr.map(go)
+
+    return go(program)
+
+
+def cancel_tuple_ops(program: array_calculus.Expr) -> array_calculus.Expr:
+    @cache
+    def go(expr: array_calculus.Expr) -> array_calculus.Expr:
+        match expr:
+            case array_calculus.Untuple(at, _arity, array_calculus.Tuple(elems)):
+                return go(elems[at])
         return expr.map(go)
 
     return go(program)
