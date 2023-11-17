@@ -1,4 +1,5 @@
 import abc
+import functools
 import inspect
 from dataclasses import dataclass
 from typing import Callable, Iterable, Self, TypeVar
@@ -35,6 +36,7 @@ class BaseComprehension(abc.ABC):
 
     @staticmethod
     def _size_of(expr: calculus.Expr) -> Iterable[calculus.Expr]:
+        yield calculus.Dim(expr, 0)
         match expr:
             case calculus.Get(operand):
                 for sub in ArrayComprehension._size_of(operand):
@@ -44,10 +46,7 @@ class BaseComprehension(abc.ABC):
                             sub.axis + 1 if isinstance(sub.axis, int) else sub.axis,
                         )
             case calculus.Vec():
-                yield calculus.Dim(expr, 0)
                 yield expr.size
-            case calculus.Const() | calculus.Var() | calculus.Fold():
-                yield calculus.Dim(expr, 0)
 
     def _get_sized(self, body: Expr, indices: tuple[Index, ...]) -> dict[Index, Expr]:
         if self.sizes is None:
@@ -57,11 +56,7 @@ class BaseComprehension(abc.ABC):
                     candidate
                     for expr in body.direct_indices.get(index, set())
                     for candidate in self._size_of(expr)
-                ]
-                candidates = [
-                    shape_expr
-                    for shape_expr in candidates
-                    if not shape_expr.free_indices
+                    if not candidate.free_indices
                 ]
                 if not candidates:
                     raise ValueError(
@@ -140,17 +135,53 @@ class MinComprehension(MaxComprehension):
 
 
 class FoldComprehension(BaseComprehension):
+    def _apply(self, init_, constructor) -> Array:
+        assert self.sizes is None or len(self.sizes) == 1
+        if not isinstance(init_, tuple):
+            init_ = (init_,)
+        k = len(init_)
+        init = functools.reduce(calculus.Cons, [Array(a).expr for a in init_])
+
+        def take(e: calculus.Expr, i: int, n: int) -> calculus.Expr:
+            assert 0 <= i < n
+            if n <= 1:
+                return e
+            elif i + 1 == n:
+                return calculus.Second(e)
+            return take(calculus.First(e), i, n - 1)
+
+        def untuple(e: calculus.Expr, n: int) -> Array | tuple[Array, ...]:
+            if n == 1:
+                return Array(e)
+            return tuple(Array(take(e, i, n)) for i in range(n))
+
+        index = Index()
+        acc = calculus.Var(Variable(), init.type)
+        arg_index = Array(calculus.At(index))
+        arg_acc = untuple(acc, k)
+        body_ = constructor(arg_index, arg_acc)
+        if not isinstance(body_, tuple):
+            body_ = (body_,)
+        if len(init_) != len(body_):
+            raise TypeError(
+                f"Mismatched number of tuple elements in "
+                f"accumulator initialiser and fold body: {len(init_)} != {len(body_)}"
+            )
+        body = functools.reduce(calculus.Cons, [Array(a).expr for a in body_])
+        size_of = self._get_sized(body, (index,))
+        return untuple(calculus.Fold(index, size_of[index], acc, init, body), k)  # type: ignore
+
     def __call__(
         self, init_: ArrayLike, constructor: Callable[[Array, Array], ArrayLike]
     ) -> Array:
-        assert self.sizes is None or len(self.sizes) == 1
-        index, acc = Index(), Variable()
-        init = Array(init_)
-        typed_acc = calculus.Var(acc, init.expr.type)
-        wrapped_index, wrapped_acc = Array(calculus.At(index)), Array(typed_acc)
-        body = Array(constructor(wrapped_index, wrapped_acc)).expr
-        size_of = self._get_sized(body, (index,))
-        return Array(calculus.Fold(index, size_of[index], typed_acc, init.expr, body))
+        return self._apply(init_, constructor)  # type: ignore
+
+    def many(
+        self,
+        init_: tuple[ArrayLike, ...],
+        constructor: Callable[[Array, tuple[Array, ...]], tuple[ArrayLike, ...]],
+    ) -> tuple[Array, ...]:
+        return self._apply(init_, constructor)  # type: ignore
 
 
 class VariableArray(Array):

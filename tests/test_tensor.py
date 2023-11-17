@@ -215,3 +215,49 @@ def test_symmetric_sum(interpret):
     (a0,), expr = function([matrix(float)], lambda a: f(f(f(a))))
     arr = numpy.random.randn(2, 2)
     numpy.testing.assert_allclose(interpret(expr, {a0: arr}), f1(f1(f1(arr))))
+
+
+@with_interpret
+def test_argmin(interpret):
+    def argmin_trig(n: Array, a: Array) -> Array:
+        def step(i: Array, j: Array, acc: tuple[Array, ...]) -> tuple[Array, Array]:
+            v = (a[i] + j.to_float()).sin()
+            return (v > acc[0]).where(v, acc[0]), (v > acc[0]).where(i, acc[1])
+
+        return array[n](
+            lambda j: fold.many((-float("inf"), 0), lambda i, acc: step(i, j, acc))[1]
+        )
+
+    (n0, a0), expr = function([Scalar(int), vector(float)], argmin_trig)
+    sample_n = 5
+    sample_a = numpy.random.randn(sample_n)
+    numpy.testing.assert_allclose(
+        interpret(expr, {n0: sample_n, a0: sample_a}),
+        numpy.sin(numpy.arange(sample_n)[:, numpy.newaxis] + sample_a).argmax(axis=1),
+    )
+
+
+@with_interpret
+def test_matrix_power_times_vector(interpret):
+    def matmat(a: Array, b: Array) -> Array:
+        return array(lambda i, j: sum(lambda k: a[i, k] * b[k, j]))
+
+    def matvec(a: Array, b: Array) -> Array:
+        return array(lambda i: sum(lambda k: a[i, k] * b[k]))
+
+    def pow_mult(m: Array, n: Array, v: Array) -> Array:
+        k = m.dim(0)
+        id_k = array[k, k](lambda i, j: Array(i == j).where(1.0, 0.0))
+        mn, vn = fold[n].many(
+            (id_k, v), lambda t, mv: (matmat(mv[0], m), matvec(m, mv[1]))
+        )
+        return matvec(mn, vn)
+
+    (m0, n0, v0), expr = function([matrix(float), Scalar(int), vector(float)], pow_mult)
+    sample_n, sample_k = 2, 3
+    sample_m = numpy.random.randn(sample_k, sample_k)
+    sample_v = numpy.random.randn(sample_k)
+    numpy.testing.assert_allclose(
+        interpret(expr, {m0: sample_m, n0: sample_n, v0: sample_v}),
+        numpy.linalg.matrix_power(sample_m, 2 * sample_n) @ sample_v,
+    )

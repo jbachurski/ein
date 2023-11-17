@@ -235,7 +235,7 @@ class Let(AbstractExpr):
         return Let(tuple((var, f(expr)) for var, expr in self.bindings), f(self.body))
 
     @property
-    def _variables(self) -> set[Variable]:
+    def _captured_variables(self) -> set[Variable]:
         return {var for var, _ in self.bindings}
 
 
@@ -355,7 +355,7 @@ class AbstractDecons(AbstractExpr, abc.ABC):
 
     def _unwrap_pair(self) -> Pair:
         if not isinstance(self.target.type, Pair):
-            raise TypeError(f"Can only take First of a Pair, not {self.target.type}")
+            raise TypeError(f"Can only project Pairs, not {self.target.type}")
         return self.target.type
 
     @property
@@ -441,6 +441,10 @@ class Fold(AbstractExpr):
                 f"Initial value and accumulator must be of the same type, got {self.init.type} != {self.acc.type}"
             )
         return self.acc.type
+
+    @property
+    def _captured_indices(self) -> set[Index]:
+        return {self.index}
 
     @property
     def _captured_variables(self) -> set[Variable]:
