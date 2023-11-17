@@ -33,6 +33,7 @@ class Value:
             self.value = (Value(first), Value(second))
         else:
             self.value = numpy.array(value)
+            self.value.flags.writeable = False
 
     def __eq__(self, other) -> bool:
         return isinstance(other, Value) and (
