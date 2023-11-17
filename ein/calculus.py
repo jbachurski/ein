@@ -1,4 +1,5 @@
 import abc
+import dataclasses
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Callable, ClassVar, TypeAlias, cast
@@ -57,7 +58,7 @@ class Value:
     def __hash__(self) -> int:
         if isinstance(self.value, numpy.ndarray):
             if len(self.value.data) < BIG_DATA_SIZE:
-                return hash(self.value.data.tobytes())
+                return hash((self.value.dtype, self.value.data.tobytes()))
             return hash(id(self.value))
         return hash(self.value)
 
@@ -109,6 +110,27 @@ class AbstractExpr(abc.ABC):
         assert self.type
 
     @property
+    def _fields(self) -> tuple[tuple[str, Any], ...]:
+        return tuple(
+            (field.name, getattr(self, field.name))
+            for field in dataclasses.fields(self)
+        )
+
+    @cached_property
+    def hash(self) -> int:
+        return hash(self._fields)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, AbstractExpr) or type(self) != type(other):
+            return False
+        if self is other or self.hash == other.hash:
+            return True
+        return self._fields == other._fields
+
+    def __hash__(self) -> int:
+        return self.hash
+
+    @property
     @abc.abstractmethod
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
         ...
@@ -158,7 +180,7 @@ class AbstractExpr(abc.ABC):
         return _merge_adj(*(sub.direct_indices for sub in self.dependencies))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Const(AbstractExpr):
     value: Value
 
@@ -178,7 +200,7 @@ class Const(AbstractExpr):
         return self
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class At(AbstractExpr):
     index: Index
 
@@ -202,7 +224,7 @@ class At(AbstractExpr):
         return {self.index}
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Var(AbstractExpr):
     var: Variable
     var_type: Type
@@ -278,7 +300,7 @@ class AssertEq(AbstractExpr):
         return AssertEq(f(self.target), tuple(f(op) for op in self.operands))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Dim(AbstractExpr):
     operand: Expr
     axis: int
@@ -358,7 +380,7 @@ class Cons(AbstractExpr):
         return Cons(f(self.first), f(self.second))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class AbstractDecons(AbstractExpr, abc.ABC):
     target: Expr
 
@@ -379,14 +401,14 @@ class AbstractDecons(AbstractExpr, abc.ABC):
         return type(self)(f(self.target))  # type: ignore
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class First(AbstractDecons):
     @cached_property
     def type(self) -> Type:
         return self._unwrap_pair().first
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Second(AbstractDecons):
     @cached_property
     def type(self) -> Type:
@@ -559,9 +581,11 @@ class LogicalAnd(AbstractBinaryScalarOperator):
     ufunc = numpy.logical_and
 
 
+@dataclass(frozen=True, eq=False)
 class AbstractTernaryScalarOperator(AbstractScalarOperator):
     operands: tuple[Expr, Expr, Expr]
 
 
+@dataclass(frozen=True, eq=False)
 class Where(AbstractTernaryScalarOperator):
     ufunc = staticmethod(numpy.where)  # type: ignore
