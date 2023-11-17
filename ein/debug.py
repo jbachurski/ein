@@ -1,9 +1,9 @@
 import html
 import os.path
-import traceback
 from typing import Any
 
-from . import calculus
+from ein import calculus
+from ein.backend import array_calculus, to_array
 
 try:
     import pydot
@@ -60,27 +60,19 @@ def graph(program):
     return dot
 
 
-def transform_graphs(
-    program: calculus.Expr, optimize: bool = True
-) -> "tuple[pydot.Dot, pydot.Dot]":
-    from ein.backend import to_array
-
-    program_graph = graph(program)
-    try:
-        array_program = to_array.transform(
-            program,
-            use_slices=optimize,
-            slice_elision=optimize,
-            use_takes=optimize,
-            do_shape_cancellations=optimize,
-            do_tuple_cancellations=optimize,
-            do_inplace_on_temporaries=optimize,
-        )
-        array_graph = graph(array_program)
-    except Exception:
-        array_graph = None  # type: ignore
-        traceback.print_exc()
-    return program_graph, array_graph
+def array_from_phi_program(
+    program: calculus.Expr, *, optimize: bool = True
+) -> array_calculus.Expr:
+    array_program = to_array.transform(
+        program,
+        use_slices=optimize,
+        slice_elision=optimize,
+        use_takes=optimize,
+        do_shape_cancellations=optimize,
+        do_tuple_cancellations=optimize,
+        do_inplace_on_temporaries=optimize,
+    )
+    return array_program
 
 
 def plot_graph(dot: pydot.Dot) -> None:
@@ -98,6 +90,14 @@ def plot_graph(dot: pydot.Dot) -> None:
     fig.add_axes(ax)
     plt.imshow(arr)
     plt.show()
+
+
+def plot_phi_graph(program: calculus.Expr) -> None:
+    plot_graph(graph(program))
+
+
+def plot_array_graph(program: calculus.Expr, *, optimize: bool = True) -> None:
+    plot_graph(graph(array_from_phi_program(program, optimize=optimize)))
 
 
 def save_graph(dot: pydot.Dot, path: str, fmt: str | None = None) -> None:
