@@ -24,10 +24,10 @@ def _interpret(expr: Expr, env: dict[Variable, Value], idx: dict[Index, int]) ->
         case calculus.Fold(index, size, acc, init, body):
             evaluated_size = int(_interpret(size, env, idx).array)
             env = env.copy()
-            env[acc.var] = _interpret(init, env, idx)
+            env[acc] = _interpret(init, env, idx)
             for i in range(evaluated_size):
-                env[acc.var] = _interpret(body, env, idx | {index: i})
-            return env.pop(acc.var)
+                env[acc] = _interpret(body, env, idx | {index: i})
+            return env.pop(acc)
         case calculus.Get(target, item):
             return Value(
                 numpy.take(

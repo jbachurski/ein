@@ -90,7 +90,7 @@ def transform(
                     body_,
                     index_sizes,
                     index_vars | {index: index_var},
-                    var_axes | {acc.var: init._axes},
+                    var_axes | {acc: init._axes},
                 )._axes
                 transformed.clear()
                 transformed.update(pre_transformed)
@@ -98,14 +98,14 @@ def transform(
                     body_,
                     index_sizes,
                     index_vars | {index: index_var},
-                    var_axes | {acc.var: acc_axes},
+                    var_axes | {acc: acc_axes},
                 )
                 return Axial(
                     acc_axes,
                     array_calculus.Fold(
                         index_var,
                         size.normal,
-                        acc.var,
+                        acc,
                         init.aligned(acc_axes),
                         body.aligned(acc_axes),
                     ),

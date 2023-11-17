@@ -113,7 +113,7 @@ class SumComprehension(CommutativeComprehension):
     def application(index: Index, size: Expr, body: Expr) -> Expr:
         init = calculus.Const(calculus.Value(numpy.array(0.0)))
         acc = Var(Variable(), Scalar(float))
-        return calculus.Fold(index, size, acc, init, calculus.Add((acc, body)))
+        return calculus.Fold(index, size, acc.var, init, calculus.Add((acc, body)))
 
 
 class MaxComprehension(CommutativeComprehension):
@@ -122,7 +122,7 @@ class MaxComprehension(CommutativeComprehension):
         init = calculus.Const(calculus.Value(numpy.array(float("-inf"))))
         acc = Var(Variable(), Scalar(float))
         max_body = calculus.Where((calculus.Less((body, acc)), acc, body))
-        return calculus.Fold(index, size, acc, init, max_body)
+        return calculus.Fold(index, size, acc.var, init, max_body)
 
 
 class MinComprehension(MaxComprehension):
@@ -131,7 +131,7 @@ class MinComprehension(MaxComprehension):
         init = calculus.Const(calculus.Value(numpy.array(float("inf"))))
         acc = Var(Variable(), Scalar(float))
         min_body = calculus.Where((calculus.Less((acc, body)), acc, body))
-        return calculus.Fold(index, size, acc, init, min_body)
+        return calculus.Fold(index, size, acc.var, init, min_body)
 
 
 class FoldComprehension(BaseComprehension):

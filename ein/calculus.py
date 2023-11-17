@@ -427,13 +427,13 @@ class Vec(AbstractExpr):
 class Fold(AbstractExpr):
     index: Index
     size: Expr
-    acc: Var
+    acc: Variable
     init: Expr
     body: Expr
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"index": self.index, "acc": self.acc.var}, {
+        return {"index": self.index, "acc": self.acc}, {
             self.size,
             self.init,
             self.body,
@@ -449,11 +449,11 @@ class Fold(AbstractExpr):
             raise TypeError(f"Size must be a scalar, not {self.size.type}")
         if self.size.type.kind != int:
             raise TypeError(f"Size must be an integer, not {self.size.type}")
-        if self.init.type != self.acc.type:
+        if self.init.type != self.body.type:
             raise TypeError(
-                f"Initial value and accumulator must be of the same type, got {self.init.type} != {self.acc.type}"
+                f"Initial value and body must be of the same type, got {self.init.type} != {self.body.type}"
             )
-        return self.acc.type
+        return self.init.type
 
     @property
     def _captured_indices(self) -> set[Index]:
@@ -461,7 +461,7 @@ class Fold(AbstractExpr):
 
     @property
     def _captured_variables(self) -> set[Variable]:
-        return {self.acc.var}
+        return {self.acc}
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Fold(self.index, f(self.size), self.acc, f(self.init), f(self.body))
