@@ -128,24 +128,29 @@ def transform(
                 item = go(item_, index_sizes, index_vars, var_axes)
                 used_axes = axial._alignment(target._axes, item._axes)
                 rank = target.expr.type.single.rank
-                k = target.positional_axis(0)
                 if use_takes and not item.expr.type.single.rank:
                     take_axes: list[array_calculus.Expr | None] = [None] * rank
-                    take_axes[k] = item.expr
+                    take_axes[target.positional_axis(0)] = item.expr
                     result = array_calculus.Take(target.expr, tuple(take_axes))
                 else:
+                    k = len(used_axes)
                     result = array_calculus.Squeeze(
                         (k,),
                         array_calculus.Gather(
                             k,
-                            target.aligned(used_axes, leftpad=False),
-                            item.aligned(used_axes, leftpad=False),
+                            target.aligned(used_axes),
+                            array_calculus.Unsqueeze(
+                                tuple(
+                                    range(
+                                        len(used_axes),
+                                        len(used_axes) + target.type.type.single.rank,
+                                    )
+                                ),
+                                item.aligned(used_axes),
+                            ),
                         ),
                     )
-                return Axial(
-                    used_axes[:k] + used_axes[k + 1 :],
-                    result,
-                )
+                return Axial(used_axes, result)
             case calculus.Vec(index, size_, target_):
                 size = go(size_, index_sizes, index_vars, var_axes)
                 assert (
