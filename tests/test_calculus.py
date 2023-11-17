@@ -85,13 +85,19 @@ def test_basic_variables(interpret):
 
 @with_interpret
 def test_basic_let_bindings(interpret):
-    a0, b0, x0, y0, z0, w0 = (Variable() for _ in range(6))
-    a, b, x, y, z, w = (Var(v, Scalar(float)) for v in (a0, b0, x0, y0, z0, w0))
-    az = Let(((z0, a),), z)
-    bw = Let(((w0, b),), w)
-    expr = Let(((x0, Add((az, bw))),), Let(((y0, Multiply((x, b))),), Add((x, y))))
+    a, b, x, y, z, w = (Var(Variable(), Scalar(float)) for _ in range(6))
+    az = Let(((z.var, a),), z)
+    bw = Let(((w.var, b),), w)
+    expr = Let(
+        ((x.var, Add((az, bw))),), Let(((y.var, Multiply((x, b))),), Add((x, y)))
+    )
+    from ein import debug
+    from ein.midend.lining import inline
+
+    debug.plot_phi_graph(expr)
+    debug.plot_phi_graph(inline(expr))
     numpy.testing.assert_allclose(
-        interpret(expr, {a0: numpy.array(4.0), b0: numpy.array(3.0)}),
+        interpret(expr, {a.var: numpy.array(4.0), b.var: numpy.array(3.0)}),
         (4 + 3) + ((4 + 3) * 3),
     )
 
@@ -126,6 +132,31 @@ def test_basic_pairs(interpret):
     numpy.testing.assert_allclose(interpret(Second(Second(p)), {}), bv)
     numpy.testing.assert_allclose(interpret(First(First(Second(p))), {}), av)
     numpy.testing.assert_allclose(interpret(Second(First(Second(p))), {}), bv)
+
+
+@with_interpret
+def test_repeated_squaring(interpret):
+    x = Var(Variable(), Scalar(float))
+    k = 11
+    const = Const(Value(numpy.array(1 / 2**k)))
+    init_expr = lambda: Add(  # noqa
+        (
+            Const(Value(numpy.array(1.0))),
+            Multiply((x, const)),
+        )
+    )
+    expr = Multiply((init_expr(), init_expr()))
+    for _ in range(k - 1):
+        expr = Multiply((expr, expr))
+    x0 = 1 + 1e-9
+    from ein import debug
+    from ein.midend.lining import outline
+
+    debug.plot_phi_graph(outline(expr))
+    debug.plot_array_graph(outline(expr))
+    numpy.testing.assert_allclose(
+        interpret(expr, {x.var: x0}), (1 + x0 / 2**k) ** (2**k)
+    )
 
 
 @with_interpret

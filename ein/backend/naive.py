@@ -4,6 +4,7 @@ import numpy
 
 from ein import calculus
 from ein.calculus import Expr, Value
+from ein.midend.lining import outline
 from ein.symbols import Index, Variable
 
 
@@ -70,7 +71,7 @@ def interpret(
     env: dict[Variable, numpy.ndarray],
 ) -> numpy.ndarray:
     return _interpret(
-        program, {var: Value(array) for var, array in env.items()}, {}
+        outline(program), {var: Value(array) for var, array in env.items()}, {}
     ).array
 
 
