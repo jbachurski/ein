@@ -18,6 +18,8 @@ from ein.type_system import (
     to_float,
 )
 
+BIG_DATA_SIZE: int = 1024
+
 
 class Value:
     value: numpy.ndarray | tuple["Value", "Value"]
@@ -32,22 +34,32 @@ class Value:
             first, second = value
             self.value = (Value(first), Value(second))
         else:
-            self.value = numpy.array(value)
+            self.value = (
+                numpy.array(value) if not isinstance(value, numpy.ndarray) else value
+            )
             self.value.flags.writeable = False
 
     def __eq__(self, other) -> bool:
-        return isinstance(other, Value) and (
-            self.value is other.value
-            if isinstance(self.value, numpy.ndarray)
-            else self.value == other.value
-        )
+        if not isinstance(other, Value):
+            return False
+        if isinstance(self.value, numpy.ndarray):
+            if not isinstance(other.value, numpy.ndarray):
+                return False
+            if len(self.value.data) != len(other.value.data):
+                return False
+            if self.value.dtype != other.value.dtype:
+                return False
+            if len(self.value.data) < BIG_DATA_SIZE:
+                return self.value.data == other.value.data
+            return self is other
+        return self.value == other.value
 
     def __hash__(self) -> int:
-        return (
-            hash(id(self.value))
-            if isinstance(self.value, numpy.ndarray)
-            else hash(self.value)
-        )
+        if isinstance(self.value, numpy.ndarray):
+            if len(self.value.data) < BIG_DATA_SIZE:
+                return hash(self.value.data.tobytes())
+            return hash(id(self.value))
+        return hash(self.value)
 
     def __repr__(self) -> str:
         return repr(self.value)

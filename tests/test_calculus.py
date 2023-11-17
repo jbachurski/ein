@@ -138,11 +138,10 @@ def test_basic_pairs(interpret):
 def test_repeated_squaring(interpret):
     x = Var(Variable(), Scalar(float))
     k = 11
-    const = Const(Value(numpy.array(1 / 2**k)))
     init_expr = lambda: Add(  # noqa
         (
             Const(Value(numpy.array(1.0))),
-            Multiply((x, const)),
+            Multiply((x, Const(Value(numpy.array(1 / 2**k))))),
         )
     )
     expr = Multiply((init_expr(), init_expr()))
