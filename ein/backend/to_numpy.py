@@ -10,12 +10,6 @@ from . import array_calculus, to_array
 
 Env: TypeAlias = dict[Variable, numpy.ndarray]
 
-NEVER_ALIAS = (
-    array_calculus.UnaryElementwise,
-    array_calculus.BinaryElementwise,
-    array_calculus.TernaryElementwise,
-)
-
 
 def stage(
     program: array_calculus.Expr,
