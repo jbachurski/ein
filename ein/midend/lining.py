@@ -17,7 +17,6 @@ def _let(
 def _substitute(
     initial: calculus.Expr, subs: Mapping[calculus.Expr, calculus.Expr]
 ) -> calculus.Expr:
-    @cache
     def go(expr: calculus.Expr) -> calculus.Expr:
         if expr in subs:
             return subs[expr]
@@ -31,42 +30,49 @@ def _bind_common_subexpressions(program: calculus.Expr) -> calculus.Expr:
     def subexpressions(expr: calculus.Expr) -> set[calculus.Expr]:
         return set.union({expr}, *(subexpressions(sub) for sub in expr.dependencies))
 
-    @cache
-    def size(expr: calculus.Expr) -> int:
-        return 1 + sum(size(sub) for sub in expr.dependencies)
+    insertions: dict[calculus.Expr, list[tuple[Variable, calculus.Expr]]] = {}
 
     @cache
-    def go(expr: calculus.Expr) -> calculus.Expr:
-        base = expr.map(go)
+    def visit(expr: calculus.Expr) -> None:
+        for sub in expr.dependencies:
+            visit(sub)
+
         seen: set[calculus.Expr] = set()
         covered: set[calculus.Expr] = set()
-        bindings: dict[calculus.Expr, calculus.Var] = {}
-
         occurrences: list[calculus.Expr] = [
             sub_sub
-            for sub in base.dependencies
+            for sub in expr.dependencies
             for sub_sub in subexpressions(sub)
             if sub_sub.free_indices <= expr.free_indices
             and sub_sub.free_variables <= expr.free_variables
         ]
-        occurrences.sort(key=size, reverse=True)
+        occurrences.sort(key=lambda e: len(subexpressions(e)), reverse=True)
 
         for sub in occurrences:
             if isinstance(sub, NEVER_BIND):
                 continue
-            norm = inline(sub)
-            if norm in seen and norm not in covered:
-                bindings[sub] = calculus.Var(Variable(), sub.type)
-                covered |= {inline(sub_sub) for sub_sub in subexpressions(sub)}
-            seen.add(norm)
+            if sub in seen and sub not in covered:
+                insertions.setdefault(expr, []).append((Variable(), sub))
+                covered |= subexpressions(sub)
+            seen.add(sub)
 
-        result = _let(
-            ((var.var, bind) for bind, var in bindings.items()),
-            _substitute(base, bindings),
+    def go(
+        expr: calculus.Expr, bindings: dict[calculus.Expr, calculus.Var]
+    ) -> calculus.Expr:
+        if expr in bindings:
+            return bindings[expr]
+
+        bindings_in_sub = bindings | {
+            bind: calculus.Var(var, bind.type) for var, bind in insertions.get(expr, [])
+        }
+
+        return _let(
+            ((var, go(bind, bindings)) for var, bind in insertions.get(expr, [])),
+            expr.map(lambda sub: go(sub, bindings_in_sub)),
         )
-        return result
 
-    return go(program)
+    visit(program)
+    return go(program, {})
 
 
 def _reduce_loop_strength(program: calculus.Expr) -> calculus.Expr:
