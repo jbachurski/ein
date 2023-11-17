@@ -142,7 +142,7 @@ class AbstractExpr(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def dependencies(self) -> set[Expr]:
+    def dependencies(self) -> tuple[Expr, ...]:
         ...
 
     @abc.abstractmethod
@@ -193,8 +193,8 @@ class Const(AbstractExpr):
         return self.value.type
 
     @property
-    def dependencies(self) -> set[Expr]:
-        return set()
+    def dependencies(self) -> tuple[Expr, ...]:
+        return ()
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return self
@@ -213,8 +213,8 @@ class At(AbstractExpr):
         return Scalar(int)
 
     @property
-    def dependencies(self) -> set[Expr]:
-        return set()
+    def dependencies(self) -> tuple[Expr, ...]:
+        return ()
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return self
@@ -238,8 +238,8 @@ class Var(AbstractExpr):
         return self.var_type
 
     @property
-    def dependencies(self) -> set[Expr]:
-        return set()
+    def dependencies(self) -> tuple[Expr, ...]:
+        return ()
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return self
@@ -256,15 +256,15 @@ class Let(AbstractExpr):
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"vars": [var for var, _ in self.bindings]}, self.dependencies
+        return {"vars": [var for var, _ in self.bindings]}, set(self.dependencies)
 
     @cached_property
     def type(self) -> Type:
         return self.body.type
 
     @property
-    def dependencies(self) -> set[Expr]:
-        return {expr for _, expr in self.bindings} | {self.body}
+    def dependencies(self) -> tuple[Expr, ...]:
+        return *(expr for _, expr in self.bindings), self.body
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Let(tuple((var, f(expr)) for var, expr in self.bindings), f(self.body))
@@ -293,8 +293,8 @@ class AssertEq(AbstractExpr):
         return self.target.type
 
     @property
-    def dependencies(self) -> set[Expr]:
-        return {self.target, *self.operands}
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.target, *self.operands
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return AssertEq(f(self.target), tuple(f(op) for op in self.operands))
@@ -314,8 +314,8 @@ class Dim(AbstractExpr):
         return Scalar(int)
 
     @cached_property
-    def dependencies(self) -> set[Expr]:
-        return {self.operand}
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.operand,)
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Dim(f(self.operand), self.axis)
@@ -341,8 +341,8 @@ class Get(AbstractExpr):
         return self.operand.type.elem
 
     @cached_property
-    def dependencies(self) -> set[Expr]:
-        return {self.operand, self.item}
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.operand, self.item
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Get(f(self.operand), f(self.item))
@@ -373,8 +373,8 @@ class Cons(AbstractExpr):
         return Pair(self.first.type, self.second.type)
 
     @property
-    def dependencies(self) -> set[Expr]:
-        return {self.first, self.second}
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.first, self.second
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Cons(f(self.first), f(self.second))
@@ -394,8 +394,8 @@ class AbstractDecons(AbstractExpr, abc.ABC):
         return self.target.type
 
     @property
-    def dependencies(self) -> set[Expr]:
-        return {self.target}
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return type(self)(f(self.target))  # type: ignore
@@ -434,8 +434,8 @@ class Vec(AbstractExpr):
         return Vector(self.body.type)
 
     @property
-    def dependencies(self) -> set[Expr]:
-        return {self.size, self.body}
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.size, self.body
 
     @property
     def _captured_indices(self) -> set[Index]:
@@ -462,8 +462,8 @@ class Fold(AbstractExpr):
         }
 
     @property
-    def dependencies(self) -> set[Expr]:
-        return {self.size, self.init, self.body}
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.size, self.init, self.body
 
     @cached_property
     def type(self) -> Type:
@@ -499,8 +499,8 @@ class AbstractScalarOperator(AbstractExpr, abc.ABC):
         return {}, set(self.operands)
 
     @cached_property
-    def dependencies(self) -> set[Expr]:
-        return set(self.operands)
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.operands
 
     @cached_property
     def type(self) -> Type:

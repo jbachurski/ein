@@ -4,7 +4,7 @@ from typing import Callable, TypeAlias, assert_never, cast
 import numpy
 
 from ein import calculus
-from ein.midend.lining import outline
+from ein.midend.lining import inline, outline
 from ein.symbols import Variable
 
 from . import array_calculus, to_array
@@ -137,4 +137,4 @@ def stage(
 def interpret(
     program: calculus.Expr, env: dict[Variable, numpy.ndarray]
 ) -> numpy.ndarray:
-    return stage(to_array.transform(outline(program)))(env)
+    return stage(to_array.transform(inline(outline(program))))(env)
