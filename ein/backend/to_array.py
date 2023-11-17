@@ -33,10 +33,7 @@ def transform(
         result: array_calculus.Expr
         match expr:
             case calculus.Const(value):
-                return Axial(
-                    reversed(range(value.array.ndim)),
-                    array_calculus.Const(value.array),
-                )
+                return Axial([], array_calculus.Const(value.array))
             case calculus.At(index):
                 if index in index_sizes:  # vector index
                     return Axial(
@@ -52,12 +49,11 @@ def transform(
                         ),
                     )
             case calculus.Var(var, var_type):
-                (rank,) = {elem.rank for elem in var_type.primitive_type.elems}
-                axes = var_axes.get(var, list(reversed(range(rank))))
+                axes = var_axes.get(var, ())
                 return Axial(
                     axes,
                     array_calculus.Var(
-                        var, var_type.primitive_type.with_rank(len(axes))
+                        var, var_type.primitive_type.with_rank_delta(+len(axes))
                     ),
                 )
             case calculus.Let(bindings_, body_):
@@ -69,22 +65,21 @@ def transform(
                     body_,
                     index_sizes,
                     index_vars,
-                    var_axes | {var: binding.axes for var, binding in bindings},
-                ).within(*((var, binding.normal) for var, binding in bindings))
+                    var_axes | {var: binding._axes for var, binding in bindings},
+                ).within(*((var, binding.expr) for var, binding in bindings))
             case calculus.AssertEq(target_, _):
                 return go(target_, index_sizes, index_vars, var_axes)
             case calculus.Dim(target_, pos):
                 target = go(target_, index_sizes, index_vars, var_axes)
-                pos = target.type.type.single.rank - pos - 1
                 return Axial(
                     [],
-                    array_calculus.Dim(target.axes.index(pos), target.expr),
+                    array_calculus.Dim(target.positional_axis(pos), target.expr),
                 )
             case calculus.Fold(index, size_, acc, init_, body_):
                 size = go(size_, index_sizes, index_vars, var_axes)
                 assert (
                     not size.type.free_indices
-                ), "Cannot compile fold with vector-index-dependent size"
+                ), "Cannot compile fold with index-dependent size"
                 init = go(init_, index_sizes, index_vars, var_axes)
                 index_var = Variable()
                 # FIXME: We need to establish an alignment that includes free indices from both init and body.
@@ -95,8 +90,8 @@ def transform(
                     body_,
                     index_sizes,
                     index_vars | {index: index_var},
-                    var_axes | {acc.var: init.axes},
-                ).axes
+                    var_axes | {acc.var: init._axes},
+                )._axes
                 transformed.clear()
                 transformed.update(pre_transformed)
                 body = go(
@@ -111,49 +106,40 @@ def transform(
                         index_var,
                         size.normal,
                         acc.var,
-                        axial.align(init, acc_axes),
-                        axial.align(body, acc_axes),
+                        init.aligned(acc_axes),
+                        body.aligned(acc_axes),
                     ),
                 )
             case calculus.Get(
                 target_, calculus.At(index)
             ) if index in index_sizes and use_slices:
                 target = go(target_, index_sizes, index_vars, var_axes)
-                at_axis = target.type.type.single.rank - 1
                 if slice_elision and size_class.equiv(index, calculus.Dim(target_, 0)):
                     result = target.expr
                 else:
-                    result = array_calculus.Slice(
-                        target.expr,
-                        tuple(
-                            index_sizes[index] if axis == at_axis else None
-                            for axis in target.axes
-                        ),
-                    )
-                return Axial(
-                    [axis if axis != at_axis else index for axis in target.axes],
-                    result,
-                )
+                    rank = target.expr.type.single.rank
+                    slice_axes: list[array_calculus.Expr | None] = [None] * rank
+                    slice_axes[target.positional_axis(0)] = index_sizes[index]
+                    result = array_calculus.Slice(target.expr, tuple(slice_axes))
+
+                return Axial(target._axes + (index,), result)
             case calculus.Get(target_, item_):
                 target = go(target_, index_sizes, index_vars, var_axes)
                 item = go(item_, index_sizes, index_vars, var_axes)
-                used_axes = axial.alignment(target.axes, item.axes)
-                at_axis = target.type.type.single.rank - 1
-                k = used_axes.index(at_axis)
-                if use_takes and not item.axes:
-                    result = array_calculus.Take(
-                        target.expr,
-                        tuple(
-                            item.expr if axis == at_axis else None for axis in used_axes
-                        ),
-                    )
+                used_axes = axial._alignment(target._axes, item._axes)
+                rank = target.expr.type.single.rank
+                k = target.positional_axis(0)
+                if use_takes and not item.expr.type.single.rank:
+                    take_axes: list[array_calculus.Expr | None] = [None] * rank
+                    take_axes[k] = item.expr
+                    result = array_calculus.Take(target.expr, tuple(take_axes))
                 else:
                     result = array_calculus.Squeeze(
                         (k,),
                         array_calculus.Gather(
                             k,
-                            axial.align(target, used_axes, leftpad=False),
-                            axial.align(item, used_axes, leftpad=False),
+                            target.aligned(used_axes, leftpad=False),
+                            item.aligned(used_axes, leftpad=False),
                         ),
                     )
                 return Axial(
@@ -164,39 +150,24 @@ def transform(
                 size = go(size_, index_sizes, index_vars, var_axes)
                 assert (
                     not size.type.free_indices
-                ), "Cannot compile index comprehension with vector-index-dependent size"
-                target = go(
+                ), "Cannot compile index comprehension with index-dependent size"
+                return go(
                     target_, index_sizes | {index: size.normal}, index_vars, var_axes
-                )
-                if index in target.axes:
-                    return Axial(
-                        (
-                            target.type.type.single.rank if axis == index else axis
-                            for axis in target.axes
-                        ),
-                        target.expr,
-                    )
-                else:
-                    return Axial(
-                        (target.type.type.single.rank, *target.axes),
-                        array_calculus.Repeat(
-                            0, size.expr, array_calculus.Unsqueeze((0,), target.expr)
-                        ),
-                    )
+                ).along(index, size.expr)
             case calculus.AbstractScalarOperator(operands):
                 ops = [go(op, index_sizes, index_vars, var_axes) for op in operands]
-                used_axes = axial.alignment(*(op.axes for op in ops))
                 if expr.ufunc == to_float:
                     (target,) = ops
                     return Axial(
-                        used_axes,
+                        target._axes,
                         array_calculus.Cast(float, target.expr),
                     )
                 else:
+                    used_axes = axial._alignment(*(op._axes for op in ops))
                     return Axial(
                         used_axes,
                         array_calculus.ELEMENTWISE_UFUNCS[expr.ufunc](
-                            *(axial.align(op, used_axes, leftpad=False) for op in ops)
+                            *(op.aligned(used_axes, leftpad=False) for op in ops)
                         ),
                     )
             case calculus.Cons(first_, second_):

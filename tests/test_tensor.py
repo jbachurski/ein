@@ -202,3 +202,16 @@ def test_double_transpose(interpret):
     )
     arr = numpy.random.randn(3, 3)
     numpy.testing.assert_allclose(interpret(expr, {a0: arr}), arr)
+
+
+@with_interpret
+def test_symmetric_sum(interpret):
+    def f1(x: numpy.ndarray) -> numpy.ndarray:
+        return x + x.T
+
+    def f(x: Array) -> Array:
+        return array(lambda i, j: x[i, j] + x[j, i])
+
+    (a0,), expr = function([matrix(float)], lambda a: f(f(f(a))))
+    arr = numpy.random.randn(2, 2)
+    numpy.testing.assert_allclose(interpret(expr, {a0: arr}), f1(f1(f1(arr))))

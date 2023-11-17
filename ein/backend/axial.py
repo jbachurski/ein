@@ -1,25 +1,27 @@
 from dataclasses import dataclass
-from typing import Iterable, ParamSpec, TypeAlias, cast
+from typing import Iterable, ParamSpec, TypeAlias
 
 from ein.symbols import Index, Variable
 from ein.type_system import PrimitiveType
 
 from . import array_calculus
 
+P = ParamSpec("P")
+Axis: TypeAlias = Index
+Axes: TypeAlias = tuple[Axis, ...]
+
 
 @dataclass(frozen=True)
 class AxialType:
     type: PrimitiveType
-    free_indices: set[Index]
+    free_indices: set[Axis]
 
     @property
     def pretty(self) -> str:
-        return f"{sorted(self.free_indices, key=lambda x: int(str(x)[1:]))}:{self.type.pretty}"
-
-
-P = ParamSpec("P")
-Axis: TypeAlias = Index | int
-Axes: TypeAlias = tuple[Axis, ...]
+        free = ", ".join(
+            map(str, sorted(self.free_indices, key=lambda x: int(str(x)[1:])))
+        )
+        return f"{{{free}}}:{self.type.pretty}"
 
 
 def tuple_maybe_singleton(*args: array_calculus.Expr) -> array_calculus.Expr:
@@ -34,42 +36,59 @@ def untuple_maybe_singleton(
 
 
 class Axial:
-    axes: Axes
+    _axes: Axes
     expr: array_calculus.Expr
 
     def __init__(self, axes: Iterable[Axis], array: array_calculus.Expr):
-        self.axes = tuple(axes)
+        self._axes = tuple(axes)
         self.expr = array
-        assert all(len(self.axes) == arr.rank for arr in self.expr.type.elems)
+        assert len(self._axes) == len(set(self._axes))
+        assert all(arr.rank >= len(self._axes) for arr in self.expr.type.elems)
+
+    def free_axis(self, index: Index) -> int | None:
+        return self._axes.index(index) if index in self._axes else None
+
+    def positional_axis(self, axis: int) -> int:
+        assert 0 <= axis < self.type.type.single.rank
+        return len(self._axes) + axis
 
     @property
     def type(self) -> AxialType:
-        free_indices = {index for index in self.axes if isinstance(index, Index)}
-        return AxialType(
-            self.expr.type.with_rank_delta(-len(free_indices)),
-            free_indices,
-        )
+        axes = set(self._axes)
+        return AxialType(self.expr.type.with_rank_delta(-len(axes)), axes)
 
     @property
     def normal(self) -> array_calculus.Expr:
-        assert not self.type.free_indices
-        assert self.type.type.single
-        rank = self.expr.type.single.rank
-        inv: list[int | None] = [None for _ in range(rank)]
-        for i, p in enumerate(self.axes):
-            assert isinstance(p, int)
-            # Axes are numbered in reverse order
-            inv[rank - p - 1] = i
-        return array_calculus.Transpose(tuple(cast(list[int], inv)), self.expr)
+        assert not self._axes
+        return self.expr
+
+    def along(self, index: Index, size: array_calculus.Expr) -> "Axial":
+        j = self.expr.type.single.rank - self.type.type.single.rank
+        i = self.free_axis(index)
+        if i is not None:
+            pi: list[int] = list(range(self.expr.type.single.rank))
+            j -= 1
+            pi[i], pi[j] = pi[j], pi[i]
+            return Axial(
+                tuple(axis for axis in self._axes if axis != index),
+                array_calculus.Transpose(tuple(pi), self.expr),
+            )
+        else:
+            return Axial(
+                self._axes,
+                array_calculus.Repeat(
+                    j, size, array_calculus.Unsqueeze((j,), self.expr)
+                ),
+            )
 
     def within(self, *args: tuple[Variable, array_calculus.Expr]) -> "Axial":
-        return Axial(self.axes, array_calculus.Let(args, self.expr))
+        return Axial(self._axes, array_calculus.Let(args, self.expr))
 
     def cons(self, other: "Axial") -> "Axial":
         n = len(self.expr.type.elems)
         m = len(other.expr.type.elems)
         return Axial(
-            self.axes,
+            self._axes,
             tuple_maybe_singleton(
                 *(untuple_maybe_singleton(self.expr, i) for i in range(n)),
                 *(untuple_maybe_singleton(other.expr, i) for i in range(m)),
@@ -80,15 +99,33 @@ class Axial:
         k = len(self.expr.type.elems)
         assert 0 <= start <= end <= k
         return Axial(
-            self.axes,
+            self._axes,
             tuple_maybe_singleton(
                 *(untuple_maybe_singleton(self.expr, i) for i in range(start, end))
             ),
         )
 
+    def aligned(self, into_axes: Axes, *, leftpad: bool = True) -> array_calculus.Expr:
+        k = len(self.expr.type.elems)
+
+        def local_align(e: array_calculus.Expr):
+            return _align(e, self._axes, into_axes, leftpad=leftpad)
+
+        if k != 1:
+            expr = array_calculus.Tuple(
+                tuple(
+                    local_align(array_calculus.Untuple(i, k, self.expr))
+                    for i in range(k)
+                )
+            )
+        else:
+            expr = local_align(self.expr)
+
+        return expr
+
 
 # TODO: This is a silly baseline alignment algorithm.
-def alignment(*args: Axes) -> Axes:
+def _alignment(*args: Axes) -> Axes:
     seen = []
     for axes in args:
         for axis in axes:
@@ -100,30 +137,13 @@ def alignment(*args: Axes) -> Axes:
 def _align(
     expr: array_calculus.Expr, axes: Axes, into_axes: Axes, *, leftpad: bool
 ) -> array_calculus.Expr:
-    transposition = tuple(
-        axes.index(axis) for axis in sorted(axes, key=into_axes.index)
-    )
+    assert len(axes) <= len(into_axes)
+    free_pi = [axes.index(axis) for axis in sorted(axes, key=into_axes.index)]
+    pos_id = list(range(len(axes), expr.type.single.rank))
+    expr = array_calculus.Transpose(tuple(free_pi + pos_id), expr)
     expands = tuple(i for i, axis in enumerate(into_axes) if axis not in axes)
-    expr = array_calculus.Transpose(transposition, expr)
     if not leftpad:
         while expands and not expands[0]:
             expands = tuple(x - 1 for x in expands[1:])
     expr = array_calculus.Unsqueeze(expands, expr)
     return expr
-
-
-def align(
-    target: Axial, into_axes: Axes, *, leftpad: bool = True
-) -> array_calculus.Expr:
-    k = len(target.expr.type.elems)
-
-    def local_align(expr: array_calculus.Expr):
-        return _align(expr, target.axes, into_axes, leftpad=leftpad)
-
-    if k != 1:
-        return array_calculus.Tuple(
-            tuple(
-                local_align(array_calculus.Untuple(i, k, target.expr)) for i in range(k)
-            )
-        )
-    return local_align(target.expr)
