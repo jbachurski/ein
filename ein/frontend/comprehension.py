@@ -135,7 +135,7 @@ class MinComprehension(MaxComprehension):
 
 
 class FoldComprehension(BaseComprehension):
-    def _apply(self, init_, constructor) -> Array:
+    def _apply(self, init_, constructor):
         assert self.sizes is None or len(self.sizes) == 1
         if not isinstance(init_, tuple):
             init_ = (init_,)
@@ -169,7 +169,7 @@ class FoldComprehension(BaseComprehension):
             )
         body = functools.reduce(calculus.Cons, [Array(a).expr for a in body_])
         size_of = self._get_sized(body, (index,))
-        return untuple(calculus.Fold(index, size_of[index], acc, init, body), k)  # type: ignore
+        return untuple(calculus.Fold(index, size_of[index], acc.var, init, body), k)
 
     @overload
     def __call__(
