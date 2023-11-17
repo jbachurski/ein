@@ -2,7 +2,7 @@ import abc
 import functools
 import inspect
 from dataclasses import dataclass
-from typing import Callable, Iterable, Self, TypeVar
+from typing import Callable, Iterable, Self, TypeVar, overload
 
 import numpy
 
@@ -171,17 +171,22 @@ class FoldComprehension(BaseComprehension):
         size_of = self._get_sized(body, (index,))
         return untuple(calculus.Fold(index, size_of[index], acc, init, body), k)  # type: ignore
 
+    @overload
     def __call__(
         self, init_: ArrayLike, constructor: Callable[[Array, Array], ArrayLike]
     ) -> Array:
-        return self._apply(init_, constructor)  # type: ignore
+        ...
 
-    def many(
+    @overload
+    def __call__(
         self,
         init_: tuple[ArrayLike, ...],
         constructor: Callable[[Array, tuple[Array, ...]], tuple[ArrayLike, ...]],
     ) -> tuple[Array, ...]:
-        return self._apply(init_, constructor)  # type: ignore
+        ...
+
+    def __call__(self, init_, constructor):
+        return self._apply(init_, constructor)
 
 
 class VariableArray(Array):

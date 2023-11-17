@@ -225,7 +225,7 @@ def test_argmin(interpret):
             return (v > acc[0]).where(v, acc[0]), (v > acc[0]).where(i, acc[1])
 
         return array[n](
-            lambda j: fold.many((-float("inf"), 0), lambda i, acc: step(i, j, acc))[1]
+            lambda j: fold((-float("inf"), 0), lambda i, acc: step(i, j, acc))[1]
         )
 
     (n0, a0), expr = function([Scalar(int), vector(float)], argmin_trig)
@@ -248,9 +248,7 @@ def test_matrix_power_times_vector(interpret):
     def pow_mult(m: Array, n: Array, v: Array) -> Array:
         k = m.dim(0)
         id_k = array[k, k](lambda i, j: Array(i == j).where(1.0, 0.0))
-        mn, vn = fold[n].many(
-            (id_k, v), lambda t, mv: (matmat(mv[0], m), matvec(m, mv[1]))
-        )
+        mn, vn = fold[n]((id_k, v), lambda t, mv: (matmat(mv[0], m), matvec(m, mv[1])))
         return matvec(mn, vn)
 
     (m0, n0, v0), expr = function([matrix(float), Scalar(int), vector(float)], pow_mult)
