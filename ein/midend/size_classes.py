@@ -36,6 +36,8 @@ def find_size_classes(program: calculus.Expr) -> SizeEquivalence:
                     sizes.unite(expr, sub)
             case calculus.Let(bindings, _body):
                 for var, bind in bindings:
+                    if len(bind.type.primitive_type.elems) != 1:
+                        continue
                     rank = bind.type.primitive_type.single.rank
                     sizes.unite(calculus.Var(var, bind.type), bind)
                     # TODO: This should really be an e-graph instead.

@@ -69,7 +69,6 @@ class Attention(Case):
         # return rt, at
         return rt
 
-    # FIXME: The samples are really small right now, as nesting folds is very inefficient (revise with let-bindings).
     @staticmethod
     def sample(
         hidden: int = 4, batch: int = 2, tokens: int = 3

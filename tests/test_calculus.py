@@ -132,7 +132,7 @@ def test_basic_pairs(interpret):
 @with_interpret
 def test_repeated_squaring(interpret):
     x = Var(Variable(), Scalar(float))
-    k = 4
+    k = 30
     init_expr = lambda: Add(  # noqa
         (
             Const(Value(numpy.array(1.0))),

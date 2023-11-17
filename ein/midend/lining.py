@@ -27,28 +27,46 @@ def _substitute(
 
 
 def _bind_common_subexpressions(program: calculus.Expr) -> calculus.Expr:
+    @cache
     def subexpressions(expr: calculus.Expr) -> set[calculus.Expr]:
         return set.union({expr}, *(subexpressions(sub) for sub in expr.dependencies))
 
+    @cache
+    def size(expr: calculus.Expr) -> int:
+        return 1 + sum(size(sub) for sub in expr.dependencies)
+
+    @cache
     def go(expr: calculus.Expr) -> calculus.Expr:
-        expr = expr.map(go)
+        base = expr.map(go)
         seen: set[calculus.Expr] = set()
+        covered: set[calculus.Expr] = set()
         bindings: dict[calculus.Expr, calculus.Var] = {}
 
-        for dependent in expr.dependencies:
-            for sub in subexpressions(dependent):
-                if isinstance(sub, NEVER_BIND):
-                    continue
-                if sub in seen and sub not in bindings:
-                    bindings[sub] = calculus.Var(Variable(), sub.type)
-                seen.add(sub)
+        occurrences: list[calculus.Expr] = [
+            sub_sub
+            for sub in base.dependencies
+            for sub_sub in subexpressions(sub)
+            if sub_sub.free_indices <= expr.free_indices
+            and sub_sub.free_variables <= expr.free_variables
+        ]
+        occurrences.sort(key=size, reverse=True)
 
-        return _let(
+        for sub in occurrences:
+            if isinstance(sub, NEVER_BIND):
+                continue
+            norm = inline(sub)
+            if norm in seen and norm not in covered:
+                bindings[sub] = calculus.Var(Variable(), sub.type)
+                covered |= {inline(sub_sub) for sub_sub in subexpressions(sub)}
+            seen.add(norm)
+
+        result = _let(
             ((var.var, bind) for bind, var in bindings.items()),
-            inline(_substitute(expr, bindings), only_renames=True),
+            _substitute(base, bindings),
         )
+        return result
 
-    return program
+    return go(program)
 
 
 def _reduce_loop_strength(program: calculus.Expr) -> calculus.Expr:
