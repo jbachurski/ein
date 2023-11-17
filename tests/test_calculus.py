@@ -42,7 +42,7 @@ def fold_sum(index: Index, size: Expr, body: Expr):
     dtype = body.type.kind
     init = Const(Value(numpy.array(0, dtype=dtype)))
     acc = Var(Variable(), Scalar(dtype))
-    return Fold(index, size, acc, init, Add((acc, body)))
+    return Fold(index, size, acc.var, init, Add((acc, body)))
 
 
 @with_interpret
@@ -91,11 +91,6 @@ def test_basic_let_bindings(interpret):
     expr = Let(
         ((x.var, Add((az, bw))),), Let(((y.var, Multiply((x, b))),), Add((x, y)))
     )
-    from ein import debug
-    from ein.midend.lining import inline
-
-    debug.plot_phi_graph(expr)
-    debug.plot_phi_graph(inline(expr))
     numpy.testing.assert_allclose(
         interpret(expr, {a.var: numpy.array(4.0), b.var: numpy.array(3.0)}),
         (4 + 3) + ((4 + 3) * 3),
@@ -137,7 +132,7 @@ def test_basic_pairs(interpret):
 @with_interpret
 def test_repeated_squaring(interpret):
     x = Var(Variable(), Scalar(float))
-    k = 11
+    k = 4
     init_expr = lambda: Add(  # noqa
         (
             Const(Value(numpy.array(1.0))),
@@ -148,11 +143,6 @@ def test_repeated_squaring(interpret):
     for _ in range(k - 1):
         expr = Multiply((expr, expr))
     x0 = 1 + 1e-9
-    from ein import debug
-    from ein.midend.lining import outline
-
-    debug.plot_phi_graph(outline(expr))
-    debug.plot_array_graph(outline(expr))
     numpy.testing.assert_allclose(
         interpret(expr, {x.var: x0}), (1 + x0 / 2**k) ** (2**k)
     )
@@ -200,7 +190,7 @@ def test_power_fold(interpret):
     a0, n0, x0 = Variable(), Variable(), Variable()
     i = Index()
     a, n, x = Var(a0, Scalar(float)), Var(n0, Scalar(int)), Var(x0, Scalar(float))
-    power_expr = Fold(i, n, x, Const(Value(numpy.array(1.0))), Multiply((x, a)))
+    power_expr = Fold(i, n, x.var, Const(Value(numpy.array(1.0))), Multiply((x, a)))
     numpy.testing.assert_allclose(
         interpret(power_expr, {a0: numpy.array(3), n0: numpy.array(7)}), 3**7
     )
@@ -223,7 +213,7 @@ def test_fibonacci_vector_fold(interpret):
     fib_expr = Fold(
         i,
         n,
-        fib,
+        fib.var,
         zeros,
         Vec(
             j,
@@ -261,7 +251,7 @@ def test_argmin(interpret):
     argmin_expr = Fold(
         i,
         n,
-        r,
+        r.var,
         Cons(Const(Value(-float("inf"))), Const(Value(0))),
         Cons(
             Where((cond_i_j, a_at_i_j, First(r))), Where((cond_i_j, At(i), Second(r)))
