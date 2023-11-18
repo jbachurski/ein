@@ -2,7 +2,7 @@ from functools import cache
 from typing import Iterable
 
 from ein import calculus
-from ein.symbols import Variable
+from ein.symbols import Index, Variable
 
 NEVER_BIND = (calculus.Var, calculus.At)
 
@@ -25,18 +25,19 @@ def _apply_insertions(
         expr: calculus.Expr, bindings: dict[calculus.Expr, calculus.Var]
     ) -> calculus.Expr:
         if expr in bindings:
-            return bindings[expr]
+            while expr in bindings:
+                expr = bindings[expr]
+            return expr
 
-        bindings_in_sub = bindings | {
-            bind: calculus.Var(var, bind.type) for var, bind in insertions.get(expr, [])
-        }
+        bindings_in_sub = bindings.copy()
+        applied_bindings = []
+        for var, bind in insertions.get(expr, []):
+            applied_bindings.append((var, go(bind, bindings_in_sub)))
+            bindings_in_sub[bind] = calculus.Var(var, bind.type)
 
-        return _let(
-            ((var, go(bind, bindings)) for var, bind in insertions.get(expr, [])),
-            expr.map(lambda sub: go(sub, bindings_in_sub)),
-        )
+        return _let(applied_bindings, expr.map(lambda sub: go(sub, bindings_in_sub)))
 
-    return inline(go(program, {}), only_renames=True)
+    return go(program, {})
 
 
 def _bind_common_subexpressions(program: calculus.Expr) -> calculus.Expr:
@@ -75,16 +76,68 @@ def _bind_common_subexpressions(program: calculus.Expr) -> calculus.Expr:
 
 
 def _reduce_loop_strength(program: calculus.Expr) -> calculus.Expr:
-    return program
+    insertions: dict[calculus.Expr, list[tuple[Variable, calculus.Expr]]] = {}
+
+    def visit(
+        expr: calculus.Expr, binders: dict[calculus.Expr, set[Index | Variable]]
+    ) -> None:
+        if not isinstance(expr, NEVER_BIND):
+            prev_site = None
+            for site, bound in reversed(binders.items()):
+                if bound & (expr.free_indices | expr.free_variables):
+                    break
+                prev_site = site
+            if prev_site is not None:
+                v = Variable()
+                insertions.setdefault(prev_site, []).append((v, expr))
+
+        valid_site = isinstance(expr, (calculus.Vec, calculus.Fold))
+        binders = binders | ({expr: set()} if valid_site else {})
+        if binders:
+            last_site = next(reversed(binders))
+            binders[last_site] |= {*expr._captured_indices, *expr._captured_variables}
+
+        for sub in expr.dependencies:
+            visit(sub, binders)
+
+    visit(program, {})
+    return _apply_insertions(program, insertions)
 
 
 def outline(program: calculus.Expr) -> calculus.Expr:
+    free_indices, free_variables = program.free_indices, program.free_variables
+
+    def check(prog: calculus.Expr, tree: bool) -> None:
+        # FIXME: The checks should pass with tree = True.
+        tree = False
+        seen = set()
+
+        def visit(expr: calculus.Expr) -> calculus.Expr:
+            assert expr not in seen or isinstance(expr, NEVER_BIND), expr
+            seen.add(expr)
+            for sub in expr.dependencies:
+                visit(sub)
+            return expr
+
+        if tree:
+            visit(prog)
+        assert free_indices == prog.free_indices
+        assert free_variables == prog.free_variables
+
     # Get rid of any existing let-bindings
     program = inline(program)
+    check(program, tree=False)
     # Bind subexpressions so they occur at most once, creating a syntax tree
     program = _bind_common_subexpressions(program)
+    check(program, tree=True)
     # Extract loop-independent expressions out of containing loops into a wrapping binding
     program = _reduce_loop_strength(program)
+    check(program, tree=True)
+    # FIXME: We should do an inline(program, only_renames=True).
+    #  However, it makes tests fail.
+    #  Nondeterminism is involved, so some it might be some set iteration (?).
+    # program = inline(program, only_renames=True)
+    # check(program, tree=True)
     return program
 
 

@@ -118,12 +118,14 @@ class AbstractExpr(abc.ABC):
 
     @cached_property
     def hash(self) -> int:
-        return hash(self._fields)
+        return hash((type(self), self._fields))
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, AbstractExpr) or type(self) != type(other):
             return False
-        if self is other or self.hash == other.hash:
+        if self.hash != other.hash:
+            return False
+        if self is other:
             return True
         return self._fields == other._fields
 

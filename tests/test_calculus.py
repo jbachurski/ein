@@ -147,6 +147,18 @@ def test_repeated_squaring(interpret):
 
 
 @with_interpret
+def test_repeated_indexing(interpret):
+    init = numpy.arange(10)
+    expr: Expr = Const(Value(init))
+    k = 5
+    for _ in range(k):
+        i = Index()
+        expr = Vec(i, Const(Value(init.shape[0])), Get(expr, At(i)))
+
+    numpy.testing.assert_allclose(interpret(expr, {}), init)
+
+
+@with_interpret
 def test_matmul(interpret):
     a0, b0 = Variable(), Variable()
     i, j, t = Index(), Index(), Index()
