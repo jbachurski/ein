@@ -47,9 +47,8 @@ def _interpret(expr: Expr, env: dict[Variable, Value], idx: dict[Index, int]) ->
             return env[var]
         case calculus.Dim(operand, axis):
             return Value(_interpret(operand, env, idx).array.shape[axis])
-        case calculus.Let(bindings, body):
-            to_env = {var: _interpret(binding, env, idx) for var, binding in bindings}
-            return _interpret(body, env | to_env, idx)
+        case calculus.Let(var, bind, body):
+            return _interpret(body, env | {var: _interpret(bind, env, idx)}, idx)
         case calculus.Cons(first, second):
             return Value((_interpret(first, env, idx), _interpret(second, env, idx)))
         case calculus.First(target):

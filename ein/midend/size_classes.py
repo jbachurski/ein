@@ -34,18 +34,17 @@ def find_size_classes(program: calculus.Expr) -> SizeEquivalence:
             case calculus.AssertEq(_target, operands):
                 for sub in operands:
                     sizes.unite(expr, sub)
-            case calculus.Let(bindings, _body):
-                for var, bind in bindings:
-                    if len(bind.type.primitive_type.elems) != 1:
-                        continue
-                    rank = bind.type.primitive_type.single.rank
-                    sizes.unite(calculus.Var(var, bind.type), bind)
-                    # TODO: This should really be an e-graph instead.
-                    for axis in range(rank):
-                        sizes.unite(
-                            calculus.Dim(calculus.Var(var, bind.type), axis),
-                            calculus.Dim(bind, axis),
-                        )
+            case calculus.Let(var, bind, _body) if len(
+                bind.type.primitive_type.elems
+            ) == 1:
+                rank = bind.type.primitive_type.single.rank
+                sizes.unite(calculus.Var(var, bind.type), bind)
+                # TODO: This should really be an e-graph instead.
+                for axis in range(rank):
+                    sizes.unite(
+                        calculus.Dim(calculus.Var(var, bind.type), axis),
+                        calculus.Dim(bind, axis),
+                    )
             case calculus.Vec(index, size, body):
                 sizes.unite(index, size)
                 sizes.unite(index, calculus.Dim(expr, 0))

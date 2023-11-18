@@ -86,11 +86,9 @@ def test_basic_variables(interpret):
 @with_interpret
 def test_basic_let_bindings(interpret):
     a, b, x, y, z, w = (Var(Variable(), Scalar(float)) for _ in range(6))
-    az = Let(((z.var, a),), z)
-    bw = Let(((w.var, b),), w)
-    expr = Let(
-        ((x.var, Add((az, bw))),), Let(((y.var, Multiply((x, b))),), Add((x, y)))
-    )
+    az = Let(z.var, a, z)
+    bw = Let(w.var, b, w)
+    expr = Let(x.var, Add((az, bw)), Let(y.var, Multiply((x, b)), Add((x, y))))
     numpy.testing.assert_allclose(
         interpret(expr, {a.var: numpy.array(4.0), b.var: numpy.array(3.0)}),
         (4 + 3) + ((4 + 3) * 3),

@@ -82,7 +82,10 @@ class Axial:
             )
 
     def within(self, *args: tuple[Variable, array_calculus.Expr]) -> "Axial":
-        return Axial(self._axes, array_calculus.Let(args, self.expr))
+        if not args:
+            return self
+        *rest, (var, bind) = args
+        return Axial(self._axes, array_calculus.Let(var, bind, self.expr)).within(*rest)
 
     def cons(self, other: "Axial") -> "Axial":
         n = len(self.expr.type.elems)

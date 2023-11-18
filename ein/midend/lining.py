@@ -1,5 +1,5 @@
 from functools import cache
-from typing import Iterable, Mapping
+from typing import Iterable
 
 from ein import calculus
 from ein.symbols import Variable
@@ -11,18 +11,32 @@ def _let(
     bindings: Iterable[tuple[Variable, calculus.Expr]], body: calculus.Expr
 ) -> calculus.Expr:
     bindings = tuple(bindings)
-    return calculus.Let(bindings, body) if bindings else body
+    if not bindings:
+        return body
+    (var, bind), *bindings = bindings
+    return calculus.Let(var, bind, _let(bindings, body))
 
 
-def _substitute(
-    initial: calculus.Expr, subs: Mapping[calculus.Expr, calculus.Expr]
+def _apply_insertions(
+    program: calculus.Expr,
+    insertions: dict[calculus.Expr, list[tuple[Variable, calculus.Expr]]],
 ) -> calculus.Expr:
-    def go(expr: calculus.Expr) -> calculus.Expr:
-        if expr in subs:
-            return subs[expr]
-        return expr.map(go)
+    def go(
+        expr: calculus.Expr, bindings: dict[calculus.Expr, calculus.Var]
+    ) -> calculus.Expr:
+        if expr in bindings:
+            return bindings[expr]
 
-    return go(initial)
+        bindings_in_sub = bindings | {
+            bind: calculus.Var(var, bind.type) for var, bind in insertions.get(expr, [])
+        }
+
+        return _let(
+            ((var, go(bind, bindings)) for var, bind in insertions.get(expr, [])),
+            expr.map(lambda sub: go(sub, bindings_in_sub)),
+        )
+
+    return inline(go(program, {}), only_renames=True)
 
 
 def _bind_common_subexpressions(program: calculus.Expr) -> calculus.Expr:
@@ -56,23 +70,8 @@ def _bind_common_subexpressions(program: calculus.Expr) -> calculus.Expr:
                 covered |= subexpressions(sub)
             seen.add(sub)
 
-    def go(
-        expr: calculus.Expr, bindings: dict[calculus.Expr, calculus.Var]
-    ) -> calculus.Expr:
-        if expr in bindings:
-            return bindings[expr]
-
-        bindings_in_sub = bindings | {
-            bind: calculus.Var(var, bind.type) for var, bind in insertions.get(expr, [])
-        }
-
-        return _let(
-            ((var, go(bind, bindings)) for var, bind in insertions.get(expr, [])),
-            expr.map(lambda sub: go(sub, bindings_in_sub)),
-        )
-
     visit(program)
-    return go(program, {})
+    return _apply_insertions(program, insertions)
 
 
 def _reduce_loop_strength(program: calculus.Expr) -> calculus.Expr:
@@ -97,16 +96,8 @@ def inline(program: calculus.Expr, *, only_renames: bool = False) -> calculus.Ex
 
     def _go(expr: calculus.Expr, bound: dict[Variable, calculus.Expr]) -> calculus.Expr:
         match expr:
-            case calculus.Let(bindings, body):
-                bindings = tuple((var, go(bind, bound)) for var, bind in bindings)
-                inlined_bindings = {
-                    var: bind for var, bind in bindings if predicate(bind)
-                }
-                remaining_bindings = [
-                    (var, bind) for var, bind in bindings if not predicate(bind)
-                ]
-                result = go(body, bound | inlined_bindings)
-                return _let(remaining_bindings, result)
+            case calculus.Let(var, bind, body) if predicate(bind):
+                return go(body, bound | {var: go(bind, bound)})
             case calculus.Var(var, var_type) if var in bound:
                 assert var_type == bound[var].type
                 return bound[var]

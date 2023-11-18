@@ -27,11 +27,9 @@ def stage(
                 return lambda env: array
             case array_calculus.Var(var, _var_rank):
                 return lambda env: env[var]
-            case array_calculus.Let(bindings, body_):
+            case array_calculus.Let(var, bind, body_):
                 body = go(body_)
-                return lambda env: body(
-                    env | {bound: go(binding)(env) for bound, binding in bindings}
-                )
+                return lambda env: body(env | {var: go(bind)(env)})
             case array_calculus.Dim(axis, target_):
                 target = go(target_)
                 return lambda env: numpy.array(target(env).shape[axis])

@@ -56,17 +56,14 @@ def transform(
                         var, var_type.primitive_type.with_rank_delta(+len(axes))
                     ),
                 )
-            case calculus.Let(bindings_, body_):
-                bindings = tuple(
-                    (var, go(binding, index_sizes, index_vars, var_axes))
-                    for var, binding in bindings_
-                )
+            case calculus.Let(var, bind_, body_):
+                bind = go(bind_, index_sizes, index_vars, var_axes)
                 return go(
                     body_,
                     index_sizes,
                     index_vars,
-                    var_axes | {var: binding._axes for var, binding in bindings},
-                ).within(*((var, binding.expr) for var, binding in bindings))
+                    var_axes | {var: bind._axes},
+                ).within((var, bind.expr))
             case calculus.AssertEq(target_, _):
                 return go(target_, index_sizes, index_vars, var_axes)
             case calculus.Dim(target_, pos):

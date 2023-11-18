@@ -71,7 +71,7 @@ class Attention(Case):
 
     @staticmethod
     def sample(
-        hidden: int = 4, batch: int = 2, tokens: int = 3
+        hidden: int = 10, batch: int = 10, tokens: int = 10
     ) -> tuple[numpy.ndarray, ...]:
         Wh, Wr, Wy, Wt = (numpy.random.randn(hidden, hidden) for _ in range(4))
         bM, w, br = (numpy.random.randn(hidden) for _ in range(3))

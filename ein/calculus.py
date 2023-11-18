@@ -251,12 +251,13 @@ class Var(AbstractExpr):
 
 @dataclass(frozen=True, eq=False)
 class Let(AbstractExpr):
-    bindings: tuple[tuple[Variable, Expr], ...]
+    var: Variable
+    bind: Expr
     body: Expr
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"vars": [var for var, _ in self.bindings]}, set(self.dependencies)
+        return {"var": self.var}, set(self.dependencies)
 
     @cached_property
     def type(self) -> Type:
@@ -264,14 +265,14 @@ class Let(AbstractExpr):
 
     @property
     def dependencies(self) -> tuple[Expr, ...]:
-        return *(expr for _, expr in self.bindings), self.body
+        return self.bind, self.body
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
-        return Let(tuple((var, f(expr)) for var, expr in self.bindings), f(self.body))
+        return Let(self.var, f(self.bind), f(self.body))
 
     @property
     def _captured_variables(self) -> set[Variable]:
-        return {var for var, _ in self.bindings}
+        return {self.var}
 
 
 @dataclass(frozen=True, eq=False)
