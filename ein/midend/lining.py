@@ -1,3 +1,4 @@
+import itertools
 from functools import cache
 from typing import Iterable
 
@@ -19,19 +20,17 @@ def _let(
 
 def _apply_insertions(
     program: calculus.Expr,
-    insertions: dict[calculus.Expr, list[tuple[Variable, calculus.Expr]]],
+    insertions: dict[calculus.Expr, dict[Variable, calculus.Expr]],
 ) -> calculus.Expr:
     def go(
         expr: calculus.Expr, bindings: dict[calculus.Expr, calculus.Var]
     ) -> calculus.Expr:
         if expr in bindings:
-            while expr in bindings:
-                expr = bindings[expr]
-            return expr
+            return bindings[expr]
 
         bindings_in_sub = bindings.copy()
         applied_bindings = []
-        for var, bind in insertions.get(expr, []):
+        for var, bind in insertions.get(expr, {}).items():
             applied_bindings.append((var, go(bind, bindings_in_sub)))
             bindings_in_sub[bind] = calculus.Var(var, bind.type)
 
@@ -43,40 +42,47 @@ def _apply_insertions(
 def _bind_common_subexpressions(program: calculus.Expr) -> calculus.Expr:
     @cache
     def subexpressions(expr: calculus.Expr) -> set[calculus.Expr]:
-        return set.union({expr}, *(subexpressions(sub) for sub in expr.dependencies))
+        return set.union({expr}, *map(subexpressions, expr.dependencies))
 
-    insertions: dict[calculus.Expr, list[tuple[Variable, calculus.Expr]]] = {}
+    insertions: dict[calculus.Expr, dict[Variable, calculus.Expr]] = {}
 
     @cache
-    def visit(expr: calculus.Expr) -> None:
+    def find_insertions(expr: calculus.Expr):
+        # FIXME:
+        #      A
+        #     / \
+        #    B   C
+        #   / \ / \
+        #  Y  [X]  Z
         for sub in expr.dependencies:
-            visit(sub)
+            find_insertions(sub)
 
         seen: set[calculus.Expr] = set()
         covered: set[calculus.Expr] = set()
         occurrences: list[calculus.Expr] = [
-            sub_sub
-            for sub in expr.dependencies
-            for sub_sub in subexpressions(sub)
-            if sub_sub.free_indices <= expr.free_indices
-            and sub_sub.free_variables <= expr.free_variables
+            sub
+            for sub in itertools.chain(*map(subexpressions, expr.dependencies))
+            if sub.free_indices <= expr.free_indices
+            and sub.free_variables <= expr.free_variables
         ]
         occurrences.sort(key=lambda e: len(subexpressions(e)), reverse=True)
 
+        print(f"inserting at ({type(expr).__name__}, {expr.type}, {expr.debug[0]})")
         for sub in occurrences:
             if isinstance(sub, NEVER_BIND):
                 continue
             if sub in seen and sub not in covered:
-                insertions.setdefault(expr, []).append((Variable(), sub))
+                insertions.setdefault(expr, {})[Variable()] = sub
+                print(f" + insert ({type(sub).__name__}, {sub.type}, {sub.debug[0]})")
                 covered |= subexpressions(sub)
             seen.add(sub)
 
-    visit(program)
+    find_insertions(program)
     return _apply_insertions(program, insertions)
 
 
 def _reduce_loop_strength(program: calculus.Expr) -> calculus.Expr:
-    insertions: dict[calculus.Expr, list[tuple[Variable, calculus.Expr]]] = {}
+    insertions: dict[calculus.Expr, dict[Variable, calculus.Expr]] = {}
 
     def visit(
         expr: calculus.Expr, binders: dict[calculus.Expr, set[Index | Variable]]
@@ -88,8 +94,7 @@ def _reduce_loop_strength(program: calculus.Expr) -> calculus.Expr:
                     break
                 prev_site = site
             if prev_site is not None:
-                v = Variable()
-                insertions.setdefault(prev_site, []).append((v, expr))
+                insertions.setdefault(prev_site, {})[Variable()] = expr
 
         valid_site = isinstance(expr, (calculus.Vec, calculus.Fold))
         binders = binders | ({expr: set()} if valid_site else {})
@@ -131,7 +136,7 @@ def outline(program: calculus.Expr) -> calculus.Expr:
     program = _bind_common_subexpressions(program)
     check(program, tree=True)
     # Extract loop-independent expressions out of containing loops into a wrapping binding
-    program = _reduce_loop_strength(program)
+    # program = _reduce_loop_strength(program)
     check(program, tree=True)
     # FIXME: We should do an inline(program, only_renames=True).
     #  However, it makes tests fail.
