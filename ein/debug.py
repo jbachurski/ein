@@ -1,9 +1,10 @@
 import html
 import os.path
-from typing import Any
+from typing import Any, Iterable, assert_never
 
 from ein import calculus
 from ein.backend import array_calculus, to_array
+from ein.midend import lining
 
 try:
     import pydot
@@ -15,7 +16,7 @@ def _snip_limit(s: str, n: int) -> str:
     return s[: n // 2 - 1] + "..." + s[-n // 2 + 1 :] if len(s) > n else s
 
 
-def _meta_value_repr(value):
+def _meta_value_repr(value: Any) -> str:
     return _snip_limit(
         str(
             html.escape(repr(value))
@@ -98,6 +99,67 @@ def plot_phi_graph(program: calculus.Expr) -> None:
 
 def plot_array_graph(program: calculus.Expr, *, optimize: bool = True) -> None:
     plot_graph(graph(array_from_phi_program(program, optimize=optimize)))
+
+
+def pretty_print(program: calculus.Expr) -> str:
+    def go(expr: calculus.Expr) -> Iterable[str]:
+        match expr:
+            case calculus.Const(value):
+                yield _meta_value_repr(value)
+            case calculus.At(index):
+                yield str(index)
+            case calculus.Var(var, _var_type):
+                yield str(var)
+            case calculus.Let(var, bind, body):
+                yield f"let {var} ="
+                yield from ("  " + line for line in go(bind))
+                yield "in"
+                yield from ("  " + line for line in go(body))
+            case calculus.AssertEq(target, operands):
+                yield f"assert {' = '.join(' '.join(go(op)) for op in operands)} in"
+                yield from ("  " + line for line in go(target))
+            case calculus.Dim(target, pos):
+                yield f"({' '.join(go(target))}).|{pos}|"
+            case calculus.Fold(index, size, acc, init, body):
+                yield f"fold {index} count"
+                yield from ("  " + line for line in go(size))
+                yield f"from {acc} = "
+                yield from ("  " + line for line in go(init))
+                yield "by"
+                yield from ("  " + line for line in go(body))
+            case calculus.Get(target, item):
+                yield "get"
+                yield from ("  " + line for line in go(target))
+                yield "at"
+                yield from ("  " + line for line in go(item))
+            case calculus.Vec(index, size, target):
+                yield f"array {index} size"
+                yield from ("  " + line for line in go(size))
+                yield "of"
+                yield from ("  " + line for line in go(target))
+            case calculus.AbstractScalarOperator(operands):
+                yield getattr(
+                    expr.ufunc,
+                    "name",
+                    getattr(expr.ufunc, "__name__", repr(expr.ufunc)),
+                )
+                for op in operands:
+                    yield from ("  " + line for line in go(op))
+            case calculus.Cons(first, second):
+                yield "("
+                yield from ("  " + line for line in go(first))
+                yield from ("  " + line for line in go(second))
+                yield ")"
+            case calculus.First(target):
+                yield "fst"
+                yield from ("  " + line for line in go(target))
+            case calculus.Second(target):
+                yield "snd"
+                yield from ("  " + line for line in go(target))
+            case _:
+                assert_never(expr)
+
+    return "\n".join(go(lining.outline(lining.inline(program))))
 
 
 def save_graph(dot: pydot.Dot, path: str, fmt: str | None = None) -> None:

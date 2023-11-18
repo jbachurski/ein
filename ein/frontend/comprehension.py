@@ -34,17 +34,12 @@ class BaseComprehension(abc.ABC):
             sizes = (sizes,)
         return type(self)(sizes=sizes)
 
-    @staticmethod
-    def _size_of(expr: calculus.Expr) -> Iterable[calculus.Expr]:
-        yield calculus.Dim(expr, 0)
+    @classmethod
+    def _dim_of(cls, expr: calculus.Expr, axis: int = 0) -> Iterable[calculus.Expr]:
+        yield calculus.Dim(expr, axis)
         match expr:
-            case calculus.Get(operand):
-                for sub in ArrayComprehension._size_of(operand):
-                    if isinstance(sub, calculus.Dim):
-                        yield calculus.Dim(
-                            sub.operand,
-                            sub.axis + 1 if isinstance(sub.axis, int) else sub.axis,
-                        )
+            case calculus.Get(target, _item):
+                yield from cls._dim_of(target, axis + 1)
             case calculus.Vec():
                 yield expr.size
 
@@ -55,7 +50,7 @@ class BaseComprehension(abc.ABC):
                 candidates = [
                     candidate
                     for expr in body.direct_indices.get(index, set())
-                    for candidate in self._size_of(expr)
+                    for candidate in self._dim_of(expr)
                     if not candidate.free_indices
                 ]
                 if not candidates:
@@ -66,7 +61,12 @@ class BaseComprehension(abc.ABC):
                     # TODO: Handle the ignored cases here by requiring equivalence.
                     shape_expr: Expr
                     shape_expr, *_ = candidates
-                    size_of[index] = calculus.AssertEq(shape_expr, tuple(candidates))
+                    print(candidates)
+                    size_of[index] = (
+                        calculus.AssertEq(shape_expr, tuple(candidates))
+                        if len(candidates) > 1
+                        else shape_expr
+                    )
         else:
             size_of = {
                 index: Array(size).expr
