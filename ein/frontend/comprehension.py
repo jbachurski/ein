@@ -61,7 +61,6 @@ class BaseComprehension(abc.ABC):
                     # TODO: Handle the ignored cases here by requiring equivalence.
                     shape_expr: Expr
                     shape_expr, *_ = candidates
-                    print(candidates)
                     size_of[index] = (
                         calculus.AssertEq(shape_expr, tuple(candidates))
                         if len(candidates) > 1
