@@ -1,11 +1,13 @@
-import itertools
-from functools import cache
-from typing import Iterable
+from typing import Iterable, TypeAlias
+
+import networkx
 
 from ein import calculus
 from ein.symbols import Index, Variable
 
 NEVER_BIND = (calculus.Var, calculus.At)
+Insertions: TypeAlias = dict[calculus.Expr, dict[Variable, calculus.Expr]]
+BinderStack: TypeAlias = dict[calculus.Expr, set[Index | Variable]]
 
 
 def _let(
@@ -18,10 +20,7 @@ def _let(
     return calculus.Let(var, bind, _let(bindings, body))
 
 
-def _apply_insertions(
-    program: calculus.Expr,
-    insertions: dict[calculus.Expr, dict[Variable, calculus.Expr]],
-) -> calculus.Expr:
+def _apply_insertions(program: calculus.Expr, insertions: Insertions) -> calculus.Expr:
     def go(
         expr: calculus.Expr, bindings: dict[calculus.Expr, calculus.Var]
     ) -> calculus.Expr:
@@ -39,54 +38,48 @@ def _apply_insertions(
     return go(program, {})
 
 
-def _bind_common_subexpressions(program: calculus.Expr) -> calculus.Expr:
-    @cache
-    def subexpressions(expr: calculus.Expr) -> set[calculus.Expr]:
-        return set.union({expr}, *map(subexpressions, expr.dependencies))
+def _bind_common_subexpressions(program: calculus.Expr) -> Insertions:
+    graph = networkx.MultiDiGraph()
+    order: list[calculus.Expr] = []
 
-    insertions: dict[calculus.Expr, dict[Variable, calculus.Expr]] = {}
-
-    @cache
-    def find_insertions(expr: calculus.Expr):
-        # FIXME:
-        #      A
-        #     / \
-        #    B   C
-        #   / \ / \
-        #  Y  [X]  Z
+    def build(expr: calculus.Expr) -> None:
+        if expr in graph:
+            return
+        graph.add_node(expr)
         for sub in expr.dependencies:
-            find_insertions(sub)
+            build(sub)
+            graph.add_edge(expr, sub)
+        order.append(expr)
 
-        seen: set[calculus.Expr] = set()
-        covered: set[calculus.Expr] = set()
-        occurrences: list[calculus.Expr] = [
-            sub
-            for sub in itertools.chain(*map(subexpressions, expr.dependencies))
-            if sub.free_indices <= expr.free_indices
-            and sub.free_variables <= expr.free_variables
-        ]
-        occurrences.sort(key=lambda e: len(subexpressions(e)), reverse=True)
+    build(program)
+    # TODO: Could get rid of dependency on networkx, since it's O(n^2) anyway.
+    idom = networkx.immediate_dominators(graph, program)
 
-        print(f"inserting at ({type(expr).__name__}, {expr.type}, {expr.debug[0]})")
-        for sub in occurrences:
-            if isinstance(sub, NEVER_BIND):
-                continue
-            if sub in seen and sub not in covered:
-                insertions.setdefault(expr, {})[Variable()] = sub
-                print(f" + insert ({type(sub).__name__}, {sub.type}, {sub.debug[0]})")
-                covered |= subexpressions(sub)
-            seen.add(sub)
+    insertions: Insertions = {}
+    for sub in order:
+        in_degree: int = graph.in_degree(sub)  # noqa
+        if not isinstance(sub, NEVER_BIND) and in_degree > 1:
+            insertions.setdefault(idom[sub], {})[Variable()] = sub
 
-    find_insertions(program)
-    return _apply_insertions(program, insertions)
+    return insertions
 
 
-def _reduce_loop_strength(program: calculus.Expr) -> calculus.Expr:
+def _reduce_loop_strength(program: calculus.Expr) -> Insertions:
     insertions: dict[calculus.Expr, dict[Variable, calculus.Expr]] = {}
 
-    def visit(
-        expr: calculus.Expr, binders: dict[calculus.Expr, set[Index | Variable]]
-    ) -> None:
+    def visit(expr: calculus.Expr, binders: BinderStack) -> None:
+        valid_site = isinstance(expr, (calculus.Vec, calculus.Fold))
+        binders_in_sub: BinderStack = binders | ({expr: set()} if valid_site else {})
+        if binders_in_sub:
+            last_site = next(reversed(binders_in_sub))
+            binders_in_sub[last_site] |= {
+                *expr._captured_indices,
+                *expr._captured_variables,
+            }
+
+        for sub in expr.dependencies:
+            visit(sub, binders_in_sub)
+
         if not isinstance(expr, NEVER_BIND):
             prev_site = None
             for site, bound in reversed(binders.items()):
@@ -96,25 +89,14 @@ def _reduce_loop_strength(program: calculus.Expr) -> calculus.Expr:
             if prev_site is not None:
                 insertions.setdefault(prev_site, {})[Variable()] = expr
 
-        valid_site = isinstance(expr, (calculus.Vec, calculus.Fold))
-        binders = binders | ({expr: set()} if valid_site else {})
-        if binders:
-            last_site = next(reversed(binders))
-            binders[last_site] |= {*expr._captured_indices, *expr._captured_variables}
-
-        for sub in expr.dependencies:
-            visit(sub, binders)
-
     visit(program, {})
-    return _apply_insertions(program, insertions)
+    return insertions
 
 
 def outline(program: calculus.Expr) -> calculus.Expr:
     free_indices, free_variables = program.free_indices, program.free_variables
 
     def check(prog: calculus.Expr, tree: bool) -> None:
-        # FIXME: The checks should pass with tree = True.
-        tree = False
         seen = set()
 
         def visit(expr: calculus.Expr) -> calculus.Expr:
@@ -133,16 +115,13 @@ def outline(program: calculus.Expr) -> calculus.Expr:
     program = inline(program)
     check(program, tree=False)
     # Bind subexpressions so they occur at most once, creating a syntax tree
-    program = _bind_common_subexpressions(program)
+    program = _apply_insertions(program, _bind_common_subexpressions(program))
     check(program, tree=True)
     # Extract loop-independent expressions out of containing loops into a wrapping binding
-    # program = _reduce_loop_strength(program)
+    program = _apply_insertions(program, _reduce_loop_strength(program))
     check(program, tree=True)
-    # FIXME: We should do an inline(program, only_renames=True).
-    #  However, it makes tests fail.
-    #  Nondeterminism is involved, so some it might be some set iteration (?).
-    # program = inline(program, only_renames=True)
-    # check(program, tree=True)
+    program = inline(program, only_renames=True)
+    check(program, tree=True)
     return program
 
 
