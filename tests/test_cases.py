@@ -24,9 +24,18 @@ def test_mri_q():
     numpy.testing.assert_allclose(
         MriQ.in_ein_function(interpret_with_numpy, *args), ref
     )
-
     numpy.testing.assert_allclose(MriQ.in_numpy_frugal(*args), ref)
-
     numpy.testing.assert_allclose(MriQ.in_numpy_einsum(*args), ref)
-
     numpy.testing.assert_allclose(MriQ.in_python(*args), ref)
+
+
+def test_kmeans():
+    from .suite.rodinia.kmeans import KMeans
+
+    args = KMeans.sample(12, 7, 3, 50)
+
+    ref = KMeans.in_numpy(*args)
+    numpy.testing.assert_allclose(
+        KMeans.in_ein_function(interpret_with_numpy, *args), ref
+    )
+    numpy.testing.assert_allclose(KMeans.in_python(*args), ref)
