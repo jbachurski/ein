@@ -31,7 +31,7 @@ class KMeans(Case):
             return lt.where(a[0], b[0]), lt.where(a[1], b[1])
 
         def fold_argmin(f: Callable[[Array], Array]) -> Array:
-            return fold.many(
+            return fold(
                 (float("inf"), 0),
                 lambda i, acc: argmin_concat(acc, (f(i), i)),
             )[1]

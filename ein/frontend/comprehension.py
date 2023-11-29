@@ -179,26 +179,15 @@ class FoldComprehension(BaseComprehension):
     @overload
     def __call__(
         self,
-        init_: tuple[ArrayLike, ...],
-        constructor: Callable[[Array, tuple[Array, ...]], tuple[ArrayLike, ...]],
-    ) -> tuple[Array, ...]:
-        ...
-
-    def __call__(self, init_, constructor):
-        return self._apply(init_, constructor)
-
-    @overload
-    def many(
-        self,
         init_: tuple[ArrayLike, ArrayLike],
         constructor: Callable[
             [Array, tuple[Array, Array]], tuple[ArrayLike, ArrayLike]
         ],
-    ) -> tuple[Array, Array]:
+    ) -> tuple[Array, ...]:
         ...
 
     @overload
-    def many(
+    def __call__(
         self,
         init_: tuple[ArrayLike, ArrayLike, ArrayLike],
         constructor: Callable[
@@ -207,8 +196,8 @@ class FoldComprehension(BaseComprehension):
     ) -> tuple[Array, Array, Array]:
         ...
 
-    def many(self, init_, constructor):
-        return self(init_, constructor)
+    def __call__(self, init_, constructor):
+        return self._apply(init_, constructor)
 
 
 class VariableArray(Array):
