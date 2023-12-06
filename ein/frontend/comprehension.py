@@ -9,7 +9,7 @@ import numpy
 from ein import calculus
 from ein.calculus import Expr, Var
 from ein.symbols import Index, Variable
-from ein.type_system import Scalar, Type
+from ein.type_system import Type, scalar
 
 from .ndarray import Array, ArrayLike
 
@@ -111,7 +111,7 @@ class SumComprehension(CommutativeComprehension):
     @staticmethod
     def application(index: Index, size: Expr, body: Expr) -> Expr:
         init = calculus.Const(calculus.Value(numpy.array(0.0)))
-        acc = Var(Variable(), Scalar(float))
+        acc = Var(Variable(), scalar(float))
         return calculus.Fold(index, size, acc.var, init, calculus.Add((acc, body)))
 
 
@@ -119,7 +119,7 @@ class MaxComprehension(CommutativeComprehension):
     @staticmethod
     def application(index: Index, size: Expr, body: Expr) -> Expr:
         init = calculus.Const(calculus.Value(numpy.array(float("-inf"))))
-        acc = Var(Variable(), Scalar(float))
+        acc = Var(Variable(), scalar(float))
         max_body = calculus.Where((calculus.Less((body, acc)), acc, body))
         return calculus.Fold(index, size, acc.var, init, max_body)
 
@@ -128,7 +128,7 @@ class MinComprehension(MaxComprehension):
     @staticmethod
     def application(index: Index, size: Expr, body: Expr) -> Expr:
         init = calculus.Const(calculus.Value(numpy.array(float("inf"))))
-        acc = Var(Variable(), Scalar(float))
+        acc = Var(Variable(), scalar(float))
         min_body = calculus.Where((calculus.Less((acc, body)), acc, body))
         return calculus.Fold(index, size, acc.var, init, min_body)
 

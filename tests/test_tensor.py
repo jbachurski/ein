@@ -3,7 +3,6 @@ import pytest
 
 from ein import (
     Array,
-    Scalar,
     array,
     fold,
     function,
@@ -12,6 +11,7 @@ from ein import (
     matrix,
     max,
     min,
+    scalar,
     sum,
     vector,
 )
@@ -24,13 +24,13 @@ with_interpret = pytest.mark.parametrize(
 
 def test_type_checks():
     with pytest.raises(TypeError):
-        _ = function([Scalar(int)], lambda n: 1 + array[n](lambda i: 0))
+        _ = function([scalar(int)], lambda n: 1 + array[n](lambda i: 0))
 
 
 @with_interpret
 def test_mul_grid(interpret):
     (n0,), grid_expr = function(
-        [Scalar(int)],
+        [scalar(int)],
         lambda n: array[n, n](lambda i, j: (i.to_float() + 1.0) / (j.to_float() + 1.0)),
     )
 
@@ -137,7 +137,7 @@ def test_fibonacci_fold(interpret):
             ),
         )
 
-    (n0,), fib_expr = function([Scalar(int)], fib)
+    (n0,), fib_expr = function([scalar(int)], fib)
     numpy.testing.assert_allclose(
         interpret(fib_expr, {n0: numpy.array(8)}),
         [0, 1, 1, 2, 3, 5, 8, 13],
@@ -169,7 +169,7 @@ def test_trial_division_primes(interpret):
             )
         )
 
-    (n0,), expr = function([Scalar(int)], trial_division)
+    (n0,), expr = function([scalar(int)], trial_division)
     N = 30
     numpy.testing.assert_allclose(
         interpret(expr, {n0: numpy.array(N)}),
@@ -187,7 +187,7 @@ def test_sieve_primes(interpret):
             ),
         )
 
-    (n0,), expr = function([Scalar(int)], sieve)
+    (n0,), expr = function([scalar(int)], sieve)
     N = 30
     numpy.testing.assert_allclose(
         interpret(expr, {n0: numpy.array(N)}),
@@ -228,7 +228,7 @@ def test_argmin(interpret):
             lambda j: fold((-float("inf"), 0), lambda i, acc: step(i, j, acc))[1]
         )
 
-    (n0, a0), expr = function([Scalar(int), vector(float)], argmin_trig)
+    (n0, a0), expr = function([scalar(int), vector(float)], argmin_trig)
     sample_n = 5
     sample_a = numpy.random.randn(sample_n)
     numpy.testing.assert_allclose(
@@ -251,7 +251,7 @@ def test_matrix_power_times_vector(interpret):
         mn, vn = fold[n]((id_k, v), lambda t, mv: (matmat(mv[0], m), matvec(m, mv[1])))
         return matvec(mn, vn)
 
-    (m0, n0, v0), expr = function([matrix(float), Scalar(int), vector(float)], pow_mult)
+    (m0, n0, v0), expr = function([matrix(float), scalar(int), vector(float)], pow_mult)
     sample_n, sample_k = 2, 3
     sample_m = numpy.random.randn(sample_k, sample_k)
     sample_v = numpy.random.randn(sample_k)

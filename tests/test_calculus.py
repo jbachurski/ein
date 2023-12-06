@@ -1,7 +1,14 @@
 import numpy
 import pytest
 
-from ein import Scalar, interpret_with_naive, interpret_with_numpy, matrix, vector
+from ein import (
+    Scalar,
+    interpret_with_naive,
+    interpret_with_numpy,
+    matrix,
+    scalar,
+    vector,
+)
 from ein.calculus import (
     Add,
     At,
@@ -41,7 +48,7 @@ def fold_sum(index: Index, size: Expr, body: Expr):
         raise TypeError("Can only sum over scalars")
     dtype = body.type.kind
     init = Const(Value(numpy.array(0, dtype=dtype)))
-    acc = Var(Variable(), Scalar(dtype))
+    acc = Var(Variable(), scalar(dtype))
     return Fold(index, size, acc.var, init, Add((acc, body)))
 
 
@@ -75,7 +82,7 @@ def test_basic_indices(interpret):
 @with_interpret
 def test_basic_variables(interpret):
     x0, y0 = Variable(), Variable()
-    x, y = Var(x0, Scalar(float)), Var(y0, Scalar(float))
+    x, y = Var(x0, scalar(float)), Var(y0, scalar(float))
     x_minus_y = Add((x, Negate((y,))))
     numpy.testing.assert_allclose(
         interpret(x_minus_y, {x0: numpy.array(4.0), y0: numpy.array(3.0)}),
@@ -85,7 +92,7 @@ def test_basic_variables(interpret):
 
 @with_interpret
 def test_basic_let_bindings(interpret):
-    a, b, x, y, z, w = (Var(Variable(), Scalar(float)) for _ in range(6))
+    a, b, x, y, z, w = (Var(Variable(), scalar(float)) for _ in range(6))
     az = Let(z.var, a, z)
     bw = Let(w.var, b, w)
     expr = Let(x.var, Add((az, bw)), Let(y.var, Multiply((x, b)), Add((x, y))))
@@ -129,7 +136,7 @@ def test_basic_pairs(interpret):
 
 @with_interpret
 def test_repeated_squaring(interpret):
-    x = Var(Variable(), Scalar(float))
+    x = Var(Variable(), scalar(float))
     k = 20
     init_expr = lambda: Add(  # noqa
         (
@@ -199,7 +206,7 @@ def test_matmul(interpret):
 def test_power_fold(interpret):
     a0, n0, x0 = Variable(), Variable(), Variable()
     i = Index()
-    a, n, x = Var(a0, Scalar(float)), Var(n0, Scalar(int)), Var(x0, Scalar(float))
+    a, n, x = Var(a0, scalar(float)), Var(n0, scalar(int)), Var(x0, scalar(float))
     power_expr = Fold(i, n, x.var, Const(Value(numpy.array(1.0))), Multiply((x, a)))
     numpy.testing.assert_allclose(
         interpret(power_expr, {a0: numpy.array(3), n0: numpy.array(7)}), 3**7
@@ -210,7 +217,7 @@ def test_power_fold(interpret):
 def test_fibonacci_vector_fold(interpret):
     fib0, n0 = Variable(), Variable()
     i, j, j0 = Index(), Index(), Index()
-    fib, n = Var(fib0, vector(int)), Var(n0, Scalar(int))
+    fib, n = Var(fib0, vector(int)), Var(n0, scalar(int))
     zero = Const(Value(numpy.array(0)))
     one = Const(Value(numpy.array(1)))
     zeros = Vec(j0, n, Negate((one,)))
@@ -254,8 +261,8 @@ def test_fibonacci_vector_fold(interpret):
 def test_argmin(interpret):
     i, j = Index(), Index()
     a = Var(Variable(), vector(float))
-    n = Var(Variable(), Scalar(int))
-    r = Var(Variable(), Pair(Scalar(float), Scalar(int)))
+    n = Var(Variable(), scalar(int))
+    r = Var(Variable(), Pair(scalar(float), scalar(int)))
     a_at_i_j = Sin((Add((Get(a, At(i)), CastToFloat((At(j),)))),))
     cond_i_j = Less((First(r), a_at_i_j))
     argmin_expr = Fold(

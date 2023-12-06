@@ -16,6 +16,7 @@ from ein.type_system import (
     Vector,
     ndarray,
     resolve_scalar_signature,
+    scalar,
     to_float,
 )
 
@@ -212,7 +213,7 @@ class At(AbstractExpr):
 
     @cached_property
     def type(self) -> Type:
-        return Scalar(int)
+        return scalar(int)
 
     @property
     def dependencies(self) -> tuple[Expr, ...]:
@@ -314,7 +315,7 @@ class Dim(AbstractExpr):
 
     @cached_property
     def type(self) -> Type:
-        return Scalar(int)
+        return scalar(int)
 
     @cached_property
     def dependencies(self) -> tuple[Expr, ...]:

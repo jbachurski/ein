@@ -2,14 +2,14 @@ from typing import Callable
 
 import numpy
 
-from ein import Array, Scalar, array, fold, matrix
+from ein import Array, array, fold, matrix, scalar
 from ein import sum as fold_sum
 
 from ..case import Case
 
 
 class KMeans(Case):
-    ein_types = [matrix(float), Scalar(int), Scalar(int)]
+    ein_types = [matrix(float), scalar(int), scalar(int)]
 
     @staticmethod
     def in_ein(*args: Array) -> Array:

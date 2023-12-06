@@ -29,11 +29,11 @@ class Scalar(AbstractType):
     def from_dtype(dtype: numpy.dtype) -> "Scalar":
         t = dtype.type
         if issubclass(t, numpy.bool_):
-            return Scalar(bool)
+            return scalar(bool)
         elif issubclass(t, numpy.integer):
-            return Scalar(int)
+            return scalar(int)
         elif issubclass(t, numpy.floating):
-            return Scalar(float)
+            return scalar(float)
         raise TypeError(f"Datatype {dtype} cannot be converted to a legal Scalar type.")
 
     @property
@@ -81,16 +81,20 @@ class Pair(AbstractType):
         )
 
 
+def scalar(type_: ScalarKind) -> Scalar:
+    return Scalar(type_)
+
+
 def vector(type_: ScalarKind) -> Vector:
-    return Vector(Scalar(type_))
+    return Vector(scalar(type_))
 
 
 def matrix(type_: ScalarKind) -> Vector:
-    return Vector(Vector(Scalar(type_)))
+    return Vector(Vector(scalar(type_)))
 
 
 def ndarray(rank: int, type_: ScalarKind) -> Type:
-    return Vector(ndarray(rank - 1, type_)) if rank else Scalar(type_)
+    return Vector(ndarray(rank - 1, type_)) if rank else scalar(type_)
 
 
 @dataclass(frozen=True)
@@ -108,7 +112,7 @@ class PrimitiveArrayType:
 
     @property
     def type(self) -> Type:
-        return Vector(self.with_rank_delta(-1).type) if self.rank else Scalar(self.kind)
+        return Vector(self.with_rank_delta(-1).type) if self.rank else scalar(self.kind)
 
     def with_rank(self, rank: int) -> "PrimitiveArrayType":
         return PrimitiveArrayType(rank, self.kind)
@@ -182,7 +186,7 @@ def resolve_scalar_signature(
             type_vars[sig] = typ.kind
         elif typ.kind != sig:
             raise TypeError(f"{_fail_msg} expected {sig} at position {i}, got {typ}")
-    return Scalar(
+    return scalar(
         type_vars[signature_result]
         if isinstance(signature_result, str)
         else signature_result
