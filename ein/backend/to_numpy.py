@@ -47,7 +47,14 @@ def stage(
                 return lambda env: numpy.expand_dims(target(env), axes)
             case array_calculus.Gather(axis, target_, item_):
                 target, item = go(target_), go(item_)
-                return lambda env: numpy.take_along_axis(target(env), item(env), axis)
+
+                def apply_gather(env: Env) -> numpy.ndarray:
+                    arr = target(env)
+                    return numpy.take_along_axis(
+                        arr, numpy.clip(item(env), 0, arr.shape[axis] - 1), axis
+                    )
+
+                return apply_gather
             case array_calculus.Take(target_, items_):
                 target = go(target_)
                 items = [go(item) if item is not None else None for item in items_]
