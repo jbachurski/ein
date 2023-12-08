@@ -13,7 +13,7 @@ T = TypeVar("T")
 Idx = NewType("Idx", Array)
 Size: TypeAlias = Array | int
 
-_FromIndex: TypeAlias = Callable[[Idx], ArrayLike]
+_FromIndex: TypeAlias = Callable[[Idx], Array]
 _FromIndices: TypeAlias = (
     Callable[[Idx], ArrayLike]
     | Callable[[Idx, Idx], ArrayLike]
