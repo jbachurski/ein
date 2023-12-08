@@ -29,6 +29,19 @@ def test_mri_q():
     numpy.testing.assert_allclose(MriQ.in_python(*args), ref)
 
 
+def test_stencil():
+    from .suite.parboil.stencil import Stencil
+
+    args = Stencil.sample()
+
+    ref = Stencil.in_numpy(*args)
+
+    numpy.testing.assert_allclose(
+        Stencil.in_ein_function(interpret_with_numpy, *args), ref
+    )
+    numpy.testing.assert_allclose(Stencil.in_python(*args), ref)
+
+
 def test_kmeans():
     from .suite.rodinia.kmeans import KMeans
 
