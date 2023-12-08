@@ -1,3 +1,6 @@
+import functools
+from typing import Any
+
 import numpy
 import pytest
 
@@ -9,12 +12,10 @@ from ein import (
     interpret_with_naive,
     interpret_with_numpy,
     matrix,
-    max,
-    min,
     scalar,
-    sum,
     vector,
 )
+from ein.frontend.std import max, min, sum
 
 with_backend = pytest.mark.parametrize("backend", ["naive", "numpy"])
 with_interpret = pytest.mark.parametrize(
@@ -24,14 +25,16 @@ with_interpret = pytest.mark.parametrize(
 
 def test_type_checks():
     with pytest.raises(TypeError):
-        _ = function([scalar(int)], lambda n: 1 + array[n](lambda i: 0))
+        _ = function([scalar(int)], lambda n: 1 + array(lambda i: 0, size=n))
 
 
 @with_interpret
 def test_mul_grid(interpret):
     (n0,), grid_expr = function(
         [scalar(int)],
-        lambda n: array[n, n](lambda i, j: (i.to_float() + 1.0) / (j.to_float() + 1.0)),
+        lambda n: array(
+            lambda i, j: (i.to_float() + 1.0) / (j.to_float() + 1.0), size=(n, n)
+        ),
     )
 
     numpy.testing.assert_allclose(
@@ -51,8 +54,10 @@ def test_matmul(interpret, with_bounds_inference):
     def matmul(a: Array, b: Array):
         n, k = a.dim(0), a.dim(1)
         _k, m = b.dim(0), b.dim(1)
-        array_ = array if with_bounds_inference else array[n, m]
-        sum_ = sum if with_bounds_inference else sum[k]
+        array_: Any = (
+            array if with_bounds_inference else functools.partial(array, size=(n, m))
+        )
+        sum_: Any = sum if with_bounds_inference else functools.partial(sum, count=k)
         return array_(lambda i, j: sum_(lambda t: a[i, t] * b[t, j]))
 
     (a0, b0), matmul_expr = function([matrix(float), matrix(float)], matmul)
@@ -84,8 +89,12 @@ def test_uv_loss(backend, with_bounds_inference):
     def square(a):
         return a * a
 
-    inner_sum = sum if with_bounds_inference else sum[k]
-    outer_sum = sum if with_bounds_inference else sum[m, n]
+    inner_sum: Any = sum if with_bounds_inference else functools.partial(sum, count=k)
+    outer_sum: Any = (
+        (lambda f: sum(lambda i: sum(lambda j: f(i, j))))
+        if with_bounds_inference
+        else (lambda f: sum(lambda i: sum(lambda j: f(i, j), count=n), count=m))
+    )
     loss = outer_sum(
         lambda i, j: square(x[i, j] - inner_sum(lambda t: u[i, t] * v[j, t]))
     )
@@ -125,8 +134,8 @@ def test_switches(interpret):
 @with_interpret
 def test_fibonacci_fold(interpret):
     def fib(n: Array) -> Array:
-        return fold[n](
-            array[n](lambda i: 0),
+        return fold(
+            array(lambda i: 0, size=n),
             lambda i, acc: array(
                 lambda j: Array(i == j).where(
                     Array(j == 0).where(
@@ -135,6 +144,7 @@ def test_fibonacci_fold(interpret):
                     acc[j],
                 )
             ),
+            count=n,
         )
 
     (n0,), fib_expr = function([scalar(int)], fib)
@@ -161,12 +171,15 @@ def _primes(n) -> list[bool]:
 @with_interpret
 def test_trial_division_primes(interpret):
     def trial_division(n: Array) -> Array:
-        return array[n](
+        return array(
             lambda i: (
-                fold[n](
-                    i > 1, lambda d, acc: (acc & ~((i % d == 0) & (1 < d) & (d < i)))
+                fold(
+                    i > 1,
+                    lambda d, acc: (acc & ~((i % d == 0) & (1 < d) & (d < i))),
+                    count=n,
                 )
-            )
+            ),
+            size=n,
         )
 
     (n0,), expr = function([scalar(int)], trial_division)
@@ -180,11 +193,12 @@ def test_trial_division_primes(interpret):
 @with_interpret
 def test_sieve_primes(interpret):
     def sieve(n: Array) -> Array:
-        return fold[n](
-            array[n](lambda i: i > 1),
-            lambda d, siv: array[n](
-                lambda i: (siv[i] & ~((d > 1) & (i >= d * d) & (i % d == 0)))
+        return fold(
+            array(lambda i: i > 1, size=n),
+            lambda d, siv: array(
+                lambda i: (siv[i] & ~((d > 1) & (i >= d * d) & (i % d == 0))), size=n
             ),
+            count=n,
         )
 
     (n0,), expr = function([scalar(int)], sieve)
@@ -224,8 +238,9 @@ def test_argmin(interpret):
             v = (a[i] + j.to_float()).sin()
             return (v > acc[0]).where(v, acc[0]), (v > acc[0]).where(i, acc[1])
 
-        return array[n](
-            lambda j: fold((-float("inf"), 0), lambda i, acc: step(i, j, acc))[1]
+        return array(
+            lambda j: fold((-float("inf"), 0), lambda i, acc: step(i, j, acc))[1],
+            size=n,
         )
 
     (n0, a0), expr = function([scalar(int), vector(float)], argmin_trig)
@@ -247,8 +262,10 @@ def test_matrix_power_times_vector(interpret):
 
     def pow_mult(m: Array, n: Array, v: Array) -> Array:
         k = m.dim(0)
-        id_k = array[k, k](lambda i, j: Array(i == j).where(1.0, 0.0))
-        mn, vn = fold[n]((id_k, v), lambda t, mv: (matmat(mv[0], m), matvec(m, mv[1])))
+        id_k = array(lambda i, j: Array(i == j).where(1.0, 0.0), size=(k, k))
+        mn, vn = fold(
+            (id_k, v), lambda t, mv: (matmat(mv[0], m), matvec(m, mv[1])), count=n
+        )
         return matvec(mn, vn)
 
     (m0, n0, v0), expr = function([matrix(float), scalar(int), vector(float)], pow_mult)

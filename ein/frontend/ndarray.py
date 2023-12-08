@@ -1,4 +1,4 @@
-from typing import TypeAlias, cast
+from typing import TypeAlias, Union, cast
 
 import numpy
 import numpy.typing
@@ -8,14 +8,13 @@ from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
 from ein.calculus import AbstractExpr, Expr, Value
 from ein.symbols import Variable
 
-ArrayLike: TypeAlias = Expr | numpy.typing.ArrayLike | "Array"
-ArrayItem: TypeAlias = ArrayLike
+ArrayLike: TypeAlias = Union["int | float | bool | numpy.ndarray | Array"]
 
 
 class Array:
     expr: Expr
 
-    def __init__(self, array_like: ArrayLike):
+    def __init__(self, array_like: ArrayLike | Expr):
         if isinstance(array_like, AbstractExpr):
             expr = cast(Expr, array_like)
         elif isinstance(array_like, Array):
@@ -43,8 +42,8 @@ class Array:
             )
         return BACKENDS[backend](self.expr, env)
 
-    def __getitem__(self, item_like: ArrayItem | tuple[ArrayItem, ...]) -> "Array":
-        item: tuple[ArrayItem, ...] = (
+    def __getitem__(self, item_like: ArrayLike | tuple[ArrayLike, ...]) -> "Array":
+        item: tuple[ArrayLike, ...] = (
             (item_like,) if not isinstance(item_like, tuple) else item_like
         )
         expr = self.expr
@@ -83,7 +82,7 @@ class Array:
         return other + (-self)
 
     def __truediv__(self, other: ArrayLike) -> "Array":
-        return self * calculus.Reciprocal((Array(other).expr,))
+        return self * Array(calculus.Reciprocal((Array(other).expr,)))
 
     def __rtruediv__(self, other: ArrayLike) -> "Array":
         return Array(other) / self

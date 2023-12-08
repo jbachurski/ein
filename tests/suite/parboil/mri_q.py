@@ -3,9 +3,8 @@ from math import sin, tau
 import numpy
 from numpy import newaxis
 
-from ein import Array, array
-from ein import sum as fold_sum
-from ein import vector
+from ein import Array, array, vector
+from ein.frontend.std import sum as reduce_sum
 
 from ..case import Case
 
@@ -19,7 +18,7 @@ class MriQ(Case):
         mag = array(lambda i: phi_r[i] * phi_r[i] + phi_i[i] * phi_i[i])
         angles = array(
             lambda i: tau
-            * fold_sum(lambda j: kx[i] * x[j] + ky[i] * y[j] + kz[i] * z[j])
+            * reduce_sum(lambda j: kx[i] * x[j] + ky[i] * y[j] + kz[i] * z[j])
         )
         return array(lambda i: (mag[i] * angles[i]).sin())
 

@@ -1,7 +1,8 @@
 import numpy
 import scipy
 
-from ein import Array, Vector, array, matrix, sum, vector
+from ein import Array, Vector, array, matrix, vector
+from ein.frontend.std import sum as reduce_sum
 
 from ..case import Case
 
@@ -16,21 +17,21 @@ class Attention(Case):
     @staticmethod
     def ein_single(Wh, Wr, WY, Wt, bM, w, br, Y, ht, rt1):
         def softmax(v):
-            return array(lambda i: v[i].exp() / sum(lambda j: v[j].exp()))
+            return array(lambda i: v[i].exp() / reduce_sum(lambda j: v[j].exp()))
 
         Mt = array(
             lambda s, l: (
-                sum(lambda k: Y[s, k] * WY[k, l])
-                + sum(lambda k: ht[k] * Wh[k, l] + rt1[k] * Wr[k, l])
+                reduce_sum(lambda k: Y[s, k] * WY[k, l])
+                + reduce_sum(lambda k: ht[k] * Wh[k, l] + rt1[k] * Wr[k, l])
                 + bM[l]
             ).tanh()
         )
-        at = softmax(array(lambda s: sum(lambda l: Mt[s, l] * w[l])))
+        at = softmax(array(lambda s: reduce_sum(lambda l: Mt[s, l] * w[l])))
 
         rt = array(
             lambda l: (
-                sum(lambda s: Y[s, l] * at[s])
-                + (sum(lambda k: rt1[k] * Wt[k, l]) + br[l]).tanh()
+                reduce_sum(lambda s: Y[s, l] * at[s])
+                + (reduce_sum(lambda k: rt1[k] * Wt[k, l]) + br[l]).tanh()
             )
         )
 

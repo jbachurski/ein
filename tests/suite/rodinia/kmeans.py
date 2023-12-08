@@ -3,7 +3,7 @@ from typing import Callable
 import numpy
 
 from ein import Array, array, fold, matrix, scalar
-from ein import sum as fold_sum
+from ein.frontend.std import sum as reduce_sum
 
 from ..case import Case
 
@@ -19,7 +19,7 @@ class KMeans(Case):
             return x * x
 
         def dist(p1: Array, p2: Array) -> Array:
-            return fold_sum(lambda d: square(p1[d] - p2[d]))
+            return reduce_sum(lambda d: square(p1[d] - p2[d]))
 
         def maximum(x: Array | int, y: Array) -> Array:
             return (x > y).where(x, y)
@@ -30,7 +30,7 @@ class KMeans(Case):
             lt = a[0] <= b[0]
             return lt.where(a[0], b[0]), lt.where(a[1], b[1])
 
-        def fold_argmin(f: Callable[[Array], Array]) -> Array:
+        def reduce_argmin(f: Callable[[Array], Array]) -> Array:
             return fold(
                 (float("inf"), 0),
                 lambda i, acc: argmin_concat(acc, (f(i), i)),
@@ -39,20 +39,23 @@ class KMeans(Case):
         def fold_centres(_i: Array, centres: Array) -> Array:
             ks, ds = centres.dim(0), centres.dim(1)
             members = array(
-                lambda i: fold_argmin(lambda j: dist(points[i], centres[j]))
+                lambda i: reduce_argmin(lambda j: dist(points[i], centres[j]))
             )
 
             def members_of(j: Array) -> Array:
                 return fold(0, lambda i, acc: acc + Array(members[i] == j).where(1, 0))
 
-            return array[ks, ds](
+            return array(
                 lambda j, d: (
-                    fold_sum(lambda i: Array(members[i] == j).where(points[i][d], 0.0))
+                    reduce_sum(
+                        lambda i: Array(members[i] == j).where(points[i][d], 0.0)
+                    )
                     / maximum(1, members_of(j)).to_float()
-                )
+                ),
+                size=(ks, ds),
             )
 
-        return fold[it](array[k](lambda i: points[i]), fold_centres)
+        return fold(array(lambda i: points[i], size=k), fold_centres, count=it)
 
     @staticmethod
     def in_numpy(*args: numpy.ndarray) -> numpy.ndarray:

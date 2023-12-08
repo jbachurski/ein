@@ -2,18 +2,26 @@ import abc
 import functools
 import inspect
 from dataclasses import dataclass
-from typing import Callable, Iterable, Self, TypeVar, overload
-
-import numpy
+from typing import Callable, Iterable, NewType, TypeAlias, TypeVar, overload
 
 from ein import calculus
 from ein.calculus import Expr, Var
 from ein.symbols import Index, Variable
-from ein.type_system import Type, scalar
+from ein.type_system import Type
 
 from .ndarray import Array, ArrayLike
 
 T = TypeVar("T")
+Idx = NewType("Idx", Array)
+Size: TypeAlias = Array | int
+
+_FromIndex: TypeAlias = Callable[[Idx], ArrayLike]
+_FromIndices: TypeAlias = (
+    Callable[[Idx], ArrayLike]
+    | Callable[[Idx, Idx], ArrayLike]
+    | Callable[[Idx, Idx, Idx], ArrayLike]
+    | Callable[[Idx, Idx, Idx, Idx], ArrayLike]
+)
 
 
 def identity(x: T) -> T:
@@ -22,18 +30,6 @@ def identity(x: T) -> T:
 
 @dataclass
 class BaseComprehension(abc.ABC):
-    sizes: tuple[ArrayLike, ...] | None
-
-    def __init__(self, *, sizes=None):
-        self.sizes = sizes
-
-    def __getitem__(self, sizes) -> Self:
-        if self.sizes is not None:
-            raise TypeError("Already specified the sizes for the array comprehension.")
-        if not isinstance(sizes, tuple):
-            sizes = (sizes,)
-        return type(self)(sizes=sizes)
-
     @classmethod
     def _dim_of(cls, expr: calculus.Expr, axis: int = 0) -> Iterable[calculus.Expr]:
         yield calculus.Dim(expr, axis)
@@ -43,8 +39,10 @@ class BaseComprehension(abc.ABC):
             case calculus.Vec():
                 yield expr.size
 
-    def _get_sized(self, body: Expr, indices: tuple[Index, ...]) -> dict[Index, Expr]:
-        if self.sizes is None:
+    def _get_sized(
+        self, body: Expr, indices: tuple[Index, ...], sizes
+    ) -> dict[Index, Expr]:
+        if sizes is None:
             size_of: dict[Index, Expr] = {}
             for rank, index in enumerate(indices):
                 candidates = [
@@ -69,7 +67,7 @@ class BaseComprehension(abc.ABC):
         else:
             size_of = {
                 index: Array(size).expr
-                for index, size in zip(indices, self.sizes, strict=True)
+                for index, size in zip(indices, sizes, strict=True)
             }
         return size_of
 
@@ -80,62 +78,27 @@ class CommutativeComprehension(BaseComprehension):
     def application(index: Index, size: Expr, body: Expr) -> Expr:
         ...
 
-    @staticmethod
-    def pre(expr: Expr, /) -> Expr:
-        return expr
-
-    @staticmethod
-    def post(expr: Expr, /) -> Expr:
-        return expr
-
-    def __call__(self, constructor: Callable[..., ArrayLike]) -> Array:
+    def __call__(self, constructor: Callable[..., ArrayLike], sizes) -> Array:
         n = (
             len(inspect.signature(constructor).parameters)
-            if self.sizes is None
-            else len(self.sizes)
+            if sizes is None
+            else len(sizes)
         )
         indices = [Index() for _ in range(n)]
         wrapped_indices = [Array(calculus.At(index)) for index in indices]
-        body: Expr = self.pre(Array(constructor(*wrapped_indices)).expr)
-        size_of = self._get_sized(body, tuple(indices))
+        body: Expr = Array(constructor(*wrapped_indices)).expr
+        size_of = self._get_sized(body, tuple(indices), sizes)
         for index in reversed(indices):
             body = self.application(index, size_of[index], body)
-        return Array(self.post(Array(body).expr))
+        return Array(Array(body).expr)
 
 
 class ArrayComprehension(CommutativeComprehension):
     application = calculus.Vec
 
 
-class SumComprehension(CommutativeComprehension):
-    @staticmethod
-    def application(index: Index, size: Expr, body: Expr) -> Expr:
-        init = calculus.Const(calculus.Value(numpy.array(0.0)))
-        acc = Var(Variable(), scalar(float))
-        return calculus.Fold(index, size, acc.var, init, calculus.Add((acc, body)))
-
-
-class MaxComprehension(CommutativeComprehension):
-    @staticmethod
-    def application(index: Index, size: Expr, body: Expr) -> Expr:
-        init = calculus.Const(calculus.Value(numpy.array(float("-inf"))))
-        acc = Var(Variable(), scalar(float))
-        max_body = calculus.Where((calculus.Less((body, acc)), acc, body))
-        return calculus.Fold(index, size, acc.var, init, max_body)
-
-
-class MinComprehension(MaxComprehension):
-    @staticmethod
-    def application(index: Index, size: Expr, body: Expr) -> Expr:
-        init = calculus.Const(calculus.Value(numpy.array(float("inf"))))
-        acc = Var(Variable(), scalar(float))
-        min_body = calculus.Where((calculus.Less((acc, body)), acc, body))
-        return calculus.Fold(index, size, acc.var, init, min_body)
-
-
 class FoldComprehension(BaseComprehension):
-    def _apply(self, init_, constructor):
-        assert self.sizes is None or len(self.sizes) == 1
+    def _apply(self, init_, constructor, size):
         if not isinstance(init_, tuple):
             init_ = (init_,)
         k = len(init_)
@@ -167,12 +130,15 @@ class FoldComprehension(BaseComprehension):
                 f"accumulator initialiser and fold body: {len(init_)} != {len(body_)}"
             )
         body = functools.reduce(calculus.Cons, [Array(a).expr for a in body_])
-        size_of = self._get_sized(body, (index,))
+        size_of = self._get_sized(body, (index,), (size,) if size is not None else None)
         return untuple(calculus.Fold(index, size_of[index], acc.var, init, body), k)
 
     @overload
     def __call__(
-        self, init_: ArrayLike, constructor: Callable[[Array, Array], ArrayLike]
+        self,
+        init_: ArrayLike,
+        constructor: Callable[[Array, Array], ArrayLike],
+        size,
     ) -> Array:
         ...
 
@@ -183,6 +149,7 @@ class FoldComprehension(BaseComprehension):
         constructor: Callable[
             [Array, tuple[Array, Array]], tuple[ArrayLike, ArrayLike]
         ],
+        size,
     ) -> tuple[Array, ...]:
         ...
 
@@ -193,11 +160,12 @@ class FoldComprehension(BaseComprehension):
         constructor: Callable[
             [Array, tuple[Array, Array, Array]], tuple[ArrayLike, ArrayLike, ArrayLike]
         ],
+        size,
     ) -> tuple[Array, Array, Array]:
         ...
 
-    def __call__(self, init_, constructor):
-        return self._apply(init_, constructor)
+    def __call__(self, init_, constructor, size):
+        return self._apply(init_, constructor, size)
 
 
 class VariableArray(Array):
@@ -218,8 +186,11 @@ def function(
     return tuple(arg.var for arg in args), Array(fun(*args)).expr
 
 
-array = ArrayComprehension()
-sum = SumComprehension()
-max = MaxComprehension()
-min = MinComprehension()
-fold = FoldComprehension()
+def array(f: _FromIndices, *, size: tuple[Size, ...] | Size | None = None) -> Array:
+    if size is not None and not isinstance(size, tuple):
+        size = (size,)
+    return ArrayComprehension()(f, size)
+
+
+def fold(init, f, *, count: Size | None = None):
+    return FoldComprehension()(init, f, count)

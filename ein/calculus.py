@@ -2,7 +2,7 @@ import abc
 import dataclasses
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Callable, ClassVar, TypeAlias, cast
+from typing import Any, Callable, ClassVar, TypeAlias, Union, cast
 
 import numpy
 import numpy.typing
@@ -89,12 +89,12 @@ class Value:
         assert False
 
 
-Expr: TypeAlias = (
+Expr: TypeAlias = Union[
     "Const | At | Var | Let | AssertEq | Dim | Get | Vec | Fold | "
     "Cons | First | Second |"
     "Negate | Reciprocal | Exp | Sin | LogicalNot | CastToFloat | "
     "Add | Multiply | Modulo | Less | LogicalAnd | Where"
-)
+]
 
 
 def _merge_adj(*args: dict[Index, set["Expr"]]):
