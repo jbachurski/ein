@@ -39,7 +39,7 @@ class Term(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def dependencies(self) -> tuple["Term", ...]:
+    def subterms(self) -> tuple["Term", ...]:
         ...
 
     @abc.abstractmethod
@@ -88,10 +88,10 @@ class Term(abc.ABC):
 
     @cached_property
     def free_indices(self) -> set[Index]:
-        free = set().union(*(sub.free_indices for sub in self.dependencies))
+        free = set().union(*(sub.free_indices for sub in self.subterms))
         return (_maybe_set(self.unwrap_index()) | free) - self.captured_indices
 
     @cached_property
     def free_variables(self) -> set[Variable]:
-        free = set().union(*(sub.free_variables for sub in self.dependencies))
+        free = set().union(*(sub.free_variables for sub in self.subterms))
         return (_maybe_set(self.unwrap_var()) | free) - self.captured_variables

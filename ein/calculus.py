@@ -122,7 +122,7 @@ class AbstractExpr(Term):
 
     @property
     @abc.abstractmethod
-    def dependencies(self) -> tuple["Expr", ...]:
+    def subterms(self) -> tuple["Expr", ...]:
         ...
 
     @property
@@ -143,7 +143,7 @@ class AbstractExpr(Term):
 
     @cached_property
     def direct_indices(self) -> dict[Index, set[Expr]]:
-        return _merge_adj(*(sub.direct_indices for sub in self.dependencies))
+        return _merge_adj(*(sub.direct_indices for sub in self.subterms))
 
     def wrap_let(self, var: Variable, bind: Term) -> Expr:
         return Let(var, cast(Expr, bind), cast(Expr, self))
@@ -182,7 +182,7 @@ class Const(AbstractExpr):
         return self.value.type
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return ()
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -202,7 +202,7 @@ class At(AbstractExpr):
         return scalar(int)
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return ()
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -234,7 +234,7 @@ class Var(AbstractExpr):
         return self.var_type
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return ()
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -260,14 +260,14 @@ class Let(AbstractExpr):
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"var": self.var}, set(self.dependencies)
+        return {"var": self.var}, set(self.subterms)
 
     @cached_property
     def type(self) -> Type:
         return self.body.type
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.bind, self.body
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -300,7 +300,7 @@ class AssertEq(AbstractExpr):
         return self.target.type
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.target, *self.operands
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -321,7 +321,7 @@ class Dim(AbstractExpr):
         return scalar(int)
 
     @cached_property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.operand,)
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -348,7 +348,7 @@ class Get(AbstractExpr):
         return self.operand.type.elem
 
     @cached_property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.operand, self.item
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -380,7 +380,7 @@ class Cons(AbstractExpr):
         return Pair(self.first.type, self.second.type)
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.first, self.second
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -401,7 +401,7 @@ class AbstractDecons(AbstractExpr, abc.ABC):
         return self.target.type
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -441,7 +441,7 @@ class Vec(AbstractExpr):
         return Vector(self.body.type)
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.size, self.body
 
     @property
@@ -473,7 +473,7 @@ class Fold(AbstractExpr):
         }
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.size, self.init, self.body
 
     @cached_property
@@ -514,7 +514,7 @@ class AbstractScalarOperator(AbstractExpr, abc.ABC):
         return {}, set(self.operands)
 
     @cached_property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.operands
 
     @cached_property

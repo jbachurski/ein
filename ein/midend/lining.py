@@ -41,7 +41,7 @@ def _bind_common_subexpressions(program: Term) -> Insertions:
         if expr in graph:
             return
         graph.add_node(expr)
-        for sub in expr.dependencies:
+        for sub in expr.subterms:
             build(sub)
             graph.add_edge(expr, sub)
         order.append(expr)
@@ -71,7 +71,7 @@ def _reduce_loop_strength(program: Term) -> Insertions:
                 *expr.captured_variables,
             }
 
-        for sub in expr.dependencies:
+        for sub in expr.subterms:
             visit(sub, binders_in_sub)
 
         if not expr.is_atom:
@@ -96,7 +96,7 @@ def outline(program: Term) -> Term:
         def visit(expr: Term) -> Term:
             assert expr not in seen or expr.is_atom, expr
             seen.add(expr)
-            for sub in expr.dependencies:
+            for sub in expr.subterms:
                 visit(sub)
             return expr
 

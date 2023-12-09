@@ -32,7 +32,7 @@ class AbstractExpr(Term):
 
     @property
     @abc.abstractmethod
-    def dependencies(self) -> tuple["Expr", ...]:
+    def subterms(self) -> tuple["Expr", ...]:
         ...
 
     @abc.abstractmethod
@@ -86,7 +86,7 @@ class Const(AbstractExpr):
     array: Value
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return ()
 
     def map(self, f: Callable[[Expr], Expr]) -> "Const":
@@ -107,7 +107,7 @@ class Var(AbstractExpr):
     var_type: PrimitiveType
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return ()
 
     def map(self, f: Callable[[Expr], Expr]) -> "Var":
@@ -136,7 +136,7 @@ class Let(AbstractExpr):
     body: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.bind, self.body
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -164,7 +164,7 @@ class Dim(AbstractExpr):
     target: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Dim":
@@ -185,7 +185,7 @@ class Range(AbstractExpr):
     size: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.size,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Range":
@@ -207,7 +207,7 @@ class Transpose(AbstractExpr):
     target: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Transpose":
@@ -229,7 +229,7 @@ class Squeeze(AbstractExpr):
     target: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Squeeze":
@@ -252,7 +252,7 @@ class Unsqueeze(AbstractExpr):
     target: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Unsqueeze":
@@ -276,7 +276,7 @@ class Gather(AbstractExpr):
     item: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.target, self.item
 
     def map(self, f: Callable[[Expr], Expr]) -> "Gather":
@@ -302,7 +302,7 @@ class Take(AbstractExpr):
     items: tuple[Optional[Expr], ...]
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.target,) + tuple(expr for expr in self.items if expr is not None)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Take":
@@ -332,7 +332,7 @@ class Slice(AbstractExpr):
     stops: tuple[Optional[Expr], ...]
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.target,) + tuple(expr for expr in self.stops if expr is not None)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Slice":
@@ -364,7 +364,7 @@ class Repeat(AbstractExpr):
     target: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.count, self.target
 
     def map(self, f: Callable[[Expr], Expr]) -> "Repeat":
@@ -394,7 +394,7 @@ class Reduce(AbstractExpr):
     target: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Reduce":
@@ -418,7 +418,7 @@ class Cast(AbstractExpr):
     target: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Cast":
@@ -442,7 +442,7 @@ class AbstractElementwise(AbstractExpr):
         ...
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.operands
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -532,7 +532,7 @@ class Fold(AbstractExpr):
     body: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.size, self.init, self.body
 
     def map(self, f: Callable[[Expr], Expr]) -> "Fold":
@@ -564,7 +564,7 @@ class Tuple(AbstractExpr):
     operands: tuple[Expr, ...]
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return self.operands
 
     def map(self, f: Callable[[Expr], Expr]) -> "Tuple":
@@ -586,7 +586,7 @@ class Untuple(AbstractExpr):
     target: Expr
 
     @property
-    def dependencies(self) -> tuple[Expr, ...]:
+    def subterms(self) -> tuple[Expr, ...]:
         return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Untuple":
