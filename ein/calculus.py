@@ -8,6 +8,7 @@ import numpy
 import numpy.typing
 
 from ein.symbols import Index, Variable
+from ein.term import Term
 from ein.type_system import (
     UFUNC_SIGNATURES,
     Pair,
@@ -106,7 +107,7 @@ def _merge_adj(*args: dict[Index, set["Expr"]]):
 
 
 @dataclass(frozen=True, eq=False)
-class AbstractExpr(abc.ABC):
+class AbstractExpr(Term):
     def __post_init__(self):
         assert self.type
 
@@ -145,11 +146,7 @@ class AbstractExpr(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def dependencies(self) -> tuple[Expr, ...]:
-        ...
-
-    @abc.abstractmethod
-    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+    def dependencies(self) -> tuple["Expr", ...]:
         ...
 
     @property
@@ -161,26 +158,46 @@ class AbstractExpr(abc.ABC):
         return set()
 
     @property
-    def _captured_indices(self) -> set[Index]:
+    def captured_indices(self) -> set[Index]:
         return set()
 
     @property
-    def _captured_variables(self) -> set[Variable]:
+    def captured_variables(self) -> set[Variable]:
         return set()
 
     @cached_property
     def free_indices(self) -> set[Index]:
         free_indices = set().union(*(sub.free_indices for sub in self.dependencies))
-        return (self._indices | free_indices) - self._captured_indices
+        return (self._indices | free_indices) - self.captured_indices
 
     @cached_property
     def free_variables(self) -> set[Variable]:
         free_variables = set().union(*(sub.free_variables for sub in self.dependencies))
-        return (self._variables | free_variables) - self._captured_variables
+        return (self._variables | free_variables) - self.captured_variables
 
     @cached_property
     def direct_indices(self) -> dict[Index, set[Expr]]:
         return _merge_adj(*(sub.direct_indices for sub in self.dependencies))
+
+    def wrap_let(self, var: Variable, bind: Term) -> Expr:
+        return Let(var, cast(Expr, bind), cast(Expr, self))
+
+    def wrap_var(self, var: Variable) -> Expr:
+        return Var(var, self.type)
+
+    @property
+    def is_atom(self) -> bool:
+        return False
+
+    @property
+    def is_loop(self) -> bool:
+        return False
+
+    def unwrap_var(self) -> Variable | None:
+        return None
+
+    def unwrap_let(self) -> tuple[Variable, "Term", "Term"] | None:
+        return None
 
 
 @dataclass(frozen=True, eq=False)
@@ -226,6 +243,10 @@ class At(AbstractExpr):
     def _indices(self) -> set[Index]:
         return {self.index}
 
+    @property
+    def is_atom(self) -> bool:
+        return True
+
 
 @dataclass(frozen=True, eq=False)
 class Var(AbstractExpr):
@@ -251,6 +272,13 @@ class Var(AbstractExpr):
     def _variables(self) -> set[Variable]:
         return {self.var}
 
+    @property
+    def is_atom(self) -> bool:
+        return True
+
+    def unwrap_var(self) -> Variable | None:
+        return self.var
+
 
 @dataclass(frozen=True, eq=False)
 class Let(AbstractExpr):
@@ -274,8 +302,11 @@ class Let(AbstractExpr):
         return Let(self.var, f(self.bind), f(self.body))
 
     @property
-    def _captured_variables(self) -> set[Variable]:
+    def captured_variables(self) -> set[Variable]:
         return {self.var}
+
+    def unwrap_let(self) -> tuple[Variable, "Term", "Term"] | None:
+        return self.var, self.bind, self.body
 
 
 @dataclass(frozen=True, eq=False)
@@ -442,11 +473,15 @@ class Vec(AbstractExpr):
         return self.size, self.body
 
     @property
-    def _captured_indices(self) -> set[Index]:
+    def captured_indices(self) -> set[Index]:
         return {self.index}
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Vec(self.index, f(self.size), f(self.body))
+
+    @property
+    def is_loop(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True, eq=False)
@@ -482,15 +517,19 @@ class Fold(AbstractExpr):
         return self.init.type
 
     @property
-    def _captured_indices(self) -> set[Index]:
+    def captured_indices(self) -> set[Index]:
         return {self.index}
 
     @property
-    def _captured_variables(self) -> set[Variable]:
+    def captured_variables(self) -> set[Variable]:
         return {self.acc}
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Fold(self.index, f(self.size), self.acc, f(self.init), f(self.body))
+
+    @property
+    def is_loop(self) -> bool:
+        return True
 
 
 @dataclass(frozen=True, eq=False)

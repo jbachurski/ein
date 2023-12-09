@@ -2,28 +2,23 @@ from typing import Iterable, TypeAlias
 
 import networkx
 
-from ein import calculus
 from ein.symbols import Index, Variable
+from ein.term import Term
 
-NEVER_BIND = (calculus.Var, calculus.At)
-Insertions: TypeAlias = dict[calculus.Expr, dict[Variable, calculus.Expr]]
-BinderStack: TypeAlias = dict[calculus.Expr, set[Index | Variable]]
+Insertions: TypeAlias = dict[Term, dict[Variable, Term]]
+BinderStack: TypeAlias = dict[Term, set[Index | Variable]]
 
 
-def _let(
-    bindings: Iterable[tuple[Variable, calculus.Expr]], body: calculus.Expr
-) -> calculus.Expr:
+def _let(bindings: Iterable[tuple[Variable, Term]], body: Term) -> Term:
     bindings = tuple(bindings)
     if not bindings:
         return body
     (var, bind), *bindings = bindings
-    return calculus.Let(var, bind, _let(bindings, body))
+    return _let(bindings, body).wrap_let(var, bind)
 
 
-def _apply_insertions(program: calculus.Expr, insertions: Insertions) -> calculus.Expr:
-    def go(
-        expr: calculus.Expr, bindings: dict[calculus.Expr, calculus.Var]
-    ) -> calculus.Expr:
+def _apply_insertions(program: Term, insertions: Insertions) -> Term:
+    def go(expr: Term, bindings: dict[Term, Term]) -> Term:
         if expr in bindings:
             return bindings[expr]
 
@@ -31,18 +26,18 @@ def _apply_insertions(program: calculus.Expr, insertions: Insertions) -> calculu
         applied_bindings = []
         for var, bind in insertions.get(expr, {}).items():
             applied_bindings.append((var, go(bind, bindings_in_sub)))
-            bindings_in_sub[bind] = calculus.Var(var, bind.type)
+            bindings_in_sub[bind] = bind.wrap_var(var)
 
         return _let(applied_bindings, expr.map(lambda sub: go(sub, bindings_in_sub)))
 
     return go(program, {})
 
 
-def _bind_common_subexpressions(program: calculus.Expr) -> Insertions:
+def _bind_common_subexpressions(program: Term) -> Insertions:
     graph = networkx.MultiDiGraph()
-    order: list[calculus.Expr] = []
+    order: list[Term] = []
 
-    def build(expr: calculus.Expr) -> None:
+    def build(expr: Term) -> None:
         if expr in graph:
             return
         graph.add_node(expr)
@@ -58,29 +53,28 @@ def _bind_common_subexpressions(program: calculus.Expr) -> Insertions:
     insertions: Insertions = {}
     for sub in order:
         in_degree: int = graph.in_degree(sub)  # noqa
-        if not isinstance(sub, NEVER_BIND) and in_degree > 1:
+        if in_degree > 1:
             insertions.setdefault(idom[sub], {})[Variable()] = sub
 
     return insertions
 
 
-def _reduce_loop_strength(program: calculus.Expr) -> Insertions:
-    insertions: dict[calculus.Expr, dict[Variable, calculus.Expr]] = {}
+def _reduce_loop_strength(program: Term) -> Insertions:
+    insertions: dict[Term, dict[Variable, Term]] = {}
 
-    def visit(expr: calculus.Expr, binders: BinderStack) -> None:
-        valid_site = isinstance(expr, (calculus.Vec, calculus.Fold))
-        binders_in_sub: BinderStack = binders | ({expr: set()} if valid_site else {})
+    def visit(expr: Term, binders: BinderStack) -> None:
+        binders_in_sub: BinderStack = binders | ({expr: set()} if expr.is_loop else {})
         if binders_in_sub:
             last_site = next(reversed(binders_in_sub))
             binders_in_sub[last_site] |= {
-                *expr._captured_indices,
-                *expr._captured_variables,
+                *expr.captured_indices,
+                *expr.captured_variables,
             }
 
         for sub in expr.dependencies:
             visit(sub, binders_in_sub)
 
-        if not isinstance(expr, NEVER_BIND):
+        if not expr.is_atom:
             prev_site = None
             for site, bound in reversed(binders.items()):
                 if bound & (expr.free_indices | expr.free_variables):
@@ -93,14 +87,14 @@ def _reduce_loop_strength(program: calculus.Expr) -> Insertions:
     return insertions
 
 
-def outline(program: calculus.Expr) -> calculus.Expr:
+def outline(program: Term) -> Term:
     free_indices, free_variables = program.free_indices, program.free_variables
 
-    def check(prog: calculus.Expr, tree: bool) -> None:
+    def check(prog: Term, tree: bool) -> None:
         seen = set()
 
-        def visit(expr: calculus.Expr) -> calculus.Expr:
-            assert expr not in seen or isinstance(expr, NEVER_BIND), expr
+        def visit(expr: Term) -> Term:
+            assert expr not in seen or expr.is_atom, expr
             seen.add(expr)
             for sub in expr.dependencies:
                 visit(sub)
@@ -125,24 +119,26 @@ def outline(program: calculus.Expr) -> calculus.Expr:
     return program
 
 
-def inline(program: calculus.Expr, *, only_renames: bool = False) -> calculus.Expr:
-    def predicate(bind: calculus.Expr) -> bool:
+def inline(program: Term, *, only_renames: bool = False) -> Term:
+    def predicate(bind: Term) -> bool:
         if only_renames:
-            return isinstance(bind, NEVER_BIND)
+            return bind.is_atom
         return True
 
-    def _go(expr: calculus.Expr, bound: dict[Variable, calculus.Expr]) -> calculus.Expr:
-        match expr:
-            case calculus.Let(var, bind, body) if predicate(bind):
+    def _go(expr: Term, bound: dict[Variable, Term]) -> Term:
+        let_tuple = expr.unwrap_let()
+        var = expr.unwrap_var()
+        if let_tuple is not None:
+            var, bind, body = let_tuple
+            if predicate(bind):
                 return go(body, bound | {var: go(bind, bound)})
-            case calculus.Var(var, var_type) if var in bound:
-                assert var_type == bound[var].type
-                return bound[var]
+        if var is not None and var in bound:
+            return bound[var]
         return expr.map(lambda e: go(e, bound))
 
-    transformed: dict[calculus.Expr, calculus.Expr] = {}
+    transformed: dict[Term, Term] = {}
 
-    def go(expr: calculus.Expr, bound: dict[Variable, calculus.Expr]) -> calculus.Expr:
+    def go(expr: Term, bound: dict[Variable, Term]) -> Term:
         if expr not in transformed:
             transformed[expr] = _go(expr, bound)
         return transformed[expr]

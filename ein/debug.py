@@ -1,6 +1,6 @@
 import html
 import os.path
-from typing import Any, Iterable, assert_never
+from typing import Any, Iterable, assert_never, cast
 
 from ein import calculus
 from ein.backend import array_calculus, to_array
@@ -159,7 +159,7 @@ def pretty_print(program: calculus.Expr) -> str:
             case _:
                 assert_never(expr)
 
-    return "\n".join(go(lining.outline(lining.inline(program))))
+    return "\n".join(go(cast(calculus.Expr, lining.outline(lining.inline(program)))))
 
 
 def save_graph(dot: pydot.Dot, path: str, fmt: str | None = None) -> None:

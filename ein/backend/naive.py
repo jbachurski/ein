@@ -1,4 +1,4 @@
-from typing import assert_never
+from typing import assert_never, cast
 
 import numpy
 
@@ -69,8 +69,9 @@ def interpret(
     program: Expr,
     env: dict[Variable, numpy.ndarray],
 ) -> numpy.ndarray:
+    program = cast(Expr, outline(program))
     return _interpret(
-        outline(program), {var: Value(array) for var, array in env.items()}, {}
+        program, {var: Value(array) for var, array in env.items()}, {}
     ).array
 
 

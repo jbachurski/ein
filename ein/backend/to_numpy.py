@@ -142,4 +142,5 @@ def stage(
 def interpret(
     program: calculus.Expr, env: dict[Variable, numpy.ndarray]
 ) -> numpy.ndarray:
-    return stage(to_array.transform(outline(program)))(env)
+    program = cast(calculus.Expr, outline(program))
+    return stage(to_array.transform(program))(env)
