@@ -24,7 +24,7 @@ def stage(
     ) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
         match expr:
             case array_calculus.Const(array):
-                return lambda env: array
+                return lambda env: array.array
             case array_calculus.Var(var, _var_rank):
                 return lambda env: env[var]
             case array_calculus.Let(var, bind, body_):
@@ -142,5 +142,7 @@ def stage(
 def interpret(
     program: calculus.Expr, env: dict[Variable, numpy.ndarray]
 ) -> numpy.ndarray:
-    program = cast(calculus.Expr, outline(program))
-    return stage(to_array.transform(program))(env)
+    array_program = to_array.transform(program)
+    array_program = cast(array_calculus.Expr, outline(array_program))
+    staged = stage(array_program)
+    return staged(env)

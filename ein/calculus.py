@@ -1,5 +1,4 @@
 import abc
-import dataclasses
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Callable, ClassVar, TypeAlias, Union, cast
@@ -112,29 +111,6 @@ class AbstractExpr(Term):
         assert self.type
 
     @property
-    def _fields(self) -> tuple[tuple[str, Any], ...]:
-        return tuple(
-            (field.name, getattr(self, field.name))
-            for field in dataclasses.fields(self)
-        )
-
-    @cached_property
-    def hash(self) -> int:
-        return hash((type(self), self._fields))
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, AbstractExpr) or type(self) != type(other):
-            return False
-        if self.hash != other.hash:
-            return False
-        if self is other:
-            return True
-        return self._fields == other._fields
-
-    def __hash__(self) -> int:
-        return self.hash
-
-    @property
     @abc.abstractmethod
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
         ...
@@ -150,11 +126,11 @@ class AbstractExpr(Term):
         ...
 
     @property
-    def _indices(self) -> set[Index]:
+    def term_indices(self) -> set[Index]:
         return set()
 
     @property
-    def _variables(self) -> set[Variable]:
+    def term_variables(self) -> set[Variable]:
         return set()
 
     @property
@@ -166,16 +142,6 @@ class AbstractExpr(Term):
         return set()
 
     @cached_property
-    def free_indices(self) -> set[Index]:
-        free_indices = set().union(*(sub.free_indices for sub in self.dependencies))
-        return (self._indices | free_indices) - self.captured_indices
-
-    @cached_property
-    def free_variables(self) -> set[Variable]:
-        free_variables = set().union(*(sub.free_variables for sub in self.dependencies))
-        return (self._variables | free_variables) - self.captured_variables
-
-    @cached_property
     def direct_indices(self) -> dict[Index, set[Expr]]:
         return _merge_adj(*(sub.direct_indices for sub in self.dependencies))
 
@@ -185,6 +151,15 @@ class AbstractExpr(Term):
     def wrap_var(self, var: Variable) -> Expr:
         return Var(var, self.type)
 
+    def unwrap_let(self) -> tuple[Variable, "Term", "Term"] | None:
+        return None
+
+    def unwrap_var(self) -> Variable | None:
+        return None
+
+    def unwrap_index(self) -> Index | None:
+        return None
+
     @property
     def is_atom(self) -> bool:
         return False
@@ -192,12 +167,6 @@ class AbstractExpr(Term):
     @property
     def is_loop(self) -> bool:
         return False
-
-    def unwrap_var(self) -> Variable | None:
-        return None
-
-    def unwrap_let(self) -> tuple[Variable, "Term", "Term"] | None:
-        return None
 
 
 @dataclass(frozen=True, eq=False)
@@ -240,8 +209,11 @@ class At(AbstractExpr):
         return self
 
     @property
-    def _indices(self) -> set[Index]:
+    def term_indices(self) -> set[Index]:
         return {self.index}
+
+    def unwrap_index(self) -> Index | None:
+        return self.index
 
     @property
     def is_atom(self) -> bool:
@@ -269,15 +241,15 @@ class Var(AbstractExpr):
         return self
 
     @property
-    def _variables(self) -> set[Variable]:
+    def term_variables(self) -> set[Variable]:
         return {self.var}
+
+    def unwrap_var(self) -> Variable | None:
+        return self.var
 
     @property
     def is_atom(self) -> bool:
         return True
-
-    def unwrap_var(self) -> Variable | None:
-        return self.var
 
 
 @dataclass(frozen=True, eq=False)

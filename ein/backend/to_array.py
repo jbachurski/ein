@@ -33,7 +33,7 @@ def transform(
         result: array_calculus.Expr
         match expr:
             case calculus.Const(value):
-                return Axial([], array_calculus.Const(value.array))
+                return Axial([], array_calculus.Const(value))
             case calculus.At(index):
                 if index in index_sizes:  # vector index
                     return Axial(

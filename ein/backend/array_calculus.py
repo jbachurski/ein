@@ -2,12 +2,13 @@ import abc
 import enum
 from dataclasses import dataclass
 from functools import cached_property, partial
-from typing import Any, Callable, Optional, TypeAlias
+from typing import Any, Callable, Optional, TypeAlias, cast
 
 import numpy
 
 from ein.calculus import Value
-from ein.symbols import Variable
+from ein.symbols import Index, Variable
+from ein.term import Term
 from ein.type_system import (
     UFUNC_SIGNATURES,
     PrimitiveArrayType,
@@ -25,9 +26,14 @@ Expr: TypeAlias = (
 
 
 @dataclass(frozen=True, eq=False)
-class AbstractExpr(abc.ABC):
+class AbstractExpr(Term):
     def __post_init__(self):
         assert self.type
+
+    @property
+    @abc.abstractmethod
+    def dependencies(self) -> tuple["Expr", ...]:
+        ...
 
     @abc.abstractmethod
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -43,10 +49,45 @@ class AbstractExpr(abc.ABC):
     def type(self) -> PrimitiveType:
         ...
 
+    @property
+    def captured_indices(self) -> set[Index]:
+        return set()
+
+    @property
+    def captured_variables(self) -> set[Variable]:
+        return set()
+
+    @property
+    def is_atom(self) -> bool:
+        return False
+
+    @property
+    def is_loop(self) -> bool:
+        return False
+
+    def unwrap_var(self) -> Variable | None:
+        return None
+
+    def unwrap_index(self) -> Index | None:
+        return None
+
+    def unwrap_let(self) -> tuple[Variable, "Term", "Term"] | None:
+        return None
+
+    def wrap_var(self, var: Variable) -> Expr:
+        return Var(var, self.type)
+
+    def wrap_let(self, var: Variable, bind: "Term") -> Expr:
+        return Let(var, cast(Expr, bind), cast(Expr, self))
+
 
 @dataclass(frozen=True, eq=False)
 class Const(AbstractExpr):
-    array: numpy.ndarray
+    array: Value
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return ()
 
     def map(self, f: Callable[[Expr], Expr]) -> "Const":
         return self
@@ -65,6 +106,10 @@ class Var(AbstractExpr):
     var: Variable
     var_type: PrimitiveType
 
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return ()
+
     def map(self, f: Callable[[Expr], Expr]) -> "Var":
         return self
 
@@ -76,12 +121,23 @@ class Var(AbstractExpr):
     def type(self) -> PrimitiveType:
         return self.var_type
 
+    @property
+    def is_atom(self) -> bool:
+        return True
+
+    def unwrap_var(self) -> Variable | None:
+        return self.var
+
 
 @dataclass(frozen=True, eq=False)
 class Let(AbstractExpr):
     var: Variable
     bind: Expr
     body: Expr
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.bind, self.body
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Let(self.var, f(self.bind), f(self.body))
@@ -94,11 +150,22 @@ class Let(AbstractExpr):
     def type(self) -> PrimitiveType:
         return self.body.type
 
+    @property
+    def captured_variables(self) -> set[Variable]:
+        return {self.var}
+
+    def unwrap_let(self) -> tuple[Variable, "Term", "Term"] | None:
+        return self.var, self.bind, self.body
+
 
 @dataclass(frozen=True, eq=False)
 class Dim(AbstractExpr):
     axis: int
     target: Expr
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Dim":
         return Dim(self.axis, f(self.target))
@@ -116,6 +183,10 @@ class Dim(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class Range(AbstractExpr):
     size: Expr
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.size,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Range":
         return Range(f(self.size))
@@ -135,6 +206,10 @@ class Transpose(AbstractExpr):
     permutation: tuple[int, ...]
     target: Expr
 
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.target,)
+
     def map(self, f: Callable[[Expr], Expr]) -> "Transpose":
         return Transpose(self.permutation, f(self.target))
 
@@ -152,6 +227,10 @@ class Transpose(AbstractExpr):
 class Squeeze(AbstractExpr):
     axes: tuple[int, ...]
     target: Expr
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Squeeze":
         return Squeeze(self.axes, f(self.target))
@@ -172,6 +251,10 @@ class Unsqueeze(AbstractExpr):
     axes: tuple[int, ...]
     target: Expr
 
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.target,)
+
     def map(self, f: Callable[[Expr], Expr]) -> "Unsqueeze":
         return Unsqueeze(self.axes, f(self.target))
 
@@ -191,6 +274,10 @@ class Gather(AbstractExpr):
     axis: int
     target: Expr
     item: Expr
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.target, self.item
 
     def map(self, f: Callable[[Expr], Expr]) -> "Gather":
         return Gather(self.axis, f(self.target), f(self.item))
@@ -213,6 +300,10 @@ class Gather(AbstractExpr):
 class Take(AbstractExpr):
     target: Expr
     items: tuple[Optional[Expr], ...]
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.target,) + tuple(expr for expr in self.items if expr is not None)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Take":
         return Take(
@@ -239,6 +330,10 @@ class Take(AbstractExpr):
 class Slice(AbstractExpr):
     target: Expr
     stops: tuple[Optional[Expr], ...]
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.target,) + tuple(expr for expr in self.stops if expr is not None)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Slice":
         return Slice(
@@ -268,6 +363,10 @@ class Repeat(AbstractExpr):
     count: Expr
     target: Expr
 
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.count, self.target
+
     def map(self, f: Callable[[Expr], Expr]) -> "Repeat":
         return Repeat(self.axis, f(self.count), f(self.target))
 
@@ -294,6 +393,10 @@ class Reduce(AbstractExpr):
     axis: int
     target: Expr
 
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.target,)
+
     def map(self, f: Callable[[Expr], Expr]) -> "Reduce":
         return Reduce(self.kind, self.axis, f(self.target))
 
@@ -314,6 +417,10 @@ class Cast(AbstractExpr):
     dtype: ScalarKind
     target: Expr
 
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.target,)
+
     def map(self, f: Callable[[Expr], Expr]) -> "Cast":
         return Cast(self.dtype, f(self.target))
 
@@ -333,6 +440,10 @@ class AbstractElementwise(AbstractExpr):
     @abc.abstractmethod
     def operands(self) -> tuple[Expr, ...]:
         ...
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.operands
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return type(self)(self.kind, *(f(op) for op in self.operands))  # type: ignore
@@ -420,6 +531,10 @@ class Fold(AbstractExpr):
     init: Expr
     body: Expr
 
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.size, self.init, self.body
+
     def map(self, f: Callable[[Expr], Expr]) -> "Fold":
         return Fold(self.index, f(self.size), self.acc, f(self.init), f(self.body))
 
@@ -435,10 +550,22 @@ class Fold(AbstractExpr):
         ), "Mismatched init and body accumulator types"
         return self.body.type
 
+    @property
+    def captured_variables(self) -> set[Variable]:
+        return {self.index, self.acc}
+
+    @property
+    def is_loop(self) -> bool:
+        return True
+
 
 @dataclass(frozen=True, eq=False)
 class Tuple(AbstractExpr):
     operands: tuple[Expr, ...]
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return self.operands
 
     def map(self, f: Callable[[Expr], Expr]) -> "Tuple":
         return Tuple(tuple(f(op) for op in self.operands))
@@ -457,6 +584,10 @@ class Untuple(AbstractExpr):
     at: int
     arity: int
     target: Expr
+
+    @property
+    def dependencies(self) -> tuple[Expr, ...]:
+        return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> "Untuple":
         return Untuple(self.at, self.arity, f(self.target))
