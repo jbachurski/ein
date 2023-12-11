@@ -4,7 +4,7 @@ import numpy
 from numpy import newaxis
 
 from ein import Array, array, vector
-from ein.frontend.std import sum as reduce_sum
+from ein.frontend.std import reduce_sum
 
 from ..case import Case
 
@@ -17,8 +17,9 @@ class MriQ(Case):
         kx, ky, kz, x, y, z, phi_r, phi_i = args
         mag = array(lambda i: phi_r[i] * phi_r[i] + phi_i[i] * phi_i[i])
         angles = array(
-            lambda i: tau
-            * reduce_sum(lambda j: kx[i] * x[j] + ky[i] * y[j] + kz[i] * z[j])
+            lambda i: (
+                tau * reduce_sum(lambda j: kx[i] * x[j] + ky[i] * y[j] + kz[i] * z[j])
+            )
         )
         return array(lambda i: (mag[i] * angles[i]).sin())
 

@@ -2,7 +2,7 @@ import numpy
 import scipy
 
 from ein import Array, Vector, array, matrix, vector
-from ein.frontend.std import sum as reduce_sum
+from ein.frontend.std import reduce_sum
 
 from ..case import Case
 

@@ -15,7 +15,7 @@ from ein import (
     scalar,
     vector,
 )
-from ein.frontend.std import max, min, sum
+from ein.frontend.std import reduce_max, reduce_min, reduce_sum
 
 with_backend = pytest.mark.parametrize("backend", ["naive", "numpy"])
 with_interpret = pytest.mark.parametrize(
@@ -57,7 +57,11 @@ def test_matmul(interpret, with_bounds_inference):
         array_: Any = (
             array if with_bounds_inference else functools.partial(array, size=(n, m))
         )
-        sum_: Any = sum if with_bounds_inference else functools.partial(sum, count=k)
+        sum_: Any = (
+            reduce_sum
+            if with_bounds_inference
+            else functools.partial(reduce_sum, count=k)
+        )
         return array_(lambda i, j: sum_(lambda t: a[i, t] * b[t, j]))
 
     (a0, b0), matmul_expr = function([matrix(float), matrix(float)], matmul)
@@ -86,11 +90,17 @@ def test_uv_loss(backend, with_bounds_inference):
     v_values = numpy.random.randn(n, k)
     x, u, v = Array(x_values), Array(u_values), Array(v_values)
 
-    inner_sum: Any = sum if with_bounds_inference else functools.partial(sum, count=k)
+    inner_sum: Any = (
+        reduce_sum if with_bounds_inference else functools.partial(reduce_sum, count=k)
+    )
     outer_sum: Any = (
-        (lambda f: sum(lambda i: sum(lambda j: f(i, j))))
+        (lambda f: reduce_sum(lambda i: reduce_sum(lambda j: f(i, j))))
         if with_bounds_inference
-        else (lambda f: sum(lambda i: sum(lambda j: f(i, j), count=n), count=m))
+        else (
+            lambda f: reduce_sum(
+                lambda i: reduce_sum(lambda j: f(i, j), count=n), count=m
+            )
+        )
     )
     loss = outer_sum(
         lambda i, j: (x[i, j] - inner_sum(lambda t: u[i, t] * v[j, t])) ** 2
@@ -105,7 +115,8 @@ def test_uv_loss(backend, with_bounds_inference):
 def test_max_minus_min(interpret):
     (a, b), expr = function(
         [vector(float), vector(float)],
-        lambda a, b: max(lambda i: a[i] * b[i]) - min(lambda i: a[i] * b[i]),
+        lambda a, b: reduce_max(lambda i: a[i] * b[i])
+        - reduce_min(lambda i: a[i] * b[i]),
     )
     a_values, b_values = numpy.random.randn(256), numpy.random.randn(256)
     numpy.testing.assert_allclose(
@@ -156,7 +167,7 @@ def test_inline_interpret(backend):
     a = Array(numpy.random.randn(20, 30))
     b = Array(numpy.random.randn(30))
     numpy.testing.assert_allclose(
-        array(lambda i: sum(lambda j: a[i, j] * b[j])).numpy(backend=backend),
+        array(lambda i: reduce_sum(lambda j: a[i, j] * b[j])).numpy(backend=backend),
         a.numpy(backend=backend) @ b.numpy(backend=backend),
     )
 
@@ -252,10 +263,10 @@ def test_argmin(interpret):
 @with_interpret
 def test_matrix_power_times_vector(interpret):
     def matmat(a: Array, b: Array) -> Array:
-        return array(lambda i, j: sum(lambda k: a[i, k] * b[k, j]))
+        return array(lambda i, j: reduce_sum(lambda k: a[i, k] * b[k, j]))
 
     def matvec(a: Array, b: Array) -> Array:
-        return array(lambda i: sum(lambda k: a[i, k] * b[k]))
+        return array(lambda i: reduce_sum(lambda k: a[i, k] * b[k]))
 
     def pow_mult(m: Array, n: Array, v: Array) -> Array:
         k = m.dim(0)

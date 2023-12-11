@@ -25,19 +25,19 @@ min_monoid = Monoid(Array(float("+inf")), lambda a, b: where(a < b, a, b))
 max_monoid = Monoid(Array(float("-inf")), lambda a, b: where(a < b, b, a))
 
 
-def sum(f: _FromIndex, count: Size | None = None) -> Array:
+def reduce_sum(f: _FromIndex, count: Size | None = None) -> Array:
     return sum_monoid.reduce(f, count)
 
 
-def min(f: _FromIndex, count: Size | None = None) -> Array:
+def reduce_min(f: _FromIndex, count: Size | None = None) -> Array:
     return min_monoid.reduce(f, count)
 
 
-def max(f: _FromIndex, count: Size | None = None) -> Array:
+def reduce_max(f: _FromIndex, count: Size | None = None) -> Array:
     return max_monoid.reduce(f, count)
 
 
-def argmin(f: _FromIndex, count: Size | None = None) -> Array:
+def reduce_argmin(f: _FromIndex, count: Size | None = None) -> Array:
     def concat(a: tuple[Array, Array], b: tuple[Array, Array]) -> tuple[Array, Array]:
         lt = a[0] <= b[0]
         return lt.where(a[0], b[0]), lt.where(a[1], b[1])

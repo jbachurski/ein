@@ -1,8 +1,7 @@
 import numpy
 
 from ein import Array, array, fold, matrix, scalar
-from ein.frontend.std import argmin as reduce_argmin
-from ein.frontend.std import sum as reduce_sum
+from ein.frontend.std import reduce_argmin, reduce_sum
 
 from ..case import Case
 

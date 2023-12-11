@@ -3,7 +3,7 @@ from math import hypot
 import numpy
 
 from ein import Array, array, fold, scalar, vector
-from ein.frontend.std import argmin as reduce_argmin
+from ein.frontend.std import reduce_argmin
 
 from ..case import Case
 
