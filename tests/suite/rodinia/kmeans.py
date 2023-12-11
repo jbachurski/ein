@@ -15,11 +15,8 @@ class KMeans(Case):
     def in_ein(*args: Array) -> Array:
         points, k, it = args
 
-        def square(x: Array) -> Array:
-            return x * x
-
         def dist(p1: Array, p2: Array) -> Array:
-            return reduce_sum(lambda d: square(p1[d] - p2[d]))
+            return reduce_sum(lambda d: (p1[d] - p2[d]) ** 2)
 
         def maximum(x: Array | int, y: Array) -> Array:
             return (x > y).where(x, y)

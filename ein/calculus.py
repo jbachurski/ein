@@ -93,7 +93,7 @@ Expr: TypeAlias = Union[
     "Const | At | Var | Let | AssertEq | Dim | Get | Vec | Fold | "
     "Cons | First | Second |"
     "Negate | Reciprocal | Exp | Sin | LogicalNot | CastToFloat | "
-    "Add | Multiply | Modulo | Less | LogicalAnd | LogicalOr | Where"
+    "Add | Multiply | Modulo | Power | Less | LogicalAnd | LogicalOr | Where"
 ]
 
 
@@ -584,6 +584,11 @@ class Multiply(AbstractBinaryScalarOperator):
 @dataclass(frozen=True, eq=False)
 class Modulo(AbstractBinaryScalarOperator):
     ufunc = numpy.mod
+
+
+@dataclass(frozen=True, eq=False)
+class Power(AbstractBinaryScalarOperator):
+    ufunc = numpy.power
 
 
 @dataclass(frozen=True, eq=False)

@@ -90,6 +90,25 @@ class Array:
     def __mod__(self, other: ArrayLike) -> "Array":
         return Array(calculus.Modulo((self.expr, Array(other).expr)))
 
+    def __pow__(self, power, modulo=None):
+        if modulo is not None:
+            raise NotImplementedError("Power modulo is not supported")
+        if isinstance(power, int):
+            if power < 0:
+                return (1.0 / self) ** (-power)
+
+            def go(k: int) -> Array:
+                if k == 1:
+                    return self
+                elif k % 2:
+                    return go(k - 1) * self
+                sub = go(k // 2)
+                return sub * sub
+
+            return go(power)
+
+        return Array(calculus.Power((self.expr, Array(power).expr)))
+
     def __invert__(self) -> "Array":
         return Array(calculus.LogicalNot((self.expr,)))
 

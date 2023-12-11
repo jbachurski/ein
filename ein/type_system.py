@@ -211,6 +211,7 @@ UFUNC_SIGNATURES: dict[
     numpy.add: ((("T", "T"), "T"), {"T": number}),
     numpy.multiply: ((("T", "T"), "T"), {"T": number}),
     numpy.mod: (((int, int), int), {}),
+    numpy.power: (((float, float), float), {}),
     numpy.less: ((("T", "T"), bool), {"T": number}),
     numpy.logical_and: (((bool, bool), bool), {}),
     numpy.logical_or: (((bool, bool), bool), {}),

@@ -86,9 +86,6 @@ def test_uv_loss(backend, with_bounds_inference):
     v_values = numpy.random.randn(n, k)
     x, u, v = Array(x_values), Array(u_values), Array(v_values)
 
-    def square(a):
-        return a * a
-
     inner_sum: Any = sum if with_bounds_inference else functools.partial(sum, count=k)
     outer_sum: Any = (
         (lambda f: sum(lambda i: sum(lambda j: f(i, j))))
@@ -96,7 +93,7 @@ def test_uv_loss(backend, with_bounds_inference):
         else (lambda f: sum(lambda i: sum(lambda j: f(i, j), count=n), count=m))
     )
     loss = outer_sum(
-        lambda i, j: square(x[i, j] - inner_sum(lambda t: u[i, t] * v[j, t]))
+        lambda i, j: (x[i, j] - inner_sum(lambda t: u[i, t] * v[j, t])) ** 2
     )
 
     numpy.testing.assert_allclose(
