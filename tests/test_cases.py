@@ -62,3 +62,15 @@ def test_nn():
     ref = NN.in_numpy(*args)
     numpy.testing.assert_allclose(NN.in_ein_function(interpret_with_numpy, *args), ref)
     numpy.testing.assert_allclose(NN.in_python(*args), ref)
+
+
+def test_pathfinder():
+    from .suite.rodinia.pathfinder import Pathfinder
+
+    args = Pathfinder.sample()
+
+    ref = Pathfinder.in_numpy(*args)
+    numpy.testing.assert_allclose(
+        Pathfinder.in_ein_function(interpret_with_numpy, *args), ref
+    )
+    numpy.testing.assert_allclose(Pathfinder.in_python(*args), ref)
