@@ -52,3 +52,13 @@ def test_kmeans():
         KMeans.in_ein_function(interpret_with_numpy, *args), ref
     )
     numpy.testing.assert_allclose(KMeans.in_python(*args), ref)
+
+
+def test_nn():
+    from .suite.rodinia.nn import NN
+
+    args = NN.sample()
+
+    ref = NN.in_numpy(*args)
+    numpy.testing.assert_allclose(NN.in_ein_function(interpret_with_numpy, *args), ref)
+    numpy.testing.assert_allclose(NN.in_python(*args), ref)

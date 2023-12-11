@@ -117,7 +117,7 @@ def fold(
 
 @overload
 def fold(
-    init: ArrayLikes2, step: _WithIndex[Arrays3], count: Size | None = None
+    init: ArrayLikes3, step: _WithIndex[Arrays3], count: Size | None = None
 ) -> Arrays3:
     ...
 

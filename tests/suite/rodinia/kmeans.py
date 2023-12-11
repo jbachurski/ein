@@ -1,8 +1,7 @@
-from typing import Callable
-
 import numpy
 
 from ein import Array, array, fold, matrix, scalar
+from ein.frontend.std import argmin as reduce_argmin
 from ein.frontend.std import sum as reduce_sum
 
 from ..case import Case
@@ -20,18 +19,6 @@ class KMeans(Case):
 
         def maximum(x: Array | int, y: Array) -> Array:
             return (x > y).where(x, y)
-
-        def argmin_concat(
-            a: tuple[Array, Array], b: tuple[Array, Array]
-        ) -> tuple[Array, Array]:
-            lt = a[0] <= b[0]
-            return lt.where(a[0], b[0]), lt.where(a[1], b[1])
-
-        def reduce_argmin(f: Callable[[Array], Array]) -> Array:
-            return fold(
-                (float("inf"), 0),
-                lambda i, acc: argmin_concat(acc, (f(i), i)),
-            )[1]
 
         def fold_centres(_i: Array, centres: Array) -> Array:
             ks, ds = centres.dim(0), centres.dim(1)
