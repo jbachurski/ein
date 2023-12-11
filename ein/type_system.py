@@ -213,5 +213,6 @@ UFUNC_SIGNATURES: dict[
     numpy.mod: (((int, int), int), {}),
     numpy.less: ((("T", "T"), bool), {"T": number}),
     numpy.logical_and: (((bool, bool), bool), {}),
+    numpy.logical_or: (((bool, bool), bool), {}),
     numpy.where: (((bool, "T", "T"), "T"), {}),
 }

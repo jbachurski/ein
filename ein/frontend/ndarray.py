@@ -97,7 +97,7 @@ class Array:
         return Array(calculus.LogicalAnd((self.expr, Array(other).expr)))
 
     def __or__(self, other: ArrayLike) -> "Array":
-        return ~(~self & ~Array(other))
+        return Array(calculus.LogicalOr((self.expr, Array(other).expr)))
 
     def __lt__(self, other: ArrayLike) -> "Array":
         return Array(calculus.Less((self.expr, Array(other).expr)))

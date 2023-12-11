@@ -93,7 +93,7 @@ Expr: TypeAlias = Union[
     "Const | At | Var | Let | AssertEq | Dim | Get | Vec | Fold | "
     "Cons | First | Second |"
     "Negate | Reciprocal | Exp | Sin | LogicalNot | CastToFloat | "
-    "Add | Multiply | Modulo | Less | LogicalAnd | Where"
+    "Add | Multiply | Modulo | Less | LogicalAnd | LogicalOr | Where"
 ]
 
 
@@ -594,6 +594,11 @@ class Less(AbstractBinaryScalarOperator):
 @dataclass(frozen=True, eq=False)
 class LogicalAnd(AbstractBinaryScalarOperator):
     ufunc = numpy.logical_and
+
+
+@dataclass(frozen=True, eq=False)
+class LogicalOr(AbstractBinaryScalarOperator):
+    ufunc = numpy.logical_or
 
 
 @dataclass(frozen=True, eq=False)
