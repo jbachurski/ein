@@ -1,7 +1,7 @@
 import numpy
 
 from ein import Array, array, fold, matrix
-from ein.frontend.std import min_monoid, where
+from ein.frontend import std
 
 from ..case import Case
 
@@ -16,13 +16,13 @@ class Pathfinder(Case):
         return fold(
             array(lambda i: 0.0, size=n),
             lambda t, dist: array(
-                lambda i: costs[t, i]
-                + min_monoid.concat(
-                    dist[i],
-                    min_monoid.concat(
-                        dist[where(i > 0, i - 1, 0)],
-                        dist[where(i < n - 1, i + 1, n - 1)],
-                    ),
+                lambda i: (
+                    costs[t, i]
+                    + std.min(
+                        dist[i],
+                        dist[std.max(i - 1, 0)],
+                        dist[std.min(i + 1, n - 1)],
+                    )
                 )
             ),
         )

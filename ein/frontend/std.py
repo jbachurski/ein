@@ -1,3 +1,4 @@
+import functools
 from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
 
@@ -23,6 +24,14 @@ class Monoid(Generic[T]):
 sum_monoid = Monoid(Array(0.0), lambda a, b: a + b)
 min_monoid = Monoid(Array(float("+inf")), lambda a, b: where(a < b, a, b))
 max_monoid = Monoid(Array(float("-inf")), lambda a, b: where(a < b, b, a))
+
+
+def min(*args: ArrayLike) -> Array:
+    return functools.reduce(min_monoid.concat, map(Array, args))
+
+
+def max(*args: ArrayLike) -> Array:
+    return functools.reduce(max_monoid.concat, map(Array, args))
 
 
 def reduce_sum(f: _FromIndex, count: Size | None = None) -> Array:
