@@ -42,6 +42,18 @@ def test_stencil():
     numpy.testing.assert_allclose(Stencil.in_python(*args), ref)
 
 
+def test_hotspot():
+    from .suite.rodinia.hotspot import Hotspot
+
+    args = Hotspot.sample()
+
+    ref = Hotspot.in_numpy(*args)
+    numpy.testing.assert_allclose(
+        Hotspot.in_ein_function(interpret_with_numpy, *args), ref
+    )
+    numpy.testing.assert_allclose(Hotspot.in_python(*args), ref)
+
+
 def test_kmeans():
     from .suite.rodinia.kmeans import KMeans
 
