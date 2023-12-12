@@ -133,6 +133,9 @@ def stage(
             case array_calculus.Untuple(at, _arity, target_):
                 target = go_either(target_)
                 return lambda env: target(env)[at]
+            case array_calculus.Einsum(subs, operands_):
+                operands = tuple(go(op) for op in operands_)
+                return lambda env: numpy.einsum(subs, *(op(env) for op in operands))
             case _:
                 assert_never(expr)
 

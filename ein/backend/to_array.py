@@ -1,8 +1,11 @@
+import itertools
 from functools import cache
-from typing import assert_never
+from string import ascii_lowercase
+from typing import Iterable, assert_never, cast
 
 from ein import calculus
 from ein.midend.size_classes import find_size_classes
+from ein.midend.substitution import substitute
 from ein.symbols import Index, Variable
 from ein.type_system import Pair, PrimitiveType, to_float
 
@@ -16,6 +19,7 @@ def transform(
     use_slices: bool = True,
     slice_elision: bool = True,
     use_takes: bool = True,
+    use_einsum: bool = False,
     do_shape_cancellations: bool = True,
     do_tuple_cancellations: bool = True,
     do_inplace_on_temporaries: bool = True,
@@ -23,6 +27,8 @@ def transform(
     transformed: dict[calculus.Expr, Axial] = {}
 
     size_class = find_size_classes(program)
+    match_sum.cache_clear()
+    match_einsum.cache_clear()
 
     def _go(
         expr: calculus.Expr,
@@ -31,6 +37,67 @@ def transform(
         var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
         result: array_calculus.Expr
+
+        if use_einsum:
+            realised_axes, summed_axes_, expr_operands = match_einsum(expr)
+            if summed_axes_:
+                realised_sum_axis = {index: Index() for index in summed_axes_}
+                summed_axes = {
+                    realised_sum_axis[index]: go(
+                        size, index_sizes, index_vars, var_axes
+                    ).normal
+                    for index, size in summed_axes_.items()
+                }
+
+                def with_realised_summed_axes(e: calculus.Expr) -> calculus.Expr:
+                    return cast(
+                        calculus.Expr,
+                        substitute(
+                            e,
+                            {
+                                index: calculus.At(realised_sum_axis[index])
+                                for index in summed_axes_
+                            },
+                        ),
+                    )
+
+                # FIXME: Here, we realise axes along which we were summing (folding) prior.
+                #  This might be a bad idea if those ranges are big - needs a way of establishing intent
+                #  whether elements summed over can be put in memory. To prevent accidentally compiling
+                #  inefficient code for some programs, we need a heuristic that an operand does not
+                #  materialise significantly more than what was already in-memory.
+                #  Note: we associate array(...) constructors to put contents into memory.
+                operands = tuple(
+                    go(
+                        with_realised_summed_axes(expr_operand),
+                        index_sizes | summed_axes,
+                        index_vars,
+                        var_axes,
+                    )
+                    for expr_operand in expr_operands
+                )
+                if any(
+                    set(op1._axes) & set(op2._axes)
+                    for i, op1 in enumerate(operands)
+                    for op2 in operands[:i]
+                ):
+                    axes = tuple(
+                        axis
+                        for axis in axial._alignment(
+                            *(operand._axes for operand in operands)
+                        )
+                        if axis in realised_axes
+                    )
+                    subs = to_einsum_subs(
+                        [operand._axes for operand in operands], tuple(axes)
+                    )
+                    return Axial(
+                        axes,
+                        array_calculus.Einsum(
+                            subs, tuple(operand.expr for operand in operands)
+                        ),
+                    )
+
         match expr:
             case calculus.Const(value):
                 return Axial([], array_calculus.Const(value))
@@ -156,8 +223,8 @@ def transform(
                 return go(
                     target_, index_sizes | {index: size.normal}, index_vars, var_axes
                 ).along(index, size.expr)
-            case calculus.AbstractScalarOperator(operands):
-                ops = [go(op, index_sizes, index_vars, var_axes) for op in operands]
+            case calculus.AbstractScalarOperator(operands_):
+                ops = [go(op, index_sizes, index_vars, var_axes) for op in operands_]
                 if expr.ufunc == to_float:
                     (target,) = ops
                     return Axial(
@@ -273,3 +340,58 @@ def inplace_on_temporaries(program: array_calculus.Expr) -> array_calculus.Expr:
         return expr
 
     return go(program)
+
+
+@cache
+def match_sum(expr: calculus.Expr) -> tuple[Index, calculus.Expr, calculus.Expr] | None:
+    match expr:
+        case calculus.Fold(
+            index,
+            size,
+            acc,
+            calculus.Const(init),
+            calculus.Add((calculus.Var(acc_, _), body)),
+        ):
+            if (
+                not init.array.ndim
+                and float(init.array) == 0.0
+                and acc == acc_
+                and acc not in body.free_variables
+            ):
+                return index, size, body
+    return None
+
+
+@cache
+def match_einsum(
+    expr: calculus.Expr,
+) -> tuple[set[Index], dict[Index, calculus.Expr], tuple[calculus.Expr, ...]]:
+    match expr:
+        case calculus.Multiply((first, second)):
+            first_axes, first_sums, first_operands = match_einsum(first)
+            second_axes, second_sums, second_operands = match_einsum(second)
+            return (
+                first_axes | second_axes,
+                first_sums | second_sums,
+                first_operands + second_operands,
+            )
+    sum_pattern = match_sum(expr)
+    if sum_pattern is not None:
+        index, size, body = sum_pattern
+        axes, sizes, operands = match_einsum(body)
+        return axes - {index}, {index: size, **sizes}, operands
+    return expr.free_indices, {}, (expr,)
+
+
+def to_einsum_subs(
+    operand_axes: Iterable[tuple[Index, ...]], result_axes: tuple[Index, ...]
+) -> str:
+    alphabet: dict[Index, str] = {}
+    for index in itertools.chain(*operand_axes, result_axes):
+        if index not in alphabet:
+            alphabet[index] = ascii_lowercase[len(alphabet)]
+    return (
+        ",".join("".join(alphabet[index] for index in op) for op in operand_axes)
+        + "->"
+        + "".join(alphabet[index] for index in result_axes)
+    )

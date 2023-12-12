@@ -21,7 +21,8 @@ from ein.type_system import (
 Expr: TypeAlias = (
     "Const | Var | Let | Dim | Range | "
     "Transpose | Squeeze | Unsqueeze | Gather | Take | Slice | Repeat | "
-    "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold | Tuple | Untuple"
+    "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold | "
+    "Tuple | Untuple | Einsum"
 )
 
 
@@ -602,6 +603,33 @@ class Untuple(AbstractExpr):
     def type(self) -> PrimitiveType:
         assert len(self.target.type.elems) == self.arity
         return PrimitiveType((self.target.type.elems[self.at],))
+
+
+@dataclass(frozen=True, eq=False)
+class Einsum(AbstractExpr):
+    subs: str
+    operands: tuple[Expr, ...]
+
+    @property
+    def subterms(self) -> tuple[Expr, ...]:
+        return self.operands
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Einsum":
+        return Einsum(self.subs, tuple(f(sub) for sub in self.operands))
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"subs": self.subs}, set(self.operands)
+
+    @cached_property
+    def type(self) -> PrimitiveType:
+        ops_str, res = self.subs.split("->")
+        ops = ops_str.split(",")
+        assert all(
+            len(op) == operand.type.single.rank
+            for op, operand in zip(ops, self.operands)
+        )
+        return PrimitiveType.of_array(len(res), float)
 
 
 REDUCE: dict[Any, Any] = {
