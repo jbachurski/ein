@@ -22,7 +22,8 @@ class Attention(Case):
         Mt = array(
             lambda s, l: (
                 reduce_sum(lambda k: Y[s, k] * WY[k, l])
-                + reduce_sum(lambda k: ht[k] * Wh[k, l] + rt1[k] * Wr[k, l])
+                + reduce_sum(lambda k: ht[k] * Wh[k, l])
+                + reduce_sum(lambda k: rt1[k] * Wr[k, l])
                 + bM[l]
             ).tanh()
         )
