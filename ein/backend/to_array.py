@@ -4,6 +4,7 @@ from string import ascii_lowercase
 from typing import Iterable, assert_never, cast
 
 from ein import calculus
+from ein.midend.lining import outline
 from ein.midend.size_classes import find_size_classes
 from ein.midend.substitution import substitute
 from ein.symbols import Index, Variable
@@ -273,6 +274,8 @@ def transform(
         array_program = cancel_shape_ops(array_program)
     if do_tuple_cancellations:
         array_program = cancel_tuple_ops(array_program)
+
+    array_program = cast(array_calculus.Expr, outline(array_program))
     if do_inplace_on_temporaries:
         array_program = inplace_on_temporaries(array_program)
 
@@ -331,11 +334,12 @@ def inplace_on_temporaries(program: array_calculus.Expr) -> array_calculus.Expr:
             case array_calculus.BinaryElementwise(kind, first, second, None):
                 # This logic is really shaky and interacts with optimisations to the number of axis manipulation calls.
                 # Should have more in-depth analysis on what broadcasting might occur
+                rank = expr.type.single.rank
                 rank1, rank2 = first.type.single.rank, second.type.single.rank
-                if rank1 == rank2:
-                    if rank1 and isinstance(first, TEMPORARIES):
+                if rank:
+                    if rank == rank1 and isinstance(first, TEMPORARIES):
                         return array_calculus.BinaryElementwise(kind, first, second, 0)
-                    if rank2 and isinstance(second, TEMPORARIES):
+                    if rank == rank2 and isinstance(second, TEMPORARIES):
                         return array_calculus.BinaryElementwise(kind, first, second, 1)
         return expr
 

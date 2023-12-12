@@ -140,6 +140,20 @@ def test_switches(interpret):
 
 
 @with_interpret
+def test_reuse(interpret):
+    a0 = numpy.array([[1.0, 2.0], [3.0, 4.0]])
+    a = Array(a0)
+    b = array(lambda i, j: a[i, j] ** 2)
+    c = array(lambda i, j: 2.0 * b[i, j] + b[i, j] ** 0.33)
+    import ein.debug
+
+    ein.debug.plot_array_graph(c.expr)
+    numpy.testing.assert_allclose(
+        interpret(c.expr, {}), (2 * a0**2 + (a0**2) ** 0.33)
+    )
+
+
+@with_interpret
 def test_fibonacci_fold(interpret):
     def fib(n: Array) -> Array:
         return fold(
