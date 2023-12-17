@@ -45,7 +45,6 @@ class Pathfinder(Case):
         t, n = costs.shape
         dist = [0.0 for _ in range(n)]
         for i in range(t):
-            print(dist)
             dist = [
                 costs[i, p] + min(dist[max(0, p - 1)], dist[p], dist[min(n - 1, p + 1)])
                 for p in range(n)
