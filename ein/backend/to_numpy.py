@@ -4,7 +4,6 @@ from typing import Callable, TypeAlias, assert_never, cast
 import numpy
 
 from ein import calculus
-from ein.midend.lining import outline
 from ein.symbols import Variable
 
 from . import array_calculus, to_array
@@ -12,7 +11,7 @@ from . import array_calculus, to_array
 Env: TypeAlias = dict[Variable, numpy.ndarray]
 
 
-def stage(
+def stage_in_array(
     program: array_calculus.Expr,
 ) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
     def go(expr: array_calculus.Expr) -> Callable[[Env], numpy.ndarray]:
@@ -142,10 +141,13 @@ def stage(
     return go(program)
 
 
+def stage(
+    program: calculus.Expr,
+) -> Callable[[dict[Variable, numpy.ndarray]], numpy.ndarray]:
+    return stage_in_array(to_array.transform(program))
+
+
 def interpret(
     program: calculus.Expr, env: dict[Variable, numpy.ndarray]
 ) -> numpy.ndarray:
-    array_program = to_array.transform(program)
-    array_program = cast(array_calculus.Expr, outline(array_program))
-    staged = stage(array_program)
-    return staged(env)
+    return stage(program)(env)
