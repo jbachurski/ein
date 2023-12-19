@@ -100,25 +100,26 @@ BENCHMARKS: dict[str, Benchmark] = {
     ),
     RODINIA_KMEANS: (
         lambda n: KMeans.sample(n, n, n, 10),
-        list(numpy.geomspace(50, 250, 15).astype(int)),
+        list(numpy.geomspace(50, 300, 20).astype(int)),
         [
-            ("Ein", precompile(*KMeans.ein_function()), lambda n: 2 <= n <= 150),
-            ("NumPy", KMeans.in_numpy, lambda n: 2 <= n <= 250),
+            ("Ein", precompile(*KMeans.ein_function()), lambda n: 2 <= n <= 175),
+            ("NumPy", KMeans.in_numpy, lambda n: 2 <= n <= 300),
             ("Python", KMeans.in_python, lambda n: 2 <= n <= 100),
         ],
     ),
     RODINIA_NN: (
         lambda n: NN.sample(n, 20),
-        list(numpy.geomspace(50, 1e6, 20).astype(int)),
+        list(numpy.geomspace(50, 1e7, 20).astype(int)),
         [
             ("Ein", precompile(*NN.ein_function()), lambda n: 2 <= n <= 2e4),
-            ("NumPy", NN.in_numpy, lambda n: 2 <= n <= 1e6),
-            ("Python", NN.in_python, lambda n: 2 <= n <= 1e4),
+            ("NumPy", NN.in_numpy, lambda n: 2 <= n <= 1e7),
+            ("Python", NN.in_python, lambda n: 2 <= n <= 4e5),
         ],
     ),
     RODINIA_PATHFINDER: (
         lambda n: Pathfinder.sample(n, n),
-        list(numpy.geomspace(50, 4e3, 20).astype(int)),
+        # Higher sizes of Pathfinder cause costs to no longer fit in cache, killing runtime
+        list(numpy.geomspace(120, 3e3, 20).astype(int)),
         [
             ("Ein", precompile(*Pathfinder.ein_function()), lambda n: 2 <= n <= 5e3),
             ("NumPy", Pathfinder.in_numpy, lambda n: 2 <= n <= 1e4),
