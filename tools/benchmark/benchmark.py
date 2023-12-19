@@ -118,11 +118,11 @@ BENCHMARKS: dict[str, Benchmark] = {
     ),
     RODINIA_PATHFINDER: (
         lambda n: Pathfinder.sample(n, n),
-        list(numpy.geomspace(50, 5e3, 20).astype(int)),
+        list(numpy.geomspace(50, 4e3, 20).astype(int)),
         [
             ("Ein", precompile(*Pathfinder.ein_function()), lambda n: 2 <= n <= 5e3),
-            ("NumPy", Pathfinder.in_numpy, lambda n: 2 <= n <= 5e3),
-            ("Python", Pathfinder.in_python, lambda n: 2 <= n <= 5e2),
+            ("NumPy", Pathfinder.in_numpy, lambda n: 2 <= n <= 1e4),
+            ("Python", Pathfinder.in_python, lambda n: 2 <= n <= 1e3),
         ],
     ),
 }
