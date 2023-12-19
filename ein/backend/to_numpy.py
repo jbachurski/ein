@@ -26,9 +26,16 @@ def stage_in_array(
                 return lambda env: array.array
             case array_calculus.Var(var, _var_rank):
                 return lambda env: env[var]
-            case array_calculus.Let(var, bind, body_):
-                body = go(body_)
-                return lambda env: body(env | {var: go(bind)(env)})
+            case array_calculus.Let(var, bind_, body_):
+                bind, body = go(bind_), go(body_)
+
+                def with_let(env: Env):
+                    env[var] = bind(env)
+                    ret = body(env)
+                    del env[var]
+                    return ret
+
+                return with_let
             case array_calculus.Dim(axis, target_):
                 target = go(target_)
                 return lambda env: numpy.array(target(env).shape[axis])
@@ -121,8 +128,13 @@ def stage_in_array(
 
                 def fold(env: Env) -> numpy.ndarray | tuple[numpy.ndarray, ...]:
                     acc, n = init(env), size(env)
+                    n = max(int(n), 0)
                     for i in range(n):
-                        acc = body(env | {acc_var: acc, index_var: numpy.array(i)})
+                        env[acc_var] = acc
+                        env[index_var] = numpy.array(i)
+                        acc = body(env)
+                    if n:
+                        del env[acc_var], env[index_var]
                     return acc
 
                 return fold
