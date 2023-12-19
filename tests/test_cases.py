@@ -71,11 +71,6 @@ def test_nn():
 
     args = NN.sample()
 
-    from ein.debug import plot_array_graph, plot_phi_graph
-
-    plot_phi_graph(NN.ein_function()[1])
-    plot_array_graph(NN.ein_function()[1])
-
     ref = NN.in_numpy(*args)
     numpy.testing.assert_allclose(NN.in_ein_function(interpret_with_numpy, *args), ref)
     numpy.testing.assert_allclose(NN.in_python(*args), ref)
