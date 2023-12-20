@@ -109,11 +109,10 @@ def stage_in_array(
                             return max(0, min(n, x))
 
                         # We access the range(shift, size + shift), clipped
-                        start, stop = clip_in(shift, dim), clip_in(
-                            min(lim, size) + shift, dim
-                        )
-                        begin = clip_in(-shift, size)
-                        pad_left, pad_right = begin, size - (stop - start) - begin
+                        start = clip_in(shift, dim)
+                        stop = clip_in(min(lim, size) + shift, dim)
+                        pad_left = clip_in(-shift, size)
+                        pad_right = size - (stop - start) - pad_left
 
                         return size, slice(start, stop), (pad_left, pad_right)
 
