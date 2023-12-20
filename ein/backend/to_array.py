@@ -37,6 +37,9 @@ def transform(
         index_vars: dict[Index, Variable],
         var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
+        def is_comprehension_index(index: Index) -> bool:
+            return index in index_sizes
+
         result: array_calculus.Expr
 
         if use_einsum:
@@ -103,7 +106,7 @@ def transform(
             case calculus.Const(value):
                 return Axial([], array_calculus.Const(value))
             case calculus.At(index):
-                if index in index_sizes:  # vector index
+                if is_comprehension_index(index):  # vector index
                     return Axial(
                         [index],
                         array_calculus.Range(index_sizes[index]),
@@ -175,9 +178,11 @@ def transform(
                         body.aligned(acc_axes),
                     ),
                 )
-            case calculus.Get(
-                target_, calculus.At(index)
-            ) if index in index_sizes and use_slices:
+            case calculus.Get(target_, calculus.At(index)) if (
+                is_comprehension_index(index)
+                and index not in target_.free_indices
+                and use_slices
+            ):
                 target = go(target_, index_sizes, index_vars, var_axes)
                 if slice_elision and size_class.equiv(index, calculus.Dim(target_, 0)):
                     result = target.expr
@@ -185,7 +190,9 @@ def transform(
                     rank = target.expr.type.single.rank
                     slice_axes: list[array_calculus.Expr | None] = [None] * rank
                     slice_axes[target.positional_axis(0)] = index_sizes[index]
-                    result = array_calculus.Slice(target.expr, tuple(slice_axes))
+                    result = array_calculus.Slice(
+                        target.expr, tuple([None] * rank), tuple(slice_axes)
+                    )
 
                 return Axial(target._axes + (index,), result)
             case calculus.Get(target_, item_):

@@ -34,6 +34,7 @@ def _interpret(expr: Expr, env: dict[Variable, Value], idx: dict[Index, int]) ->
                     _interpret(target, env, idx).array,
                     _interpret(item, env, idx).array,
                     axis=0,
+                    mode="clip",
                 )
             )
         case calculus.AssertEq(target, operands):

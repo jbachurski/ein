@@ -330,31 +330,30 @@ class Take(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class Slice(AbstractExpr):
     target: Expr
-    stops: tuple[Optional[Expr], ...]
+    shifts: tuple[Optional[Expr], ...]
+    sizes: tuple[Optional[Expr], ...]
 
     @property
     def subterms(self) -> tuple[Expr, ...]:
-        return (self.target,) + tuple(expr for expr in self.stops if expr is not None)
+        return (self.target,) + tuple(
+            expr for expr in self.shifts + self.sizes if expr is not None
+        )
 
     def map(self, f: Callable[[Expr], Expr]) -> "Slice":
         return Slice(
             f(self.target),
-            tuple(f(stop) if stop is not None else None for stop in self.stops),
+            tuple(f(shift) if shift is not None else None for shift in self.shifts),
+            tuple(f(size) if size is not None else None for size in self.sizes),
         )
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {}, {
-            self.target,
-            *(stop for stop in self.stops if stop is not None),
-        }
+        return {}, set(self.subterms)
 
     @cached_property
     def type(self) -> PrimitiveType:
-        assert all(
-            isinstance(stop, AbstractExpr) or stop is None for stop in self.stops
-        )
-        assert len(self.stops) == self.target.type.single.rank
+        assert len(self.shifts) == self.target.type.single.rank
+        assert len(self.sizes) == self.target.type.single.rank
         return self.target.type
 
 

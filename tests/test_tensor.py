@@ -15,7 +15,7 @@ from ein import (
     scalar,
     vector,
 )
-from ein.frontend.std import reduce_max, reduce_min, reduce_sum
+from ein.frontend.std import reduce_max, reduce_min, reduce_sum, where
 
 with_backend = pytest.mark.parametrize("backend", ["naive", "numpy"])
 with_interpret = pytest.mark.parametrize(
@@ -295,3 +295,37 @@ def test_matrix_power_times_vector(interpret):
         interpret(expr, {m0: sample_m, n0: sample_n, v0: sample_v}),
         numpy.linalg.matrix_power(sample_m, 2 * sample_n) @ sample_v,
     )
+
+
+@with_interpret
+def test_mean_smoothing(interpret):
+    def smooth1(a: numpy.ndarray) -> numpy.ndarray:
+        (n,) = a.shape
+        r = numpy.zeros(n)
+        r[1:-1] = (a[2:] + a[:-2]) / 2
+        r[0] = a[0]
+        r[-1] = a[-1]
+        return r
+
+    def smooth(a: Array) -> Array:
+        n = a.dim(0)
+        return array(
+            lambda i: where(
+                (i > 0) & (i + 1 < n),
+                (a[i - 1] + a[i + 1]) / 2.0,
+                a[i],
+            )
+        )
+
+    (a0,), expr = function([vector(float)], smooth)
+    sample_a = numpy.random.randn(10)
+
+    numpy.testing.assert_allclose(interpret(expr, {a0: sample_a}), smooth1(sample_a))
+
+
+@with_interpret
+def test_diagonal(interpret):
+    (a0,), expr = function([matrix(float)], lambda a: array(lambda i: a[i, i]))
+    sample_a = numpy.random.randn(10, 10)
+
+    numpy.testing.assert_allclose(interpret(expr, {a0: sample_a}), numpy.diag(sample_a))

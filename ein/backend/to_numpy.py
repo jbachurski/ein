@@ -1,5 +1,5 @@
 from functools import cache
-from typing import Callable, TypeAlias, assert_never, cast
+from typing import Callable, TypeAlias, TypeVar, assert_never, cast
 
 import numpy
 
@@ -9,6 +9,13 @@ from ein.symbols import Variable
 from . import array_calculus, to_array
 
 Env: TypeAlias = dict[Variable, numpy.ndarray]
+
+T = TypeVar("T")
+S = TypeVar("S")
+
+
+def maybe(f: Callable[[T], S]) -> Callable[[T | None], S | None]:
+    return lambda x: f(x) if x is not None else None
 
 
 def stage_in_array(
@@ -63,27 +70,45 @@ def stage_in_array(
                 return apply_gather
             case array_calculus.Take(target_, items_):
                 target = go(target_)
-                items = [go(item) if item is not None else None for item in items_]
+                items = [maybe(go)(item_) for item_ in items_]
                 return lambda env: target(env)[
                     tuple(
                         item(env) if item is not None else slice(None) for item in items
                     )
                 ]
-            case array_calculus.Slice(target_, stops_):
+            case array_calculus.Slice(target_, shifts_, sizes_):
                 target = go(target_)
-                stops = [go(stop) if stop is not None else None for stop in stops_]
+                shifts = [maybe(go)(shift_) for shift_ in shifts_]
+                sizes = [maybe(go)(size_) for size_ in sizes_]
 
                 def apply_slice(env: Env) -> numpy.ndarray:
                     arr = target(env)
-                    stops_env = [
-                        stop(env) if stop is not None else None for stop in stops
-                    ]
-                    slices = [
-                        slice(stop) if stop is not None and d != stop else slice(None)
-                        for d, stop in zip(arr.shape, stops_env)
-                    ]
-                    cop = any(s is not None for s in slices)
-                    return arr[tuple(slices)] if cop else arr
+
+                    shape = []
+                    read_slices = []
+                    written_slices = []
+                    for dim, shift_of_env, size_of_env in zip(arr.shape, shifts, sizes):
+                        shift = (
+                            int(shift_of_env(env)) if shift_of_env is not None else 0
+                        )
+                        size = (
+                            max(0, int(size_of_env(env)))
+                            if size_of_env is not None
+                            else dim
+                        )
+                        shape.append(size)
+                        if shift < 0:
+                            k = -shift
+                            read_slices.append(slice(0, max(0, size - k)))
+                            written_slices.append(slice(min(k, size), size))
+                        else:
+                            k = shift
+                            read_slices.append(slice(min(k, size), size))
+                            written_slices.append(slice(0, max(0, size - k)))
+
+                    result = numpy.empty(shape)
+                    result[tuple(written_slices)] = arr[tuple(read_slices)]
+                    return result
 
                 return lambda env: apply_slice(env)
 
