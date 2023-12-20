@@ -331,18 +331,20 @@ class Take(AbstractExpr):
 class Slice(AbstractExpr):
     target: Expr
     shifts: tuple[Optional[Expr], ...]
+    lims: tuple[Optional[Expr], ...]
     sizes: tuple[Optional[Expr], ...]
 
     @property
     def subterms(self) -> tuple[Expr, ...]:
         return (self.target,) + tuple(
-            expr for expr in self.shifts + self.sizes if expr is not None
+            expr for expr in self.shifts + self.lims + self.sizes if expr is not None
         )
 
     def map(self, f: Callable[[Expr], Expr]) -> "Slice":
         return Slice(
             f(self.target),
             tuple(f(shift) if shift is not None else None for shift in self.shifts),
+            tuple(f(lim) if lim is not None else None for lim in self.lims),
             tuple(f(size) if size is not None else None for size in self.sizes),
         )
 
@@ -353,6 +355,7 @@ class Slice(AbstractExpr):
     @cached_property
     def type(self) -> PrimitiveType:
         assert len(self.shifts) == self.target.type.single.rank
+        assert len(self.lims) == self.target.type.single.rank
         assert len(self.sizes) == self.target.type.single.rank
         return self.target.type
 

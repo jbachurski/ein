@@ -275,7 +275,10 @@ def transform_get(
                 slice_axes: list[array_calculus.Expr | None] = [None] * rank
                 slice_axes[target.positional_axis(0)] = index_sizes[index]
                 result = array_calculus.Slice(
-                    target.expr, tuple([None] * rank), tuple(slice_axes)
+                    target.expr,
+                    tuple([None] * rank),
+                    tuple([None] * rank),
+                    tuple(slice_axes),
                 )
 
             return Axial(target._axes + (index,), result)

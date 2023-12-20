@@ -1,5 +1,5 @@
 from functools import cache
-from typing import Callable, TypeAlias, TypeVar, assert_never, cast
+from typing import Any, Callable, TypeAlias, TypeVar, assert_never, cast
 
 import numpy
 
@@ -77,39 +77,58 @@ def stage_in_array(
                         item(env) if item is not None else slice(None) for item in items
                     )
                 ]
-            case array_calculus.Slice(target_, shifts_, sizes_):
+            case array_calculus.Slice(target_, shifts_, lims_, sizes_):
                 target = go(target_)
                 shifts = [maybe(go)(shift_) for shift_ in shifts_]
+                lims = [maybe(go)(lim_) for lim_ in lims_]
                 sizes = [maybe(go)(size_) for size_ in sizes_]
 
                 def apply_slice(env: Env) -> numpy.ndarray:
                     arr = target(env)
 
-                    shape = []
-                    read_slices = []
-                    written_slices = []
-                    for dim, shift_of_env, size_of_env in zip(arr.shape, shifts, sizes):
-                        shift = (
+                    # We are defining an array y[i] = x[i + shift], where OOB is padded instead.
+
+                    def for_axis(
+                        dim: int, shift_of_env, lim_of_env, size_of_env
+                    ) -> tuple[int, slice, tuple[int, int]]:
+                        shift: int = (
                             int(shift_of_env(env)) if shift_of_env is not None else 0
                         )
-                        size = (
+                        lim: int = (
+                            max(0, int(lim_of_env(env)))
+                            if lim_of_env is not None
+                            else dim
+                        )
+                        size: int = (
                             max(0, int(size_of_env(env)))
                             if size_of_env is not None
                             else dim
                         )
-                        shape.append(size)
-                        if shift < 0:
-                            k = -shift
-                            read_slices.append(slice(0, max(0, size - k)))
-                            written_slices.append(slice(min(k, size), size))
-                        else:
-                            k = shift
-                            read_slices.append(slice(min(k, size), size))
-                            written_slices.append(slice(0, max(0, size - k)))
 
-                    result = numpy.empty(shape)
-                    result[tuple(written_slices)] = arr[tuple(read_slices)]
-                    return result
+                        def clip_in(x: int, n: int) -> int:
+                            return max(0, min(n, x))
+
+                        # We access the range(shift, size + shift), clipped
+                        start, stop = clip_in(shift, dim), clip_in(
+                            min(lim, size) + shift, dim
+                        )
+                        begin = clip_in(-shift, size)
+                        pad_left, pad_right = begin, size - (stop - start) - begin
+
+                        return size, slice(start, stop), (pad_left, pad_right)
+
+                    shape, slices, pads = zip(
+                        *(
+                            for_axis(d, sh, lm, sz)
+                            for d, sh, lm, sz in zip(arr.shape, shifts, lims, sizes)
+                        )
+                    )
+
+                    if not arr.size:
+                        # Undefined!
+                        return numpy.empty(shape)
+
+                    return numpy.pad(arr[tuple(slices)], cast(Any, pads), mode="edge")
 
                 return lambda env: apply_slice(env)
 
