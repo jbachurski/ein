@@ -67,11 +67,10 @@ def array_from_phi_program(
     array_program = to_array.transform(
         program,
         use_slices=optimize,
-        slice_elision=optimize,
+        use_slice_elision=optimize,
         use_takes=optimize,
         do_shape_cancellations=optimize,
         do_tuple_cancellations=optimize,
-        do_inplace_on_temporaries=optimize,
     )
     return array_program
 
