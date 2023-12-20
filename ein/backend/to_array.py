@@ -1,11 +1,11 @@
 import itertools
 from functools import cache
 from string import ascii_lowercase
-from typing import Iterable, assert_never, cast
+from typing import Callable, Iterable, assert_never, cast
 
 from ein import calculus
 from ein.midend.lining import outline
-from ein.midend.size_classes import find_size_classes
+from ein.midend.size_classes import SizeEquivalence, find_size_classes
 from ein.midend.substitution import substitute
 from ein.symbols import Index, Variable
 from ein.type_system import Pair, PrimitiveType, to_float
@@ -17,9 +17,9 @@ from .axial import Axial
 def transform(
     program: calculus.Expr,
     *,
-    use_slices: bool = True,
-    slice_elision: bool = True,
     use_takes: bool = True,
+    use_slices: bool = True,
+    use_slice_elision: bool = True,
     use_einsum: bool = False,
     do_shape_cancellations: bool = True,
     do_tuple_cancellations: bool = True,
@@ -39,8 +39,6 @@ def transform(
     ) -> Axial:
         def is_comprehension_index(index: Index) -> bool:
             return index in index_sizes
-
-        result: array_calculus.Expr
 
         if use_einsum:
             realised_axes, summed_axes_, expr_operands = match_einsum(expr)
@@ -178,51 +176,18 @@ def transform(
                         body.aligned(acc_axes),
                     ),
                 )
-            case calculus.Get(target_, calculus.At(index)) if (
-                is_comprehension_index(index)
-                and index not in target_.free_indices
-                and use_slices
-            ):
-                target = go(target_, index_sizes, index_vars, var_axes)
-                if slice_elision and size_class.equiv(index, calculus.Dim(target_, 0)):
-                    result = target.expr
-                else:
-                    rank = target.expr.type.single.rank
-                    slice_axes: list[array_calculus.Expr | None] = [None] * rank
-                    slice_axes[target.positional_axis(0)] = index_sizes[index]
-                    result = array_calculus.Slice(
-                        target.expr, tuple([None] * rank), tuple(slice_axes)
-                    )
-
-                return Axial(target._axes + (index,), result)
             case calculus.Get(target_, item_):
-                target = go(target_, index_sizes, index_vars, var_axes)
-                item = go(item_, index_sizes, index_vars, var_axes)
-                used_axes = axial._alignment(target._axes, item._axes)
-                rank = target.expr.type.single.rank
-                if use_takes and not item.expr.type.single.rank:
-                    take_axes: list[array_calculus.Expr | None] = [None] * rank
-                    take_axes[target.positional_axis(0)] = item.expr
-                    result = array_calculus.Take(target.expr, tuple(take_axes))
-                else:
-                    k = len(used_axes)
-                    result = array_calculus.Squeeze(
-                        (k,),
-                        array_calculus.Gather(
-                            k,
-                            target.aligned(used_axes),
-                            array_calculus.Unsqueeze(
-                                tuple(
-                                    range(
-                                        len(used_axes),
-                                        len(used_axes) + target.type.type.single.rank,
-                                    )
-                                ),
-                                item.aligned(used_axes),
-                            ),
-                        ),
-                    )
-                return Axial(used_axes, result)
+                return transform_get(
+                    target_,
+                    item_,
+                    lambda expr_: go(expr_, index_sizes, index_vars, var_axes),
+                    is_comprehension_index,
+                    size_class,
+                    index_sizes,
+                    use_takes=use_takes,
+                    use_slices=use_slices,
+                    use_slice_elision=use_slice_elision,
+                )
             case calculus.Vec(index, size_, target_):
                 size = go(size_, index_sizes, index_vars, var_axes)
                 assert (
@@ -287,6 +252,65 @@ def transform(
         array_program = inplace_on_temporaries(array_program)
 
     return array_program
+
+
+def transform_get(
+    target_: calculus.Expr,
+    item_: calculus.Expr,
+    go: Callable[[calculus.Expr], Axial],
+    is_comprehension_index: Callable[[Index], bool],
+    size_class: SizeEquivalence,
+    index_sizes: dict[Index, array_calculus.Expr],
+    *,
+    use_takes: bool,
+    use_slices: bool,
+    use_slice_elision: bool,
+) -> Axial:
+    target = go(target_)
+    if isinstance(item_, calculus.At):
+        index = item_.index
+        if (
+            is_comprehension_index(index)
+            and index not in target_.free_indices
+            and use_slices
+        ):
+            if use_slice_elision and size_class.equiv(index, calculus.Dim(target_, 0)):
+                result = target.expr
+            else:
+                rank = target.expr.type.single.rank
+                slice_axes: list[array_calculus.Expr | None] = [None] * rank
+                slice_axes[target.positional_axis(0)] = index_sizes[index]
+                result = array_calculus.Slice(
+                    target.expr, tuple([None] * rank), tuple(slice_axes)
+                )
+
+            return Axial(target._axes + (index,), result)
+    item = go(item_)
+    used_axes = axial._alignment(target._axes, item._axes)
+    rank = target.expr.type.single.rank
+    if use_takes and not item.expr.type.single.rank:
+        take_axes: list[array_calculus.Expr | None] = [None] * rank
+        take_axes[target.positional_axis(0)] = item.expr
+        result = array_calculus.Take(target.expr, tuple(take_axes))
+    else:
+        k = len(used_axes)
+        result = array_calculus.Squeeze(
+            (k,),
+            array_calculus.Gather(
+                k,
+                target.aligned(used_axes),
+                array_calculus.Unsqueeze(
+                    tuple(
+                        range(
+                            len(used_axes),
+                            len(used_axes) + target.type.type.single.rank,
+                        )
+                    ),
+                    item.aligned(used_axes),
+                ),
+            ),
+        )
+    return Axial(used_axes, result)
 
 
 def cancel_shape_ops(program: array_calculus.Expr) -> array_calculus.Expr:
