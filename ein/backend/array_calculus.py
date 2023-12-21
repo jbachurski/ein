@@ -20,7 +20,7 @@ from ein.type_system import (
 
 Expr: TypeAlias = (
     "Const | Var | Let | Dim | Range | "
-    "Transpose | Squeeze | Unsqueeze | Gather | Take | Slice | Repeat | "
+    "Transpose | Squeeze | Unsqueeze | Gather | Take | Slice | Pad | Repeat | "
     "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold | "
     "Tuple | Untuple | Einsum"
 )
@@ -324,22 +324,20 @@ class Take(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class Slice(AbstractExpr):
     target: Expr
-    shifts: tuple[Optional[Expr], ...]
-    lims: tuple[Optional[Expr], ...]
-    sizes: tuple[Optional[Expr], ...]
+    starts: tuple[Optional[Expr], ...]
+    stops: tuple[Optional[Expr], ...]
 
     @property
     def subterms(self) -> tuple[Expr, ...]:
         return (self.target,) + tuple(
-            expr for expr in self.shifts + self.lims + self.sizes if expr is not None
+            expr for expr in self.starts + self.stops if expr is not None
         )
 
     def map(self, f: Callable[[Expr], Expr]) -> "Slice":
         return Slice(
             f(self.target),
-            tuple(f(shift) if shift is not None else None for shift in self.shifts),
-            tuple(f(lim) if lim is not None else None for lim in self.lims),
-            tuple(f(size) if size is not None else None for size in self.sizes),
+            tuple(f(start) if start is not None else None for start in self.starts),
+            tuple(f(stop) if stop is not None else None for stop in self.stops),
         )
 
     @property
@@ -348,9 +346,38 @@ class Slice(AbstractExpr):
 
     @cached_property
     def type(self) -> PrimitiveType:
-        assert len(self.shifts) == self.target.type.single.rank
-        assert len(self.lims) == self.target.type.single.rank
-        assert len(self.sizes) == self.target.type.single.rank
+        assert len(self.starts) == self.target.type.single.rank
+        assert len(self.stops) == self.target.type.single.rank
+        return self.target.type
+
+
+@dataclass(frozen=True, eq=False)
+class Pad(AbstractExpr):
+    target: Expr
+    lefts: tuple[Optional[Expr], ...]
+    rights: tuple[Optional[Expr], ...]
+
+    @property
+    def subterms(self) -> tuple[Expr, ...]:
+        return (self.target,) + tuple(
+            expr for expr in self.lefts + self.rights if expr is not None
+        )
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Pad":
+        return Pad(
+            f(self.target),
+            tuple(f(left) if left is not None else None for left in self.lefts),
+            tuple(f(right) if right is not None else None for right in self.rights),
+        )
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, set(self.subterms)
+
+    @cached_property
+    def type(self) -> PrimitiveType:
+        assert len(self.lefts) == self.target.type.single.rank
+        assert len(self.rights) == self.target.type.single.rank
         return self.target.type
 
 

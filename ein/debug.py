@@ -66,7 +66,7 @@ def array_from_phi_program(
 ) -> array_calculus.Expr:
     array_program = to_array.transform(
         program,
-        use_slices=optimize,
+        use_slice_pads=optimize,
         use_slice_elision=optimize,
         use_takes=optimize,
         do_shape_cancellations=optimize,

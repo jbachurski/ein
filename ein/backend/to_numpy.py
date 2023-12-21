@@ -84,60 +84,38 @@ def stage_in_array(
                     return arr[*it]
 
                 return apply_take
-            case array_calculus.Slice(target_, shifts_, lims_, sizes_):
+            case array_calculus.Slice(target_, starts_, stops_):
                 target = go(target_)
-                shifts = [maybe(go)(shift_) for shift_ in shifts_]
-                lims = [maybe(go)(lim_) for lim_ in lims_]
-                sizes = [maybe(go)(size_) for size_ in sizes_]
+                starts = [maybe(go)(start_) for start_ in starts_]
+                stops = [maybe(go)(stop_) for stop_ in stops_]
 
                 def apply_slice(env: Env) -> numpy.ndarray:
-                    arr = target(env)
-
-                    # We are defining an array y[i] = x[i + shift], where OOB is padded instead.
-
-                    def for_axis(
-                        dim: int, shift_of_env, lim_of_env, size_of_env
-                    ) -> tuple[int, slice, tuple[int, int]]:
-                        shift: int = (
-                            int(shift_of_env(env)) if shift_of_env is not None else 0
+                    slices = (
+                        slice(
+                            start(env) if start is not None else None,
+                            stop(env) if stop is not None else None,
                         )
-                        lim: int = (
-                            max(0, int(lim_of_env(env)))
-                            if lim_of_env is not None
-                            else dim
-                        )
-                        size: int = (
-                            max(0, int(size_of_env(env)))
-                            if size_of_env is not None
-                            else dim
-                        )
-
-                        def clip_in(x: int, n: int) -> int:
-                            return max(0, min(n, x))
-
-                        # We access the range(shift, size + shift), clipped
-                        start = clip_in(shift, dim)
-                        stop = clip_in(min(lim, size) + shift, dim)
-                        pad_left = clip_in(-shift, size)
-                        pad_right = size - (stop - start) - pad_left
-
-                        return size, slice(start, stop), (pad_left, pad_right)
-
-                    shape, slices, pads = zip(
-                        *(
-                            for_axis(d, sh, lm, sz)
-                            for d, sh, lm, sz in zip(arr.shape, shifts, lims, sizes)
-                        )
+                        for start, stop in zip(starts, stops)
                     )
+                    return target(env)[*slices]
 
-                    if not arr.size:
-                        # Undefined!
-                        return numpy.empty(shape)
+                return apply_slice
+            case array_calculus.Pad(target_, lefts_, rights_):
+                target = go(target_)
+                lefts = [maybe(go)(left_) for left_ in lefts_]
+                rights = [maybe(go)(right_) for right_ in rights_]
 
-                    return numpy.pad(arr[tuple(slices)], cast(Any, pads), mode="edge")
+                def apply_slice(env: Env) -> numpy.ndarray:
+                    pads = tuple(
+                        (
+                            left(env) if left is not None else 0,
+                            right(env) if right is not None else 0,
+                        )
+                        for left, right in zip(lefts, rights)
+                    )
+                    return numpy.pad(target(env), cast(Any, pads), mode="edge")
 
-                return lambda env: apply_slice(env)
-
+                return apply_slice
             case array_calculus.Repeat(axis, count_, target_):
                 count, target = go(count_), go(target_)
                 return lambda env: numpy.repeat(target(env), count(env), axis=axis)
