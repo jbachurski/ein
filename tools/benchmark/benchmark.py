@@ -12,6 +12,7 @@ import seaborn
 import ein
 from ein.calculus import Expr
 from ein.symbols import Variable
+from tests.suite.deep import GAT
 from tests.suite.parboil import MriQ, Stencil
 from tests.suite.rodinia import NN, Hotspot, KMeans, Pathfinder
 
@@ -55,6 +56,7 @@ Executor: TypeAlias = tuple[str, Callable, Callable[[int], bool]]
 Executors: TypeAlias = list[Executor]
 Benchmark: TypeAlias = tuple[Callable[[int], tuple], list[int], Executors]
 
+DEEP_GAT = "Deep: GAT"
 PARBOIL_MRI_Q = "Parboil: MRI-Q"
 PARBOIL_STENCIL = "Parboil: Stencil"
 RODINIA_HOTSPOT = "Rodinia: Hotspot"
@@ -63,6 +65,14 @@ RODINIA_NN = "Rodinia: NN"
 RODINIA_PATHFINDER = "Rodinia: Pathfinder"
 
 BENCHMARKS: dict[str, Benchmark] = {
+    DEEP_GAT: (
+        lambda n: GAT.sample(8, n, n, n),
+        list(numpy.geomspace(8, 100, 20).astype(int)),
+        [
+            ("Ein", precompile(*GAT.ein_function()), lambda n: 2 <= n <= 100),
+            ("NumPy", GAT.in_numpy, lambda n: 2 <= n <= 100),
+        ],
+    ),
     PARBOIL_MRI_Q: (
         lambda n: MriQ.sample(n, n),
         list(numpy.geomspace(50, 1e5, 20).astype(int)),
@@ -169,6 +179,7 @@ def plots(name: str, results: dict[str, dict[int, list[float]]]) -> None:
 
 if __name__ == "__main__":
     benchmarks = [
+        DEEP_GAT,
         PARBOIL_MRI_Q,
         PARBOIL_STENCIL,
         RODINIA_HOTSPOT,
