@@ -131,11 +131,11 @@ def pad_slice_get(
         e.type.single == PrimitiveArrayType(0, int)
         for e in (shift_, low_, high_, size_)
     )
-    dim = Builder(array_calculus.Dim(axis, target))
+    zero, one = Builder.const(0), Builder.const(1)
 
     shift = Builder(shift_)
-    low = Builder(low_).max(Builder.const(0))
-    high = Builder(high_).min(dim)
+    low = Builder(low_)
+    high = Builder(high_)
     size = Builder(size_)
 
     # We want to compute an array b such that
@@ -143,10 +143,9 @@ def pad_slice_get(
     # using the operation
     #  b = pad(a[start:stop], (left, right))
     # (where indexing is along the selected axis)
-    one = Builder.const(1)
     start = shift.max(low).min(high)
     stop = (shift + size - one).max(low).min(high) + one
-    left = (low - shift).min(size - one).max(Builder.const(0))
+    left = (low - shift).min(size - one).max(zero)
     right = size - (stop - start) - left
 
     return array_calculus.Pad(
