@@ -1,7 +1,7 @@
 import numpy
 
 from ein import Array, array, fold, matrix, scalar
-from ein.frontend.std import reduce_argmin, reduce_sum
+from ein.frontend.std import reduce_argmin, reduce_sum, where
 
 from ..case import Case
 
@@ -22,17 +22,19 @@ class KMeans(Case):
                 lambda i: reduce_argmin(lambda j: dist(points[i], centres[j]))
             )
 
-            def members_of(j: Array) -> Array:
-                return fold(0, lambda i, acc: acc + Array(members[i] == j).where(1, 0))
-
-            return array(
-                lambda j, d: (
-                    reduce_sum(
-                        lambda i: Array(members[i] == j).where(points[i][d], 0.0)
-                    )
-                    / members_of(j).max(1).to_float()
+            sum_in_cluster = array(
+                lambda c, d: reduce_sum(
+                    lambda i: where(members[i] == c, points[i, d], 0.0)
                 ),
                 size=(ks, ds),
+            )
+            count_in_cluster = array(
+                lambda c: reduce_sum(lambda i: where(members[i] == c, 1.0, 0.0)),
+                size=ks,
+            )
+
+            return array(
+                lambda c, d: sum_in_cluster[c, d] / count_in_cluster[c].max(1.0)
             )
 
         return fold(array(lambda i: points[i], size=k), fold_centres, count=it)
@@ -60,7 +62,7 @@ class KMeans(Case):
     def in_python(*args: numpy.ndarray) -> numpy.ndarray:
         points_, k, it = args
         points: list[list[float]] = [[x for x in p] for p in points_]
-        d = len(points[0])
+        n, d = len(points), len(points[0])
         k, it = int(k), int(it)
         centres = points[:k]
 
@@ -73,7 +75,7 @@ class KMeans(Case):
             ]
             hist = [0 for _ in range(k)]
             new_centres = [[0.0 for _ in range(d)] for _ in range(k)]
-            for i, p in enumerate(points):
+            for i in range(n):
                 hist[members[i]] += 1
                 for j in range(d):
                     new_centres[members[i]][j] += points[i][j]
