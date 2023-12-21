@@ -2,11 +2,11 @@ from typing import Iterable, TypeAlias
 
 import networkx
 
-from ein.symbols import Index, Variable
+from ein.symbols import Symbol, Variable
 from ein.term import Term
 
 Insertions: TypeAlias = dict[Term, dict[Variable, Term]]
-BinderStack: TypeAlias = dict[Term, set[Index | Variable]]
+BinderStack: TypeAlias = dict[Term, set[Symbol]]
 
 
 def _let(bindings: Iterable[tuple[Variable, Term]], body: Term) -> Term:
@@ -66,10 +66,7 @@ def _reduce_loop_strength(program: Term) -> Insertions:
         binders_in_sub: BinderStack = binders | ({expr: set()} if expr.is_loop else {})
         if binders_in_sub:
             last_site = next(reversed(binders_in_sub))
-            binders_in_sub[last_site] |= {
-                *expr.captured_indices,
-                *expr.captured_variables,
-            }
+            binders_in_sub[last_site] |= expr.captured_symbols
 
         for sub in expr.subterms:
             visit(sub, binders_in_sub)
@@ -77,7 +74,7 @@ def _reduce_loop_strength(program: Term) -> Insertions:
         if not expr.is_atom:
             prev_site = None
             for site, bound in reversed(binders.items()):
-                if bound & (expr.free_indices | expr.free_variables):
+                if bound & expr.free_symbols:
                     break
                 prev_site = site
             if prev_site is not None:
@@ -88,7 +85,7 @@ def _reduce_loop_strength(program: Term) -> Insertions:
 
 
 def outline(program: Term) -> Term:
-    free_indices, free_variables = program.free_indices, program.free_variables
+    free_symbols = program.free_symbols
 
     def check(prog: Term, tree: bool) -> None:
         seen = set()
@@ -102,8 +99,7 @@ def outline(program: Term) -> Term:
 
         if tree:
             visit(prog)
-        assert free_indices == prog.free_indices
-        assert free_variables == prog.free_variables
+        assert free_symbols == prog.free_symbols
 
     # Get rid of any existing let-bindings
     program = inline(program)
@@ -127,13 +123,13 @@ def inline(program: Term, *, only_renames: bool = False) -> Term:
 
     def _go(expr: Term, bound: dict[Variable, Term]) -> Term:
         let_tuple = expr.unwrap_let()
-        var = expr.unwrap_var()
         if let_tuple is not None:
             var, bind, body = let_tuple
             if predicate(bind):
                 return go(body, bound | {var: go(bind, bound)})
-        if var is not None and var in bound:
-            return bound[var]
+        symbol = expr.unwrap_symbol()
+        if isinstance(symbol, Variable) and symbol is not None and symbol in bound:
+            return bound[symbol]
         return expr.map(lambda e: go(e, bound))
 
     transformed: dict[Term, Term] = {}

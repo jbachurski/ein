@@ -36,9 +36,9 @@ class Array:
         backend: Backend = DEFAULT_BACKEND,
     ) -> numpy.ndarray:
         env = env if env is not None else {}
-        if not self.expr.free_variables <= set(env):
+        if not self.expr.free_symbols <= set(env):
             raise ValueError(
-                f"Cannot evaluate array, as it depends on free variables: {self.expr.free_variables}"
+                f"Cannot evaluate array, as it depends on free variables: {self.expr.free_symbols}"
             )
         return BACKENDS[backend](self.expr, env)
 

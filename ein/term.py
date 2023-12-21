@@ -3,7 +3,7 @@ import dataclasses
 from functools import cached_property
 from typing import Any, Callable, TypeVar
 
-from ein.symbols import Index, Variable
+from ein.symbols import Symbol, Variable
 
 T = TypeVar("T")
 
@@ -59,11 +59,7 @@ class Term(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def unwrap_var(self) -> Variable | None:
-        ...
-
-    @abc.abstractmethod
-    def unwrap_index(self) -> Index | None:
+    def unwrap_symbol(self) -> Symbol | None:
         ...
 
     @property
@@ -78,20 +74,10 @@ class Term(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def captured_indices(self) -> set[Index]:
-        ...
-
-    @property
-    @abc.abstractmethod
-    def captured_variables(self) -> set[Variable]:
+    def captured_symbols(self) -> set[Symbol]:
         ...
 
     @cached_property
-    def free_indices(self) -> set[Index]:
-        free = set().union(*(sub.free_indices for sub in self.subterms))
-        return (_maybe_set(self.unwrap_index()) | free) - self.captured_indices
-
-    @cached_property
-    def free_variables(self) -> set[Variable]:
-        free = set().union(*(sub.free_variables for sub in self.subterms))
-        return (_maybe_set(self.unwrap_var()) | free) - self.captured_variables
+    def free_symbols(self) -> set[Symbol]:
+        free = set().union(*(sub.free_symbols for sub in self.subterms))
+        return (_maybe_set(self.unwrap_symbol()) | free) - self.captured_symbols

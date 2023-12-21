@@ -1,16 +1,26 @@
-_index_ids: dict["Index", int] = {}
-_variable_ids: dict["Variable", int] = {}
+from typing import Any, ClassVar
 
 
-class Index:
+class Symbol:
+    _pref: ClassVar[str] = "?"
+    _ids: ClassVar[dict[Any, int]] = {}
+
     def __repr__(self) -> str:
-        if self not in _index_ids:
-            _index_ids[self] = len(_index_ids)
-        return f"@{_index_ids[self]}"
+        if self not in self._ids:
+            self._ids[self] = len(self._ids)
+        return f"{self._pref}{self._ids[self]}"
 
 
-class Variable:
-    def __repr__(self) -> str:
-        if self not in _variable_ids:
-            _variable_ids[self] = len(_variable_ids)
-        return f"${_variable_ids[self]}"
+class Variable(Symbol):
+    _pref = "$"
+    _ids = {}
+
+
+class Index(Symbol):
+    _pref = "@"
+    _ids = {}
+
+
+class Counter(Symbol):
+    _pref = "#"
+    _ids = {}

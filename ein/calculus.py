@@ -6,7 +6,7 @@ from typing import Any, Callable, ClassVar, TypeAlias, Union, cast
 import numpy
 import numpy.typing
 
-from ein.symbols import Index, Variable
+from ein.symbols import Index, Symbol, Variable
 from ein.term import Term
 from ein.type_system import (
     UFUNC_SIGNATURES,
@@ -90,7 +90,7 @@ class Value:
 
 
 Expr: TypeAlias = Union[
-    "Const | At | Var | Let | AssertEq | Dim | Get | Vec | Fold | "
+    "Const | Store | Let | AssertEq | Dim | Get | Vec | Fold | "
     "Cons | First | Second |"
     "Negate | Reciprocal | Exp | Sin | LogicalNot | CastToFloat | "
     "Add | Multiply | Modulo | Power | Less | LogicalAnd | LogicalOr | Where"
@@ -126,38 +126,19 @@ class AbstractExpr(Term):
         ...
 
     @property
-    def term_indices(self) -> set[Index]:
+    def captured_symbols(self) -> set[Symbol]:
         return set()
-
-    @property
-    def term_variables(self) -> set[Variable]:
-        return set()
-
-    @property
-    def captured_indices(self) -> set[Index]:
-        return set()
-
-    @property
-    def captured_variables(self) -> set[Variable]:
-        return set()
-
-    @cached_property
-    def direct_indices(self) -> dict[Index, set[Expr]]:
-        return _merge_adj(*(sub.direct_indices for sub in self.subterms))
 
     def wrap_let(self, var: Variable, bind: Term) -> Expr:
         return Let(var, cast(Expr, bind), cast(Expr, self))
 
     def wrap_var(self, var: Variable) -> Expr:
-        return Var(var, self.type)
+        return Store(var, self.type)
 
     def unwrap_let(self) -> tuple[Variable, "Term", "Term"] | None:
         return None
 
-    def unwrap_var(self) -> Variable | None:
-        return None
-
-    def unwrap_index(self) -> Index | None:
+    def unwrap_symbol(self) -> Symbol | None:
         return None
 
     @property
@@ -190,16 +171,17 @@ class Const(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class At(AbstractExpr):
-    index: Index
+class Store(AbstractExpr):
+    symbol: Symbol
+    inner_type: Type
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"index": self.index}, set()
+        return {"symbol": self.symbol}, set()
 
     @cached_property
     def type(self) -> Type:
-        return scalar(int)
+        return self.inner_type
 
     @property
     def subterms(self) -> tuple[Expr, ...]:
@@ -208,48 +190,22 @@ class At(AbstractExpr):
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return self
 
-    @property
-    def term_indices(self) -> set[Index]:
-        return {self.index}
-
-    def unwrap_index(self) -> Index | None:
-        return self.index
+    def unwrap_symbol(self) -> Symbol | None:
+        return self.symbol
 
     @property
     def is_atom(self) -> bool:
         return True
 
-
-@dataclass(frozen=True, eq=False)
-class Var(AbstractExpr):
-    var: Variable
-    var_type: Type
+    @property
+    def var(self) -> Variable:
+        assert isinstance(self.symbol, Variable)
+        return self.symbol
 
     @property
-    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"var": self.var}, set()
-
-    @cached_property
-    def type(self) -> Type:
-        return self.var_type
-
-    @property
-    def subterms(self) -> tuple[Expr, ...]:
-        return ()
-
-    def map(self, f: Callable[[Expr], Expr]) -> Expr:
-        return self
-
-    @property
-    def term_variables(self) -> set[Variable]:
-        return {self.var}
-
-    def unwrap_var(self) -> Variable | None:
-        return self.var
-
-    @property
-    def is_atom(self) -> bool:
-        return True
+    def index(self) -> Index:
+        assert isinstance(self.symbol, Index)
+        return self.symbol
 
 
 @dataclass(frozen=True, eq=False)
@@ -274,7 +230,7 @@ class Let(AbstractExpr):
         return Let(self.var, f(self.bind), f(self.body))
 
     @property
-    def captured_variables(self) -> set[Variable]:
+    def captured_symbols(self) -> set[Symbol]:
         return {self.var}
 
     def unwrap_let(self) -> tuple[Variable, "Term", "Term"] | None:
@@ -353,17 +309,6 @@ class Get(AbstractExpr):
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Get(f(self.operand), f(self.item))
-
-    @property
-    def direct_index(self) -> Index | None:
-        return self.item.index if isinstance(self.item, At) else None
-
-    @cached_property
-    def direct_indices(self) -> dict[Index, set[Expr]]:
-        index = self.direct_index
-        return _merge_adj(
-            super().direct_indices, {index: {self.operand}} if index is not None else {}
-        )
 
 
 @dataclass(frozen=True, eq=False)
@@ -445,7 +390,7 @@ class Vec(AbstractExpr):
         return self.size, self.body
 
     @property
-    def captured_indices(self) -> set[Index]:
+    def captured_symbols(self) -> set[Symbol]:
         return {self.index}
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
@@ -489,12 +434,8 @@ class Fold(AbstractExpr):
         return self.init.type
 
     @property
-    def captured_indices(self) -> set[Index]:
-        return {self.index}
-
-    @property
-    def captured_variables(self) -> set[Variable]:
-        return {self.acc}
+    def captured_symbols(self) -> set[Symbol]:
+        return {self.index, self.acc}
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Fold(self.index, f(self.size), self.acc, f(self.init), f(self.body))
@@ -614,3 +555,11 @@ class AbstractTernaryScalarOperator(AbstractScalarOperator):
 @dataclass(frozen=True, eq=False)
 class Where(AbstractTernaryScalarOperator):
     ufunc = staticmethod(numpy.where)  # type: ignore
+
+
+def variable(var: Variable, type_: Type) -> Store:
+    return Store(var, type_)
+
+
+def at(index: Index) -> Store:
+    return Store(index, scalar(int))

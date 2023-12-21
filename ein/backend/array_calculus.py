@@ -7,7 +7,7 @@ from typing import Any, Callable, Optional, TypeAlias, cast
 import numpy
 
 from ein.calculus import Value
-from ein.symbols import Index, Variable
+from ein.symbols import Symbol, Variable
 from ein.term import Term
 from ein.type_system import (
     UFUNC_SIGNATURES,
@@ -51,11 +51,7 @@ class AbstractExpr(Term):
         ...
 
     @property
-    def captured_indices(self) -> set[Index]:
-        return set()
-
-    @property
-    def captured_variables(self) -> set[Variable]:
+    def captured_symbols(self) -> set[Symbol]:
         return set()
 
     @property
@@ -66,10 +62,7 @@ class AbstractExpr(Term):
     def is_loop(self) -> bool:
         return False
 
-    def unwrap_var(self) -> Variable | None:
-        return None
-
-    def unwrap_index(self) -> Index | None:
+    def unwrap_symbol(self) -> Symbol | None:
         return None
 
     def unwrap_let(self) -> tuple[Variable, "Term", "Term"] | None:
@@ -126,7 +119,7 @@ class Var(AbstractExpr):
     def is_atom(self) -> bool:
         return True
 
-    def unwrap_var(self) -> Variable | None:
+    def unwrap_symbol(self) -> Variable | None:
         return self.var
 
 
@@ -152,7 +145,7 @@ class Let(AbstractExpr):
         return self.body.type
 
     @property
-    def captured_variables(self) -> set[Variable]:
+    def captured_symbols(self) -> set[Symbol]:
         return {self.var}
 
     def unwrap_let(self) -> tuple[Variable, "Term", "Term"] | None:
@@ -556,7 +549,7 @@ class Fold(AbstractExpr):
         return self.body.type
 
     @property
-    def captured_variables(self) -> set[Variable]:
+    def captured_symbols(self) -> set[Symbol]:
         return {self.index, self.acc}
 
     @property

@@ -1,9 +1,9 @@
 import functools
 import inspect
-from typing import Callable, Iterable, NewType, TypeAlias, TypeVar, overload
+from typing import Callable, Iterable, NewType, TypeAlias, TypeVar, cast, overload
 
 from ein import calculus
-from ein.calculus import Expr, Var
+from ein.calculus import Expr
 from ein.symbols import Index, Variable
 from ein.type_system import Type
 
@@ -43,12 +43,25 @@ def _dim_of(expr: calculus.Expr, axis: int = 0) -> Iterable[calculus.Expr]:
 def _infer_sizes(body: Expr, indices: tuple[Index, ...], sizes) -> dict[Index, Expr]:
     if sizes is None:
         size_of: dict[Index, Expr] = {}
+        direct_indices: dict[Index, set[Expr]] = {}
+
+        def go(sub: Expr) -> Expr:
+            match sub:
+                case calculus.Get(target, calculus.Store(symbol)) if isinstance(
+                    symbol, Index
+                ):
+                    direct_indices.setdefault(symbol, set()).add(target)
+            sub.map(go)
+            return sub
+
+        go(body)
+
         for rank, index in enumerate(indices):
             candidates = [
                 candidate
-                for expr in body.direct_indices.get(index, set())
+                for expr in direct_indices.get(index, set())
                 for candidate in _dim_of(expr)
-                if not candidate.free_indices
+                if not any(isinstance(index, Index) for index in candidate.free_symbols)
             ]
             if not candidates:
                 raise ValueError(
@@ -71,14 +84,14 @@ def _infer_sizes(body: Expr, indices: tuple[Index, ...], sizes) -> dict[Index, E
 
 
 class VariableArray(Array):
-    expr: Var
+    expr: calculus.Store
 
     def __init__(self, type_: Type):
-        super().__init__(Var(Variable(), type_))
+        super().__init__(calculus.Store(Variable(), type_))
 
     @property
     def var(self) -> Variable:
-        return self.expr.var
+        return cast(Variable, self.expr.symbol)
 
 
 def function(
@@ -95,7 +108,7 @@ def array(
         size = (size,)
     n = len(inspect.signature(constructor).parameters) if size is None else len(size)
     indices = [Index() for _ in range(n)]
-    wrapped_indices = [Idx(Array(calculus.At(index))) for index in indices]
+    wrapped_indices = [Idx(Array(calculus.at(index))) for index in indices]
     body: Expr = Array(constructor(*wrapped_indices)).expr
     size_of = _infer_sizes(body, tuple(indices), size)
     for index in reversed(indices):
@@ -142,8 +155,9 @@ def fold(init, step, count=None):
         return tuple(Array(take(e, i, n)) for i in range(n))
 
     index = Index()
-    acc = calculus.Var(Variable(), init_expr.type)
-    arg_index = Array(calculus.At(index))
+    var = Variable()
+    acc = calculus.Store(var, init_expr.type)
+    arg_index = Array(calculus.at(index))
     arg_acc = untuple(acc, k)
     body = step(arg_index, arg_acc)
     if not isinstance(body, tuple):
@@ -155,6 +169,4 @@ def fold(init, step, count=None):
         )
     body_expr = functools.reduce(calculus.Cons, [Array(a).expr for a in body])
     size_of = _infer_sizes(body_expr, (index,), (count,) if count is not None else None)
-    return untuple(
-        calculus.Fold(index, size_of[index], acc.var, init_expr, body_expr), k
-    )
+    return untuple(calculus.Fold(index, size_of[index], var, init_expr, body_expr), k)

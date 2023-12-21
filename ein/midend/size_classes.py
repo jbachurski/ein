@@ -38,11 +38,11 @@ def find_size_classes(program: calculus.Expr) -> SizeEquivalence:
                 bind.type.primitive_type.elems
             ) == 1:
                 rank = bind.type.primitive_type.single.rank
-                sizes.unite(calculus.Var(var, bind.type), bind)
+                sizes.unite(calculus.Store(var, bind.type), bind)
                 # TODO: This should really be an e-graph instead.
                 for axis in range(rank):
                     sizes.unite(
-                        calculus.Dim(calculus.Var(var, bind.type), axis),
+                        calculus.Dim(calculus.Store(var, bind.type), axis),
                         calculus.Dim(bind, axis),
                     )
             case calculus.Vec(index, size, body):

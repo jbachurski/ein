@@ -42,10 +42,13 @@ def _interpret(expr: Expr, env: dict[Variable, Value], idx: dict[Index, int]) ->
             return _interpret(target, env, idx)
         case calculus.Const(value):
             return value
-        case calculus.At(index):
-            return Value(numpy.array(idx[index]))
-        case calculus.Var(var):
-            return env[var]
+        case calculus.Store(symbol, _inner_type):
+            if isinstance(symbol, Index):
+                return Value(numpy.array(idx[symbol]))
+            elif isinstance(symbol, Variable):
+                return env[symbol]
+            else:
+                raise NotImplementedError(f"Unhandled symbol: {type(symbol)}")
         case calculus.Dim(operand, axis):
             return Value(_interpret(operand, env, idx).array.shape[axis])
         case calculus.Let(var, bind, body):

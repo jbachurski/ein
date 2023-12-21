@@ -55,7 +55,7 @@ def transform(
                         substitute(
                             e,
                             {
-                                index: calculus.At(realised_sum_axis[index])
+                                index: calculus.at(realised_sum_axis[index])
                                 for index in summed_axes_
                             },
                         ),
@@ -101,7 +101,7 @@ def transform(
         match expr:
             case calculus.Const(value):
                 return Axial([], array_calculus.Const(value))
-            case calculus.At(index):
+            case calculus.Store(index, _) if isinstance(index, Index):
                 if is_comprehension_index(index):  # vector index
                     return Axial(
                         [index],
@@ -115,14 +115,16 @@ def transform(
                             PrimitiveType.of_array(0, int),
                         ),
                     )
-            case calculus.Var(var, var_type):
+            case calculus.Store(var, inner_type) if isinstance(var, Variable):
                 axes = var_axes.get(var, ())
                 return Axial(
                     axes,
                     array_calculus.Var(
-                        var, var_type.primitive_type.with_rank_delta(+len(axes))
+                        var, inner_type.primitive_type.with_rank_delta(+len(axes))
                     ),
                 )
+            case calculus.Store(symbol, _inner_type):
+                raise NotImplementedError(f"Unhandled symbol of type {type(symbol)}")
             case calculus.Let(var, bind_, body_):
                 bind = go(bind_, index_sizes, index_vars, var_axes)
                 return go(
@@ -261,11 +263,11 @@ def transform_get(
     use_slice_elision: bool,
 ) -> Axial:
     target = go(target_)
-    if isinstance(item_, calculus.At):
-        index = item_.index
+    if isinstance(item_, calculus.Store) and isinstance(item_.symbol, Index):
+        index = item_.symbol
         if (
             is_comprehension_index(index)
-            and index not in target_.free_indices
+            and index not in target_.free_symbols
             and use_slices
         ):
             if use_slice_elision and size_class.equiv(index, calculus.Dim(target_, 0)):
@@ -347,13 +349,13 @@ def match_sum(expr: calculus.Expr) -> tuple[Index, calculus.Expr, calculus.Expr]
             size,
             acc,
             calculus.Const(init),
-            calculus.Add((calculus.Var(acc_, _), body)),
+            calculus.Add((calculus.Store(acc_, _), body)),
         ):
             if (
                 not init.array.ndim
                 and float(init.array) == 0.0
                 and acc == acc_
-                and acc not in body.free_variables
+                and acc not in body.free_symbols
             ):
                 return index, size, body
     return None
@@ -377,7 +379,11 @@ def match_einsum(
         index, size, body = sum_pattern
         axes, sizes, operands = match_einsum(body)
         return axes - {index}, {index: size, **sizes}, operands
-    return expr.free_indices, {}, (expr,)
+    return (
+        {index for index in expr.free_symbols if isinstance(index, Index)},
+        {},
+        (expr,),
+    )
 
 
 def to_einsum_subs(
