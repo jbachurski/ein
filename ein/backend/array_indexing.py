@@ -145,7 +145,7 @@ def pad_slice_get(
     # (where indexing is along the selected axis)
     start = shift.max(low).min(high)
     stop = (shift + size - one).max(low).min(high) + one
-    left = (low - shift).min(size - one).max(zero)
+    left = (low - shift).max(zero).min(size - one)
     right = size - (stop - start) - left
 
     return array_calculus.Pad(
