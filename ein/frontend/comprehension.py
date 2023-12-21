@@ -4,7 +4,7 @@ from typing import Callable, Iterable, NewType, TypeAlias, TypeVar, cast, overlo
 
 from ein import calculus
 from ein.calculus import Expr
-from ein.symbols import Index, Variable
+from ein.symbols import Index, Symbol, Variable
 from ein.type_system import Type
 
 from .ndarray import Array, ArrayLike
@@ -40,23 +40,21 @@ def _dim_of(expr: calculus.Expr, axis: int = 0) -> Iterable[calculus.Expr]:
             yield expr.size
 
 
-def _infer_sizes(body: Expr, indices: tuple[Index, ...], sizes) -> dict[Index, Expr]:
+def _infer_sizes(body: Expr, symbols: tuple[Symbol, ...], sizes) -> dict[Symbol, Expr]:
     if sizes is None:
-        size_of: dict[Index, Expr] = {}
-        direct_indices: dict[Index, set[Expr]] = {}
+        size_of: dict[Symbol, Expr] = {}
+        direct_indices: dict[Symbol, set[Expr]] = {}
 
         def go(sub: Expr) -> Expr:
             match sub:
-                case calculus.Get(target, calculus.Store(symbol)) if isinstance(
-                    symbol, Index
-                ):
+                case calculus.Get(target, calculus.Store(symbol)):
                     direct_indices.setdefault(symbol, set()).add(target)
             sub.map(go)
             return sub
 
         go(body)
 
-        for rank, index in enumerate(indices):
+        for rank, index in enumerate(symbols):
             candidates = [
                 candidate
                 for expr in direct_indices.get(index, set())
@@ -78,7 +76,7 @@ def _infer_sizes(body: Expr, indices: tuple[Index, ...], sizes) -> dict[Index, E
                 )
     else:
         size_of = {
-            index: Array(size).expr for index, size in zip(indices, sizes, strict=True)
+            index: Array(size).expr for index, size in zip(symbols, sizes, strict=True)
         }
     return size_of
 
