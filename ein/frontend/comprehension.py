@@ -64,13 +64,10 @@ def _infer_sizes(body: Expr, symbols: tuple[Symbol, ...], sizes) -> dict[Symbol,
                 candidate
                 for expr, captured in direct_indices.get(index, {}).items()
                 for candidate in _dim_of(expr)
-                if not any(isinstance(index, Index) for index in candidate.free_symbols)
-                and not candidate.free_symbols & captured
+                if not candidate.free_indices and not candidate.free_symbols & captured
             ]
             if not candidates:
-                raise ValueError(
-                    f"Cannot infer bounds for index without direct gets: {index}"
-                )
+                raise ValueError(f"Cannot infer bounds for index: {index}")
             else:
                 # TODO: Handle the ignored cases here by requiring equivalence.
                 shape_expr: Expr

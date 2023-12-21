@@ -381,12 +381,9 @@ class Vec(AbstractExpr):
     def type(self) -> Type:
         if not isinstance(self.size.type, Scalar):
             raise TypeError(f"Size must be a scalar, not {self.size.type}")
-        free_indices = {
-            index for index in self.size.free_symbols if isinstance(index, Index)
-        }
-        if free_indices:
+        if self.size.free_indices:
             raise TypeError(
-                f"Size cannot depend on comprehension indices: {free_indices}"
+                f"Size cannot depend on comprehension indices: {self.size.free_indices}"
             )
         if self.size.type.kind != int:
             raise TypeError(f"Size must be an integer, not {self.size.type}")

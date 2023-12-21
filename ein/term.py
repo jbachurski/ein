@@ -3,7 +3,7 @@ import dataclasses
 from functools import cached_property
 from typing import Any, Callable, TypeVar
 
-from ein.symbols import Symbol, Variable
+from ein.symbols import Index, Symbol, Variable
 
 T = TypeVar("T")
 
@@ -81,3 +81,7 @@ class Term(abc.ABC):
     def free_symbols(self) -> set[Symbol]:
         free = set().union(*(sub.free_symbols for sub in self.subterms))
         return (_maybe_set(self.unwrap_symbol()) | free) - self.captured_symbols
+
+    @cached_property
+    def free_indices(self) -> set[Index]:
+        return {index for index in self.free_symbols if isinstance(index, Index)}
