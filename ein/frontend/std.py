@@ -22,8 +22,8 @@ class Monoid(Generic[T]):
 
 
 sum_monoid = Monoid(Array(0.0), lambda a, b: a + b)
-min_monoid = Monoid(Array(float("+inf")), lambda a, b: where(a < b, a, b))
-max_monoid = Monoid(Array(float("-inf")), lambda a, b: where(a < b, b, a))
+min_monoid = Monoid(Array(float("+inf")), lambda a, b: a.min(b))
+max_monoid = Monoid(Array(float("-inf")), lambda a, b: a.max(b))
 
 
 def min(*args: ArrayLike) -> Array:

@@ -122,24 +122,28 @@ class Array:
         return Array(calculus.Less((self.expr, Array(other).expr)))
 
     def __ne__(self, other: ArrayLike) -> "Array":  # type: ignore
-        other_ = Array(other)
-        return (self < other_) | (other_ < self)
+        return Array(calculus.NotEqual((self.expr, Array(other).expr)))
 
     def __eq__(self, other: ArrayLike) -> "Array":  # type: ignore
-        return ~(self != other)
+        return Array(calculus.Equal((self.expr, Array(other).expr)))
 
     def __gt__(self, other: ArrayLike) -> "Array":
         return Array(other).__lt__(self)
 
     def __le__(self, other: ArrayLike) -> "Array":
-        other_ = Array(other)
-        return (self < other_) | (self == other_)
+        return Array(calculus.LessEqual((self.expr, Array(other).expr)))
 
     def __ge__(self, other: ArrayLike) -> "Array":
         return Array(other).__le__(self)
 
     def where(self, true: ArrayLike, false: ArrayLike) -> "Array":
         return Array(calculus.Where((self.expr, Array(true).expr, Array(false).expr)))
+
+    def min(self, other: ArrayLike) -> "Array":
+        return Array(calculus.Min((self.expr, Array(other).expr)))
+
+    def max(self, other: ArrayLike) -> "Array":
+        return Array(calculus.Max((self.expr, Array(other).expr)))
 
     def exp(self) -> "Array":
         return Array(calculus.Exp((self.expr,)))

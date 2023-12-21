@@ -93,7 +93,9 @@ Expr: TypeAlias = Union[
     "Const | Store | Let | AssertEq | Dim | Get | Vec | Fold | "
     "Cons | First | Second |"
     "Negate | Reciprocal | Exp | Sin | LogicalNot | CastToFloat | "
-    "Add | Multiply | Modulo | Power | Less | LogicalAnd | LogicalOr | Where"
+    "Add | Multiply | Modulo | Power | Min | Max | "
+    "Less | LessEqual | Equal | NotEqual | "
+    "LogicalAnd | LogicalOr | Where"
 ]
 
 
@@ -539,8 +541,33 @@ class Power(AbstractBinaryScalarOperator):
 
 
 @dataclass(frozen=True, eq=False)
+class Min(AbstractBinaryScalarOperator):
+    ufunc = numpy.minimum
+
+
+@dataclass(frozen=True, eq=False)
+class Max(AbstractBinaryScalarOperator):
+    ufunc = numpy.maximum
+
+
+@dataclass(frozen=True, eq=False)
 class Less(AbstractBinaryScalarOperator):
     ufunc = numpy.less
+
+
+@dataclass(frozen=True, eq=False)
+class LessEqual(AbstractBinaryScalarOperator):
+    ufunc = numpy.less_equal
+
+
+@dataclass(frozen=True, eq=False)
+class Equal(AbstractBinaryScalarOperator):
+    ufunc = numpy.equal
+
+
+@dataclass(frozen=True, eq=False)
+class NotEqual(AbstractBinaryScalarOperator):
+    ufunc = numpy.not_equal
 
 
 @dataclass(frozen=True, eq=False)

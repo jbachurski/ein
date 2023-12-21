@@ -485,7 +485,12 @@ class BinaryElementwise(AbstractElementwise):
         multiply = enum.auto()
         mod = enum.auto()
         power = enum.auto()
+        minimum = enum.auto()
+        maximum = enum.auto()
         less = enum.auto()
+        less_equal = enum.auto()
+        equal = enum.auto()
+        not_equal = enum.auto()
         logical_and = enum.auto()
         logical_or = enum.auto()
 
@@ -647,7 +652,12 @@ ELEMENTWISE_UFUNCS: dict[Any, Any] = {
     numpy.multiply: partial(BinaryElementwise, BinaryElementwise.Kind.multiply),
     numpy.mod: partial(BinaryElementwise, BinaryElementwise.Kind.mod),
     numpy.power: partial(BinaryElementwise, BinaryElementwise.Kind.power),
+    numpy.minimum: partial(BinaryElementwise, BinaryElementwise.Kind.minimum),
+    numpy.maximum: partial(BinaryElementwise, BinaryElementwise.Kind.maximum),
     numpy.less: partial(BinaryElementwise, BinaryElementwise.Kind.less),
+    numpy.less_equal: partial(BinaryElementwise, BinaryElementwise.Kind.less_equal),
+    numpy.equal: partial(BinaryElementwise, BinaryElementwise.Kind.equal),
+    numpy.not_equal: partial(BinaryElementwise, BinaryElementwise.Kind.not_equal),
     numpy.logical_and: partial(BinaryElementwise, BinaryElementwise.Kind.logical_and),
     numpy.logical_or: partial(BinaryElementwise, BinaryElementwise.Kind.logical_or),
     numpy.where: partial(TernaryElementwise, TernaryElementwise.Kind.where),
@@ -665,7 +675,12 @@ ELEMENTWISE_KINDS = {
     BinaryElementwise.Kind.multiply: numpy.multiply,
     BinaryElementwise.Kind.mod: numpy.mod,
     BinaryElementwise.Kind.power: numpy.power,
+    BinaryElementwise.Kind.minimum: numpy.minimum,
+    BinaryElementwise.Kind.maximum: numpy.maximum,
     BinaryElementwise.Kind.less: numpy.less,
+    BinaryElementwise.Kind.less_equal: numpy.less_equal,
+    BinaryElementwise.Kind.equal: numpy.equal,
+    BinaryElementwise.Kind.not_equal: numpy.not_equal,
     BinaryElementwise.Kind.logical_and: numpy.logical_and,
     BinaryElementwise.Kind.logical_or: numpy.logical_or,
     TernaryElementwise.Kind.where: numpy.where,

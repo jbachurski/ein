@@ -16,9 +16,6 @@ class KMeans(Case):
         def dist(p1: Array, p2: Array) -> Array:
             return reduce_sum(lambda d: (p1[d] - p2[d]) ** 2)
 
-        def maximum(x: Array | int, y: Array) -> Array:
-            return (x > y).where(x, y)
-
         def fold_centres(_i: Array, centres: Array) -> Array:
             ks, ds = centres.dim(0), centres.dim(1)
             members = array(
@@ -33,7 +30,7 @@ class KMeans(Case):
                     reduce_sum(
                         lambda i: Array(members[i] == j).where(points[i][d], 0.0)
                     )
-                    / maximum(1, members_of(j)).to_float()
+                    / members_of(j).max(1).to_float()
                 ),
                 size=(ks, ds),
             )
