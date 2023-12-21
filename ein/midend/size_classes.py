@@ -22,12 +22,15 @@ def id(x: T) -> T:
     return x
 
 
-def find_size_classes(program: calculus.Expr) -> SizeEquivalence:
-    sizes = SizeEquivalence()
+def update_size_classes(
+    program: calculus.Expr,
+    sizes: SizeEquivalence,
+    skip: Callable[[calculus.Expr], bool],
+) -> None:
     vis = set()
 
     def go(expr: calculus.Expr) -> None:
-        if expr in vis:
+        if expr in vis or skip(expr):
             return
         vis.add(expr)
         match expr:
@@ -62,4 +65,9 @@ def find_size_classes(program: calculus.Expr) -> SizeEquivalence:
         return None
 
     go(program)
+
+
+def find_size_classes(program: calculus.Expr) -> SizeEquivalence:
+    sizes = SizeEquivalence()
+    update_size_classes(program, sizes, lambda _: False)
     return sizes

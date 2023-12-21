@@ -4,7 +4,11 @@ from string import ascii_lowercase
 from typing import Callable, Iterable, assert_never, cast
 
 from ein import calculus
-from ein.midend.size_classes import SizeEquivalence, find_size_classes
+from ein.midend.size_classes import (
+    SizeEquivalence,
+    find_size_classes,
+    update_size_classes,
+)
 from ein.midend.substitution import substitute
 from ein.symbols import Index, Variable
 from ein.type_system import Pair, Scalar, to_float
@@ -355,16 +359,17 @@ def match_reduction(
     if not would_be_memory_considerate_axis(elem, counter, size, size_class):
         return None
     index = Index()
-    size_class.unite(index, size)
     with_counter_axis = cast(
         calculus.Expr, substitute(elem, {counter: calculus.at(index)})
     )
-    vec = go(calculus.Vec(index, size, with_counter_axis))
+    vec_expr = calculus.Vec(index, size, with_counter_axis)
+    update_size_classes(vec_expr, size_class, lambda e: counter in e.free_symbols)
+    vec = go(vec_expr)
     reduced = array_calculus.Reduce(kind, vec.positional_axis(0), vec.expr)
-    reduced_from_init = array_calculus.BinaryElementwise(
+    reduced_with_init = array_calculus.BinaryElementwise(
         array_calculus.REDUCE_UNDERLYING[kind], go(init).expr, reduced
     )
-    return Axial(vec._axes, reduced_from_init)
+    return Axial(vec._axes, reduced_with_init)
 
 
 @cache
