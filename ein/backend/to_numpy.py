@@ -81,7 +81,7 @@ def stage_in_array(
                         else slice(None)
                         for dim, item in zip(arr.shape, items)
                     )
-                    return arr[numpy.newaxis, ...][0, *it]
+                    return arr[*it]
 
                 return apply_take
             case array_calculus.Slice(target_, shifts_, lims_, sizes_):

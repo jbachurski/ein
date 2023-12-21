@@ -259,7 +259,7 @@ def transform_get(
             return Axial(target._axes + (index,), result)
     item = go(item_)
     if use_takes and not (target.type.free_indices & item.type.free_indices):
-        axes = item._axes + target._axes
+        axes = target._axes + item._axes
         take_axes: list[array_calculus.Expr | None] = [None] * rank
         take_axes[target.positional_axis(0)] = item.expr
         return Axial(axes, array_calculus.Take(target.expr, tuple(take_axes)))
