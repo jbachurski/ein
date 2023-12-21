@@ -509,6 +509,7 @@ class UnaryElementwise(AbstractElementwise):
 class BinaryElementwise(AbstractElementwise):
     class Kind(enum.Enum):
         add = enum.auto()
+        subtract = enum.auto()
         multiply = enum.auto()
         mod = enum.auto()
         power = enum.auto()
@@ -676,6 +677,7 @@ ELEMENTWISE_UFUNCS: dict[Any, Any] = {
     numpy.sin: partial(UnaryElementwise, UnaryElementwise.Kind.sin),
     numpy.logical_not: partial(UnaryElementwise, UnaryElementwise.Kind.logical_not),
     numpy.add: partial(BinaryElementwise, BinaryElementwise.Kind.add),
+    numpy.subtract: partial(BinaryElementwise, BinaryElementwise.Kind.subtract),
     numpy.multiply: partial(BinaryElementwise, BinaryElementwise.Kind.multiply),
     numpy.mod: partial(BinaryElementwise, BinaryElementwise.Kind.mod),
     numpy.power: partial(BinaryElementwise, BinaryElementwise.Kind.power),
@@ -699,6 +701,7 @@ ELEMENTWISE_KINDS = {
     UnaryElementwise.Kind.sin: numpy.sin,
     UnaryElementwise.Kind.logical_not: numpy.logical_not,
     BinaryElementwise.Kind.add: numpy.add,
+    BinaryElementwise.Kind.subtract: numpy.subtract,
     BinaryElementwise.Kind.multiply: numpy.multiply,
     BinaryElementwise.Kind.mod: numpy.mod,
     BinaryElementwise.Kind.power: numpy.power,

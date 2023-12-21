@@ -43,7 +43,11 @@ class Builder:
         )
 
     def __sub__(self, other: "Builder") -> "Builder":
-        return self + (-other)
+        return Builder(
+            array_calculus.BinaryElementwise(
+                array_calculus.BinaryElementwise.Kind.subtract, self.expr, other.expr
+            )
+        )
 
     def min(self, other: "Builder") -> "Builder":
         return Builder(
@@ -88,7 +92,7 @@ def transform_get(
             if use_slice_pads:
                 zero = Builder.const(0).expr
                 size = index_sizes[index]
-                size1 = (Builder(size) + Builder.const(-1)).expr
+                size1 = (Builder(size) - Builder.const(1)).expr
                 return Axial(
                     axes,
                     pad_slice_get(
@@ -196,15 +200,19 @@ def match_index_clipped_shift(expr: calculus.Expr) -> tuple[Index, ClippedShift]
 def match_clipped_shift(expr: calculus.Expr, symbol: Symbol) -> ClippedShift | None:
     # expr is equivalent to the form min(max(symbol + shift, low), high)
     # where symbol occurs in no subterm of shift/low/high
-    if not (expr.free_symbols <= {symbol}):
-        return None
-    if symbol not in expr.free_symbols:
+    if not expr.free_symbols:
         return None, None, None
     match expr:
         case calculus.Store(symbol_, _inner_type):
             if symbol == symbol_:
                 return None, None, None
         case calculus.Add((first, second)):
+            return _first_opt(
+                _clip_shift_add(first, second, symbol),
+                _clip_shift_add(second, first, symbol),
+            )
+        case calculus.Subtract((first, second)):
+            second = calculus.Negate((second,))
             return _first_opt(
                 _clip_shift_add(first, second, symbol),
                 _clip_shift_add(second, first, symbol),
@@ -222,7 +230,11 @@ def match_clipped_shift(expr: calculus.Expr, symbol: Symbol) -> ClippedShift | N
     return None
 
 
-def _clip_shift_add(shifted: calculus.Expr, other: calculus.Expr, symbol: Symbol):
+def _clip_shift_add(
+    shifted: calculus.Expr, other: calculus.Expr, symbol: Symbol
+) -> ClippedShift | None:
+    if other.free_indices:
+        return None
     t = match_clipped_shift(shifted, symbol)
     if t is not None:
         d, lo, hi = t
@@ -231,7 +243,11 @@ def _clip_shift_add(shifted: calculus.Expr, other: calculus.Expr, symbol: Symbol
     return None
 
 
-def _clip_shift_min(shifted: calculus.Expr, other: calculus.Expr, symbol: Symbol):
+def _clip_shift_min(
+    shifted: calculus.Expr, other: calculus.Expr, symbol: Symbol
+) -> ClippedShift | None:
+    if other.free_indices:
+        return None
     t = match_clipped_shift(shifted, symbol)
     if t is not None:
         d, lo, hi = t
@@ -241,6 +257,8 @@ def _clip_shift_min(shifted: calculus.Expr, other: calculus.Expr, symbol: Symbol
 
 
 def _clip_shift_max(shifted: calculus.Expr, other: calculus.Expr, symbol: Symbol):
+    if other.free_indices:
+        return None
     t = match_clipped_shift(shifted, symbol)
     if t is not None:
         d, lo, hi = t

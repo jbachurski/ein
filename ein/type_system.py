@@ -209,6 +209,7 @@ UFUNC_SIGNATURES: dict[
     to_float: (((int,), float), {}),
     numpy.logical_not: (((bool,), bool), {}),
     numpy.add: ((("T", "T"), "T"), {"T": number}),
+    numpy.subtract: ((("T", "T"), "T"), {"T": number}),
     numpy.multiply: ((("T", "T"), "T"), {"T": number}),
     numpy.mod: (((int, int), int), {}),
     numpy.power: (((float, float), float), {}),

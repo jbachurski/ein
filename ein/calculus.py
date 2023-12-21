@@ -93,7 +93,7 @@ Expr: TypeAlias = Union[
     "Const | Store | Let | AssertEq | Dim | Get | Vec | Fold | "
     "Cons | First | Second |"
     "Negate | Reciprocal | Exp | Sin | LogicalNot | CastToFloat | "
-    "Add | Multiply | Modulo | Power | Min | Max | "
+    "Add | Subtract | Multiply | Modulo | Power | Min | Max | "
     "Less | LessEqual | Equal | NotEqual | "
     "LogicalAnd | LogicalOr | Where"
 ]
@@ -523,6 +523,11 @@ class AbstractBinaryScalarOperator(AbstractScalarOperator, abc.ABC):
 @dataclass(frozen=True, eq=False)
 class Add(AbstractBinaryScalarOperator):
     ufunc = numpy.add
+
+
+@dataclass(frozen=True, eq=False)
+class Subtract(AbstractBinaryScalarOperator):
+    ufunc = numpy.subtract
 
 
 @dataclass(frozen=True, eq=False)

@@ -66,6 +66,9 @@ class Array:
     def __add__(self, other: ArrayLike) -> "Array":
         return Array(calculus.Add((self.expr, Array(other).expr)))
 
+    def __sub__(self, other: ArrayLike) -> "Array":
+        return Array(calculus.Subtract((self.expr, Array(other).expr)))
+
     def __mul__(self, other: ArrayLike) -> "Array":
         return Array(calculus.Multiply((self.expr, Array(other).expr)))
 
@@ -74,9 +77,6 @@ class Array:
 
     def __neg__(self) -> "Array":
         return Array(calculus.Negate((self.expr,)))
-
-    def __sub__(self, other: ArrayLike) -> "Array":
-        return self + -Array(other)
 
     def __rsub__(self, other: ArrayLike) -> "Array":
         return other + (-self)
