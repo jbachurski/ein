@@ -105,10 +105,8 @@ def pretty_print(program: calculus.Expr) -> str:
         match expr:
             case calculus.Const(value):
                 yield _meta_value_repr(value)
-            case calculus.At(index):
-                yield str(index)
-            case calculus.Var(var, _var_type):
-                yield str(var)
+            case calculus.Store(symbol, _inner_type):
+                yield str(symbol)
             case calculus.Let(var, bind, body):
                 yield f"let {var} ="
                 yield from ("  " + line for line in go(bind))
@@ -119,8 +117,8 @@ def pretty_print(program: calculus.Expr) -> str:
                 yield from ("  " + line for line in go(target))
             case calculus.Dim(target, pos):
                 yield f"({' '.join(go(target))}).|{pos}|"
-            case calculus.Fold(index, size, acc, init, body):
-                yield f"fold {index} count"
+            case calculus.Fold(counter, size, acc, init, body):
+                yield f"fold {counter} count"
                 yield from ("  " + line for line in go(size))
                 yield f"from {acc} = "
                 yield from ("  " + line for line in go(init))

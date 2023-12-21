@@ -19,8 +19,3 @@ class Variable(Symbol):
 class Index(Symbol):
     _pref = "@"
     _ids = {}
-
-
-class Counter(Symbol):
-    _pref = "#"
-    _ids = {}

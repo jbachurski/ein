@@ -43,14 +43,14 @@ with_interpret = pytest.mark.parametrize(
 )
 
 
-def fold_sum(index: Index, size: Expr, body: Expr):
+def fold_sum(counter: Variable, size: Expr, body: Expr):
     if not isinstance(body.type, Scalar):
         raise TypeError("Can only sum over scalars")
     dtype = body.type.kind
     init = Const(Value(numpy.array(0, dtype=dtype)))
     var = Variable()
     acc = variable(var, scalar(dtype))
-    return Fold(index, size, var, init, Add((acc, body)))
+    return Fold(counter, size, var, init, Add((acc, body)))
 
 
 @with_interpret
@@ -106,9 +106,9 @@ def test_basic_let_bindings(interpret):
 @with_interpret
 def test_basic_reduction_and_get(interpret):
     n = 5
-    i = Index()
+    i = variable(Variable(), scalar(int))
     a = Const(Value(numpy.arange(n)))
-    the_sum = fold_sum(i, Const(Value(numpy.array(n))), Get(a, at(i)))
+    the_sum = fold_sum(i.var, Const(Value(numpy.array(n))), Get(a, i))
     numpy.testing.assert_allclose(interpret(the_sum, {}), numpy.arange(n).sum())
 
 
@@ -169,7 +169,8 @@ def test_repeated_indexing(interpret):
 @with_interpret
 def test_matmul(interpret):
     a0, b0 = Variable(), Variable()
-    i, j, t = Index(), Index(), Index()
+    i, j = Index(), Index()
+    t = variable(Variable(), scalar(int))
     a, b = variable(a0, matrix(float)), variable(b0, matrix(float))
     matmul = Vec(
         i,
@@ -178,12 +179,12 @@ def test_matmul(interpret):
             j,
             Dim(b, 1),
             fold_sum(
-                t,
+                t.var,
                 Dim(a, 1),  # == Dim(b, 0)
                 Multiply(
                     (
-                        Get(Get(a, at(i)), at(t)),
-                        Get(Get(b, at(t)), at(j)),
+                        Get(Get(a, at(i)), t),
+                        Get(Get(b, t), at(j)),
                     )
                 ),
             ),
@@ -206,13 +207,14 @@ def test_matmul(interpret):
 @with_interpret
 def test_power_fold(interpret):
     a0, n0, x0 = Variable(), Variable(), Variable()
-    i = Index()
     a, n, x = (
         variable(a0, scalar(float)),
         variable(n0, scalar(int)),
         variable(x0, scalar(float)),
     )
-    power_expr = Fold(i, n, x.var, Const(Value(numpy.array(1.0))), Multiply((x, a)))
+    power_expr = Fold(
+        Variable(), n, x.var, Const(Value(numpy.array(1.0))), Multiply((x, a))
+    )
     numpy.testing.assert_allclose(
         interpret(power_expr, {a0: numpy.array(3), n0: numpy.array(7)}), 3**7
     )
@@ -221,7 +223,8 @@ def test_power_fold(interpret):
 @with_interpret
 def test_fibonacci_vector_fold(interpret):
     fib0, n0 = Variable(), Variable()
-    i, j, j0 = Index(), Index(), Index()
+    i = variable(Variable(), scalar(int))
+    j, j0 = Index(), Index()
     fib, n = variable(fib0, vector(int)), variable(n0, scalar(int))
     zero = Const(Value(numpy.array(0)))
     one = Const(Value(numpy.array(1)))
@@ -230,10 +233,10 @@ def test_fibonacci_vector_fold(interpret):
     def eq(x, y):
         return LogicalAnd((LogicalNot((Less((x, y)),)), LogicalNot((Less((y, x)),))))
 
-    i1 = Add((at(i), Negate((one,))))
+    i1 = Add((i, Negate((one,))))
     i2 = Add((i1, Negate((one,))))
     fib_expr = Fold(
-        i,
+        i.var,
         n,
         fib.var,
         zeros,
@@ -242,14 +245,12 @@ def test_fibonacci_vector_fold(interpret):
             n,
             Where(
                 (
-                    eq(at(i), at(j)),
+                    eq(i, at(j)),
                     Where(
                         (
-                            eq(at(i), zero),
+                            eq(i, zero),
                             zero,
-                            Where(
-                                (eq(at(i), one), one, Add((Get(fib, i1), Get(fib, i2))))
-                            ),
+                            Where((eq(i, one), one, Add((Get(fib, i1), Get(fib, i2))))),
                         )
                     ),
                     Get(fib, at(j)),
@@ -264,20 +265,19 @@ def test_fibonacci_vector_fold(interpret):
 
 @with_interpret
 def test_argmin(interpret):
-    i, j = Index(), Index()
+    i = variable(Variable(), scalar(int))
+    j = Index()
     a = variable(Variable(), vector(float))
     n = variable(Variable(), scalar(int))
     r = variable(Variable(), Pair(scalar(float), scalar(int)))
-    a_at_i_j = Sin((Add((Get(a, at(i)), CastToFloat((at(j),)))),))
+    a_at_i_j = Sin((Add((Get(a, i), CastToFloat((at(j),)))),))
     cond_i_j = Less((First(r), a_at_i_j))
     argmin_expr = Fold(
-        i,
+        i.var,
         n,
         r.var,
         Cons(Const(Value(-float("inf"))), Const(Value(0))),
-        Cons(
-            Where((cond_i_j, a_at_i_j, First(r))), Where((cond_i_j, at(i), Second(r)))
-        ),
+        Cons(Where((cond_i_j, a_at_i_j, First(r))), Where((cond_i_j, i, Second(r)))),
     )
     expr = Vec(j, n, Second(argmin_expr))
 

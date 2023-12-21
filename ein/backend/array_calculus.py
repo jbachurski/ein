@@ -523,7 +523,7 @@ class TernaryElementwise(AbstractElementwise):
 
 @dataclass(frozen=True, eq=False)
 class Fold(AbstractExpr):
-    index: Variable
+    counter: Variable
     size: Expr
     acc: Variable
     init: Expr
@@ -534,11 +534,15 @@ class Fold(AbstractExpr):
         return self.size, self.init, self.body
 
     def map(self, f: Callable[[Expr], Expr]) -> "Fold":
-        return Fold(self.index, f(self.size), self.acc, f(self.init), f(self.body))
+        return Fold(self.counter, f(self.size), self.acc, f(self.init), f(self.body))
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"index": self.index, "acc": self.acc}, {self.init, self.size, self.body}
+        return {"index": self.counter, "acc": self.acc}, {
+            self.init,
+            self.size,
+            self.body,
+        }
 
     @cached_property
     def type(self) -> PrimitiveType:
@@ -550,7 +554,7 @@ class Fold(AbstractExpr):
 
     @property
     def captured_symbols(self) -> set[Symbol]:
-        return {self.index, self.acc}
+        return {self.counter, self.acc}
 
     @property
     def is_loop(self) -> bool:

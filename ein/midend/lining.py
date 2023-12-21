@@ -53,7 +53,7 @@ def _bind_common_subexpressions(program: Term) -> Insertions:
     insertions: Insertions = {}
     for sub in order:
         in_degree: int = graph.in_degree(sub)  # noqa
-        if in_degree > 1:
+        if in_degree > 1 and not sub.is_atom:
             insertions.setdefault(idom[sub], {})[Variable()] = sub
 
     return insertions
@@ -66,7 +66,9 @@ def _reduce_loop_strength(program: Term) -> Insertions:
         binders_in_sub: BinderStack = binders | ({expr: set()} if expr.is_loop else {})
         if binders_in_sub:
             last_site = next(reversed(binders_in_sub))
-            binders_in_sub[last_site] |= expr.captured_symbols
+            binders_in_sub[last_site] = (
+                binders_in_sub[last_site] | expr.captured_symbols
+            )
 
         for sub in expr.subterms:
             visit(sub, binders_in_sub)

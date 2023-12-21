@@ -5,7 +5,7 @@ from typing import Callable, Iterable, NewType, TypeAlias, TypeVar, cast, overlo
 from ein import calculus
 from ein.calculus import Expr
 from ein.symbols import Index, Symbol, Variable
-from ein.type_system import Type
+from ein.type_system import Type, scalar
 
 from .ndarray import Array, ArrayLike
 
@@ -43,23 +43,29 @@ def _dim_of(expr: calculus.Expr, axis: int = 0) -> Iterable[calculus.Expr]:
 def _infer_sizes(body: Expr, symbols: tuple[Symbol, ...], sizes) -> dict[Symbol, Expr]:
     if sizes is None:
         size_of: dict[Symbol, Expr] = {}
-        direct_indices: dict[Symbol, set[Expr]] = {}
+        direct_indices: dict[Symbol, dict[Expr, set[Symbol]]] = {}
+        visited: set[Expr] = set()
 
-        def go(sub: Expr) -> Expr:
+        def go(sub: Expr, captured: set[Symbol]) -> Expr:
+            if sub in visited:
+                return sub
             match sub:
                 case calculus.Get(target, calculus.Store(symbol)):
-                    direct_indices.setdefault(symbol, set()).add(target)
-            sub.map(go)
+                    direct_indices.setdefault(symbol, {})[target] = captured
+            sub.map(lambda sub1: go(sub1, captured | sub.captured_symbols))
             return sub
 
-        go(body)
+        go(body, set())
 
         for rank, index in enumerate(symbols):
+            # TODO: Implement a lexical scope check to detect when
+            #  a bad candidate is picked. Metaprogramming hard!
             candidates = [
                 candidate
-                for expr in direct_indices.get(index, set())
+                for expr, captured in direct_indices.get(index, {}).items()
                 for candidate in _dim_of(expr)
                 if not any(isinstance(index, Index) for index in candidate.free_symbols)
+                and not candidate.free_symbols & captured
             ]
             if not candidates:
                 raise ValueError(
@@ -152,10 +158,9 @@ def fold(init, step, count=None):
             return Array(e)
         return tuple(Array(take(e, i, n)) for i in range(n))
 
-    index = Index()
-    var = Variable()
-    acc = calculus.Store(var, init_expr.type)
-    arg_index = Array(calculus.at(index))
+    counter = calculus.variable(Variable(), scalar(int))
+    acc = calculus.variable(Variable(), init_expr.type)
+    arg_index = Array(counter)
     arg_acc = untuple(acc, k)
     body = step(arg_index, arg_acc)
     if not isinstance(body, tuple):
@@ -166,5 +171,8 @@ def fold(init, step, count=None):
             f"accumulator initialiser and fold body: {len(init)} != {len(body)}"
         )
     body_expr = functools.reduce(calculus.Cons, [Array(a).expr for a in body])
-    size_of = _infer_sizes(body_expr, (index,), (count,) if count is not None else None)
-    return untuple(calculus.Fold(index, size_of[index], var, init_expr, body_expr), k)
+    size_of = _infer_sizes(
+        body_expr, (counter.var,), (count,) if count is not None else None
+    )
+    e = calculus.Fold(counter.var, size_of[counter.var], acc.var, init_expr, body_expr)
+    return untuple(e, k)

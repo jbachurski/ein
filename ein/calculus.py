@@ -410,7 +410,7 @@ class Vec(AbstractExpr):
 
 @dataclass(frozen=True, eq=False)
 class Fold(AbstractExpr):
-    index: Index
+    counter: Variable
     size: Expr
     acc: Variable
     init: Expr
@@ -418,7 +418,7 @@ class Fold(AbstractExpr):
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"index": self.index, "acc": self.acc}, {
+        return {"index": self.counter, "acc": self.acc}, {
             self.size,
             self.init,
             self.body,
@@ -430,6 +430,8 @@ class Fold(AbstractExpr):
 
     @cached_property
     def type(self) -> Type:
+        assert isinstance(self.counter, Variable)
+        assert isinstance(self.acc, Variable)
         if not isinstance(self.size.type, Scalar):
             raise TypeError(f"Size must be a scalar, not {self.size.type}")
         if self.size.type.kind != int:
@@ -442,10 +444,10 @@ class Fold(AbstractExpr):
 
     @property
     def captured_symbols(self) -> set[Symbol]:
-        return {self.index, self.acc}
+        return {self.counter, self.acc}
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
-        return Fold(self.index, f(self.size), self.acc, f(self.init), f(self.body))
+        return Fold(self.counter, f(self.size), self.acc, f(self.init), f(self.body))
 
     @property
     def is_loop(self) -> bool:
