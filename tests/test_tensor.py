@@ -348,3 +348,23 @@ def test_clipped_shift(backend):
                         lambda i: a[std.min(std.max(i + shift, low), high)], size=n + d
                     )
                     assert list(y.numpy(backend=backend)) == y0
+
+
+@with_backend
+def test_summation(backend):
+    n = 4
+    a0 = numpy.random.randn(n, n)
+    a = Array(a0)
+
+    numpy.testing.assert_allclose(
+        array(lambda i: reduce_sum(lambda j: a[i, j])).numpy(backend=backend),
+        a0.sum(axis=1),
+    )
+    numpy.testing.assert_allclose(
+        array(lambda j: reduce_sum(lambda i: a[i, j])).numpy(backend=backend),
+        a0.sum(axis=0),
+    )
+    numpy.testing.assert_allclose(
+        reduce_sum(lambda i: reduce_sum(lambda j: a[i, j])).numpy(backend=backend),
+        a0.sum(axis=(0, 1)),
+    )

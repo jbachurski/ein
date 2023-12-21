@@ -410,8 +410,9 @@ class Repeat(AbstractExpr):
 @dataclass(frozen=True, eq=False)
 class Reduce(AbstractExpr):
     class Kind(enum.Enum):
-        sum = enum.auto()
-        max = enum.auto()
+        add = enum.auto()
+        minimum = enum.auto()
+        maximum = enum.auto()
 
     kind: Kind
     axis: int
@@ -431,7 +432,7 @@ class Reduce(AbstractExpr):
     @cached_property
     def type(self) -> PrimitiveType:
         assert (
-            0 <= self.axis <= self.target.type.single.rank
+            0 <= self.axis < self.target.type.single.rank
         ), "Mismatched reduction axis"
         return self.target.type.with_rank_delta(-1)
 
@@ -665,9 +666,15 @@ class Einsum(AbstractExpr):
         return PrimitiveType.of_array(len(res), float)
 
 
-REDUCE: dict[Any, Any] = {
-    numpy.add: partial(Reduce, Reduce.Kind.sum),
-    numpy.maximum: partial(Reduce, Reduce.Kind.max),
+REDUCE_KINDS: dict[Any, Any] = {
+    Reduce.Kind.add: numpy.add,
+    Reduce.Kind.minimum: numpy.minimum,
+    Reduce.Kind.maximum: numpy.maximum,
+}
+REDUCE_UNDERLYING: dict[Any, Any] = {
+    Reduce.Kind.add: BinaryElementwise.Kind.add,
+    Reduce.Kind.minimum: BinaryElementwise.Kind.minimum,
+    Reduce.Kind.maximum: BinaryElementwise.Kind.maximum,
 }
 
 ELEMENTWISE_UFUNCS: dict[Any, Any] = {
@@ -693,8 +700,6 @@ ELEMENTWISE_UFUNCS: dict[Any, Any] = {
 }
 
 ELEMENTWISE_KINDS = {
-    Reduce.Kind.sum: numpy.sum,
-    Reduce.Kind.max: numpy.max,
     UnaryElementwise.Kind.negative: numpy.negative,
     UnaryElementwise.Kind.reciprocal: numpy.reciprocal,
     UnaryElementwise.Kind.exp: numpy.exp,

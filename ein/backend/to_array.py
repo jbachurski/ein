@@ -1,13 +1,13 @@
 import itertools
 from functools import cache
 from string import ascii_lowercase
-from typing import Iterable, assert_never, cast
+from typing import Callable, Iterable, assert_never, cast
 
 from ein import calculus
-from ein.midend.size_classes import find_size_classes
+from ein.midend.size_classes import SizeEquivalence, find_size_classes
 from ein.midend.substitution import substitute
 from ein.symbols import Index, Variable
-from ein.type_system import Pair, to_float
+from ein.type_system import Pair, Scalar, to_float
 
 from . import array_calculus, array_indexing, axial
 from .axial import Axial
@@ -19,6 +19,7 @@ def transform(
     use_takes: bool = True,
     use_slice_pads: bool = True,
     use_slice_elision: bool = True,
+    use_reductions: bool = True,
     use_einsum: bool = False,
     do_shape_cancellations: bool = True,
     do_tuple_cancellations: bool = True,
@@ -123,6 +124,14 @@ def transform(
                     array_calculus.Dim(target.positional_axis(pos), target.expr),
                 )
             case calculus.Fold(counter, size_, acc, init_, body_):
+                if use_reductions:
+                    reduced = match_reduction(
+                        *(counter, size_, acc, init_, body_, size_class),  #
+                        lambda sub: go(sub, index_sizes, var_axes),
+                    )
+
+                    if reduced is not None:
+                        return reduced
                 size = go(size_, index_sizes, var_axes)
                 assert (
                     not size.type.free_indices
@@ -258,21 +267,30 @@ def cancel_tuple_ops(program: array_calculus.Expr) -> array_calculus.Expr:
     return go(program)
 
 
-def safe_realise(body: calculus.Expr, counter: Variable) -> bool:
+def would_be_memory_considerate_axis(
+    body: calculus.Expr,
+    counter: Variable,
+    size: calculus.Expr,
+    size_class: SizeEquivalence,
+) -> bool:
     ok: bool = True
 
     @cache
     def go(expr: calculus.Expr) -> calculus.Expr:
         nonlocal ok
-        if expr not in expr.free_symbols:
+        if counter not in expr.free_symbols:
             return expr
+        if sum(counter in sub.free_symbols for sub in expr.subterms) > 1:
+            ok = False
         match expr:
             case calculus.Get(target, item):
-                if isinstance(item, calculus.Store):
-                    return target
-            case calculus.Store(symbol):
-                if symbol == counter:
+                size_matches = size_class.equiv(size, calculus.Dim(target, 0))
+                if not item.free_indices and size_matches:
+                    go(target)
                     return expr
+            case calculus.Store(symbol, _inner_type):
+                if symbol == counter:
+                    ok = False
         return expr.map(go)
 
     go(body)
@@ -299,6 +317,54 @@ def match_sum(
             ):
                 return counter, size, body
     return None
+
+
+def match_reduction_by_body(
+    body: calculus.Expr, acc: Variable
+) -> tuple[calculus.Expr, array_calculus.Reduce.Kind] | None:
+    red = {
+        calculus.Add: array_calculus.Reduce.Kind.add,
+        calculus.Min: array_calculus.Reduce.Kind.minimum,
+        calculus.Max: array_calculus.Reduce.Kind.maximum,
+    }
+    for typ, kind in red.items():
+        if isinstance(body, typ):
+            first, second = body.operands
+            if isinstance(first, calculus.Store) and first.symbol == acc:
+                return second, kind
+            elif isinstance(second, calculus.Store) and second.symbol == acc:
+                return first, kind
+    return None
+
+
+def match_reduction(
+    counter: Variable,
+    size: calculus.Expr,
+    acc: Variable,
+    init: calculus.Expr,
+    body: calculus.Expr,
+    size_class: SizeEquivalence,
+    go: Callable[[calculus.Expr], Axial],
+) -> Axial | None:
+    if init.type != Scalar(float) or init.free_indices:
+        return None
+    red = match_reduction_by_body(body, acc)
+    if red is None:
+        return None
+    elem, kind = red
+    if not would_be_memory_considerate_axis(elem, counter, size, size_class):
+        return None
+    index = Index()
+    size_class.unite(index, size)
+    with_counter_axis = cast(
+        calculus.Expr, substitute(elem, {counter: calculus.at(index)})
+    )
+    vec = go(calculus.Vec(index, size, with_counter_axis))
+    reduced = array_calculus.Reduce(kind, vec.positional_axis(0), vec.expr)
+    reduced_from_init = array_calculus.BinaryElementwise(
+        array_calculus.REDUCE_UNDERLYING[kind], go(init).expr, reduced
+    )
+    return Axial(vec._axes, reduced_from_init)
 
 
 @cache

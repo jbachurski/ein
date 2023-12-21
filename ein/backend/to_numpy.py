@@ -122,7 +122,7 @@ def stage_in_array(
                 return lambda env: numpy.repeat(target(env), count(env), axis=axis)
             case array_calculus.Reduce(kind, axis, target_):
                 target = go(target_)
-                call = array_calculus.ELEMENTWISE_KINDS[kind]
+                call = array_calculus.REDUCE_KINDS[kind].reduce
                 return lambda env: call(target(env), axis=axis)
             case array_calculus.Cast(dtype, target_):
                 target = go(target_)
