@@ -66,12 +66,6 @@ def test_matmul(interpret, with_bounds_inference):
 
     (a0, b0), matmul_expr = function([matrix(float), matrix(float)], matmul)
 
-    import ein.debug
-    import ein.midend.lining
-
-    print("args", a0, b0)
-    print(ein.debug.pretty_print(matmul_expr))
-
     first = numpy.array([[1, 2, 3], [4, 5, 6]], dtype=float)
     second = numpy.array([[1], [0], [-1]], dtype=float)
     numpy.testing.assert_allclose(
