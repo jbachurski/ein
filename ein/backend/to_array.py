@@ -240,13 +240,13 @@ def transform_get(
     use_slice_elision: bool,
 ) -> Axial:
     target = go(target_)
+    rank = target.expr.type.single.rank
     if isinstance(item_, calculus.Store) and isinstance(item_.symbol, Index):
         index = item_.symbol
         if index not in target_.free_symbols and use_slices:
             if use_slice_elision and size_class.equiv(index, calculus.Dim(target_, 0)):
                 result = target.expr
             else:
-                rank = target.expr.type.single.rank
                 slice_axes: list[array_calculus.Expr | None] = [None] * rank
                 slice_axes[target.positional_axis(0)] = index_sizes[index]
                 result = array_calculus.Slice(
@@ -258,31 +258,34 @@ def transform_get(
 
             return Axial(target._axes + (index,), result)
     item = go(item_)
-    used_axes = axial._alignment(target._axes, item._axes)
-    rank = target.expr.type.single.rank
-    if use_takes and not item.expr.type.single.rank:
+    if use_takes and not (target.type.free_indices & item.type.free_indices):
+        axes = item._axes + target._axes
         take_axes: list[array_calculus.Expr | None] = [None] * rank
         take_axes[target.positional_axis(0)] = item.expr
-        result = array_calculus.Take(target.expr, tuple(take_axes))
-    else:
-        k = len(used_axes)
-        result = array_calculus.Squeeze(
-            (k,),
-            array_calculus.Gather(
-                k,
-                target.aligned(used_axes),
-                array_calculus.Unsqueeze(
-                    tuple(
-                        range(
-                            len(used_axes),
-                            len(used_axes) + target.type.type.single.rank,
-                        )
-                    ),
-                    item.aligned(used_axes),
+        return Axial(axes, array_calculus.Take(target.expr, tuple(take_axes)))
+    return general_get(target, item)
+
+
+def general_get(target: Axial, item: Axial) -> Axial:
+    axes = axial._alignment(item._axes, target._axes)
+    k = len(axes)
+    expr = array_calculus.Squeeze(
+        (k,),
+        array_calculus.Gather(
+            k,
+            target.aligned(axes),
+            array_calculus.Unsqueeze(
+                tuple(
+                    range(
+                        len(axes),
+                        len(axes) + target.type.type.single.rank,
+                    )
                 ),
+                item.aligned(axes),
             ),
-        )
-    return Axial(used_axes, result)
+        ),
+    )
+    return Axial(axes, expr)
 
 
 def cancel_shape_ops(program: array_calculus.Expr) -> array_calculus.Expr:
@@ -354,11 +357,7 @@ def match_einsum(
         counter, size, body = sum_pattern
         axes, sizes, operands = match_einsum(body)
         return axes, {counter: size, **sizes}, operands
-    return (
-        {index for index in expr.free_symbols if isinstance(index, Index)},
-        {},
-        (expr,),
-    )
+    return expr.free_indices, {}, (expr,)
 
 
 def to_einsum_subs(

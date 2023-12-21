@@ -72,11 +72,18 @@ def stage_in_array(
             case array_calculus.Take(target_, items_):
                 target = go(target_)
                 items = [maybe(go)(item_) for item_ in items_]
-                return lambda env: target(env)[
-                    tuple(
-                        item(env) if item is not None else slice(None) for item in items
+
+                def apply_take(env: Env) -> numpy.ndarray:
+                    arr = target(env)
+                    it = (
+                        numpy.clip(item(env), 0, dim - 1)
+                        if item is not None
+                        else slice(None)
+                        for dim, item in zip(arr.shape, items)
                     )
-                ]
+                    return arr[numpy.newaxis, ...][0, *it]
+
+                return apply_take
             case array_calculus.Slice(target_, shifts_, lims_, sizes_):
                 target = go(target_)
                 shifts = [maybe(go)(shift_) for shift_ in shifts_]

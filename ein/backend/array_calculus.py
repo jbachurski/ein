@@ -316,7 +316,8 @@ class Take(AbstractExpr):
     def type(self) -> PrimitiveType:
         assert len(self.items) == self.target.type.single.rank
         return self.target.type.with_rank_delta(
-            -sum(item is not None for item in self.items)
+            max(item.type.single.rank if item is not None else 0 for item in self.items)
+            - sum(item is not None for item in self.items)
         )
 
 
