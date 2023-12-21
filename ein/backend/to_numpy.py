@@ -1,5 +1,5 @@
 from functools import cache
-from typing import Any, Callable, TypeAlias, TypeVar, assert_never, cast
+from typing import Callable, TypeAlias, TypeVar, assert_never, cast
 
 import numpy
 
@@ -90,13 +90,13 @@ def stage_in_array(
                 stops = [maybe(go)(stop_) for stop_ in stops_]
 
                 def apply_slice(env: Env) -> numpy.ndarray:
-                    slices = (
+                    slices = [
                         slice(
                             start(env) if start is not None else None,
                             stop(env) if stop is not None else None,
                         )
                         for start, stop in zip(starts, stops)
-                    )
+                    ]
                     return target(env)[*slices]
 
                 return apply_slice
@@ -105,17 +105,18 @@ def stage_in_array(
                 lefts = [maybe(go)(left_) for left_ in lefts_]
                 rights = [maybe(go)(right_) for right_ in rights_]
 
-                def apply_slice(env: Env) -> numpy.ndarray:
-                    pads = tuple(
+                def apply_pad(env: Env) -> numpy.ndarray:
+                    pads = [
                         (
                             left(env) if left is not None else 0,
                             right(env) if right is not None else 0,
                         )
                         for left, right in zip(lefts, rights)
-                    )
-                    return numpy.pad(target(env), cast(Any, pads), mode="edge")
+                    ]
+                    arr = target(env)
+                    return numpy.pad(arr, pads, mode="edge" if arr.size else "empty")  # type: ignore
 
-                return apply_slice
+                return apply_pad
             case array_calculus.Repeat(axis, count_, target_):
                 count, target = go(count_), go(target_)
                 return lambda env: numpy.repeat(target(env), count(env), axis=axis)

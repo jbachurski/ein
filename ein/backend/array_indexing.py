@@ -135,17 +135,18 @@ def pad_slice_get(
 
     shift = Builder(shift_)
     low = Builder(low_).max(Builder.const(0))
-    high = Builder(high_).min(dim - Builder.const(1))
+    high = Builder(high_).min(dim)
     size = Builder(size_)
 
     # We want to compute an array b such that
     #  b[i] = a[min(max(i + shift, low), high)]
     # using the operation
-    #  b = pad(a[start:end], (left, right))
+    #  b = pad(a[start:stop], (left, right))
     # (where indexing is along the selected axis)
+    one = Builder.const(1)
     start = shift.max(low).min(high)
-    stop = (shift + size - Builder.const(1)).max(low).min(high) + Builder.const(1)
-    left = low.max(-shift)
+    stop = (shift + size - one).max(low).min(high) + one
+    left = (low - shift).min(size - one).max(Builder.const(0))
     right = size - (stop - start) - left
 
     return array_calculus.Pad(

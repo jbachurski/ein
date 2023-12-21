@@ -15,6 +15,7 @@ from ein import (
     scalar,
     vector,
 )
+from ein.frontend import std
 from ein.frontend.std import reduce_max, reduce_min, reduce_sum, where
 
 with_backend = pytest.mark.parametrize("backend", ["naive", "numpy"])
@@ -330,3 +331,20 @@ def test_diagonal(interpret):
     sample_a = numpy.random.randn(10, 10)
 
     numpy.testing.assert_allclose(interpret(expr, {a0: sample_a}), numpy.diag(sample_a))
+
+
+@with_backend
+def test_clipped_shift(backend):
+    n = 3
+    a0 = list(range(n))
+    a = Array(numpy.array(a0))
+
+    for shift in range(-n, n + 1):
+        for low in range(n):
+            for high in range(n):
+                for d in (-1, 1):
+                    y0 = [a0[min(max(i + shift, low), high)] for i in range(n + d)]
+                    y = array(
+                        lambda i: a[std.min(std.max(i + shift, low), high)], size=n + d
+                    )
+                    assert list(y.numpy(backend=backend)) == y0
