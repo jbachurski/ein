@@ -14,6 +14,16 @@ def test_attention():
     )
 
 
+def test_gat():
+    from .suite.deep.gat import GAT
+
+    args = GAT.sample()
+
+    numpy.testing.assert_allclose(
+        GAT.in_ein_function(interpret_with_numpy, *args), GAT.in_numpy(*args)
+    )
+
+
 def test_mri_q():
     from .suite.parboil.mri_q import MriQ
 
