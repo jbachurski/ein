@@ -31,13 +31,14 @@ def identity(x: T) -> T:
     return x
 
 
-def _dim_of(expr: calculus.Expr, axis: int = 0) -> Iterable[calculus.Expr]:
-    yield calculus.Dim(expr, axis)
+def _dim_of(expr: calculus.Expr, axis: int = 0) -> calculus.Expr:
     match expr:
         case calculus.Get(target, _item):
-            yield from _dim_of(target, axis + 1)
+            return _dim_of(target, axis + 1)
         case calculus.Vec():
-            yield expr.size
+            if axis == 0:
+                return expr.size
+    return calculus.Dim(expr, axis)
 
 
 def _infer_sizes(body: Expr, symbols: tuple[Symbol, ...], sizes) -> dict[Symbol, Expr]:
@@ -63,7 +64,7 @@ def _infer_sizes(body: Expr, symbols: tuple[Symbol, ...], sizes) -> dict[Symbol,
             candidates = [
                 candidate
                 for expr, captured in direct_indices.get(index, {}).items()
-                for candidate in _dim_of(expr)
+                for candidate in [_dim_of(expr)]
                 if not candidate.free_indices and not candidate.free_symbols & captured
             ]
             if not candidates:
