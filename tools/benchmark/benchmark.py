@@ -129,11 +129,11 @@ BENCHMARKS: dict[str, Benchmark] = {
     RODINIA_PATHFINDER: (
         lambda n: Pathfinder.sample(n, n),
         # Higher sizes of Pathfinder cause costs to no longer fit in cache, killing runtime
-        list(numpy.geomspace(120, 3e3, 20).astype(int)),
+        list(numpy.geomspace(120, 1e4, 20).astype(int)),
         [
-            ("Ein", precompile(*Pathfinder.ein_function()), lambda n: 2 <= n <= 5e3),
+            ("Ein", precompile(*Pathfinder.ein_function()), lambda n: 2 <= n <= 1e4),
             ("NumPy", Pathfinder.in_numpy, lambda n: 2 <= n <= 1e4),
-            ("Python", Pathfinder.in_python, lambda n: 2 <= n <= 1e3),
+            ("Python", Pathfinder.in_python, lambda n: 2 <= n <= 2e3),
         ],
     ),
 }

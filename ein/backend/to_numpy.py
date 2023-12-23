@@ -19,6 +19,30 @@ def maybe(f: Callable[[T], S]) -> Callable[[T | None], S | None]:
     return lambda x: f(x) if x is not None else None
 
 
+def fast_edge_pad(
+    target: numpy.ndarray, pads: tuple[tuple[int, int], ...]
+) -> numpy.ndarray:
+    assert target.ndim == len(pads)
+    # print(target.shape, pads)
+    if not target.size:
+        return numpy.empty(tuple(lt + rt for lt, rt in pads))
+    if all(lt == rt == 0 for lt, rt in pads):
+        return target
+    elif len(pads) == 1 and pads[0][1] == 0:
+        # print("fast left")
+        res = numpy.empty(target.shape[0] + pads[0][0])
+        res[: pads[0][0]] = target[0]
+        res[pads[0][0] :] = target
+        return res
+    elif len(pads) == 1 and pads[0][0] == 0:
+        # print("fast right")
+        res = numpy.empty(target.shape[0] + pads[0][1])
+        res[: -pads[0][1]] = target
+        res[-pads[0][1] :] = target[-1]
+        return res
+    return numpy.pad(target, pads, mode="edge")  # type: ignore
+
+
 def stage_in_array(
     program: array_calculus.Expr, *, use_inplace: bool = True
 ) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
@@ -75,12 +99,23 @@ def stage_in_array(
 
                 def apply_take(env: Env) -> numpy.ndarray:
                     arr = target(env)
-                    it = (
-                        numpy.clip(item(env), 0, dim - 1)
-                        if item is not None
-                        else slice(None)
-                        for dim, item in zip(arr.shape, items)
-                    )
+                    it: list[numpy.array | slice] = []
+                    nz: list[int] = []
+
+                    for i, item in enumerate(items):
+                        if item is not None:
+                            it.append(item(env))
+                            nz.append(i)
+                        else:
+                            it.append(slice(None))
+
+                    if len(nz) == 1:
+                        (i,) = nz
+                        return numpy.take(arr, it[i], axis=i, mode="clip")
+                    it = [
+                        numpy.clip(js, 0, dim - 1)
+                        for js, dim in zip(it, arr.shape, strict=True)
+                    ]
                     return arr[*it]
 
                 return apply_take
@@ -106,15 +141,14 @@ def stage_in_array(
                 rights = [maybe(go)(right_) for right_ in rights_]
 
                 def apply_pad(env: Env) -> numpy.ndarray:
-                    pads = [
+                    pads = tuple(
                         (
                             left(env) if left is not None else 0,
                             right(env) if right is not None else 0,
                         )
                         for left, right in zip(lefts, rights)
-                    ]
-                    arr = target(env)
-                    return numpy.pad(arr, pads, mode="edge" if arr.size else "empty")  # type: ignore
+                    )
+                    return fast_edge_pad(target(env), pads)
 
                 return apply_pad
             case array_calculus.Repeat(axis, count_, target_):
