@@ -179,12 +179,12 @@ def plots(name: str, results: dict[str, dict[int, list[float]]]) -> None:
 
 if __name__ == "__main__":
     benchmarks = [
-        DEEP_GAT,
-        PARBOIL_MRI_Q,
-        PARBOIL_STENCIL,
-        RODINIA_HOTSPOT,
-        RODINIA_KMEANS,
-        RODINIA_NN,
+        # DEEP_GAT,
+        # PARBOIL_MRI_Q,
+        # PARBOIL_STENCIL,
+        # RODINIA_HOTSPOT,
+        # RODINIA_KMEANS,
+        # RODINIA_NN,
         RODINIA_PATHFINDER,
     ]
 
