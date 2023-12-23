@@ -363,11 +363,11 @@ def match_reduction(
         calculus.Expr, substitute(elem, {counter: calculus.at(index)})
     )
     vec_expr = calculus.Vec(index, size, with_counter_axis)
-    update_size_classes(vec_expr, size_class, lambda e: counter in e.free_symbols)
+    update_size_classes(vec_expr, size_class, lambda e: index in e.free_indices)
     vec = go(vec_expr)
     reduced = array_calculus.Reduce(kind, vec.positional_axis(0), vec.expr)
     reduced_with_init = array_calculus.BinaryElementwise(
-        array_calculus.REDUCE_UNDERLYING[kind], go(init).expr, reduced
+        array_calculus.REDUCE_UNDERLYING[kind], go(init).normal, reduced
     )
     return Axial(vec._axes, reduced_with_init)
 

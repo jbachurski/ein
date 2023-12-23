@@ -70,7 +70,7 @@ class Axial:
             j -= 1
             pi[i], pi[j] = pi[j], pi[i]
             return Axial(
-                tuple(axis for axis in self._axes if axis != index),
+                tuple(self._axes[pi[i]] for i in range(len(self._axes) - 1)),
                 array_calculus.Transpose(tuple(pi), self.expr),
             )
         else:
