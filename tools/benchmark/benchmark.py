@@ -147,11 +147,7 @@ def perform(
     for name, fun, pred in executors:
         print(f"=== {name} ===")
         result[name] = {}
-        for n, ts in (
-            (n, benchmark(fun, get_sample(n), do_profile=(n == params[-8])))
-            for n in params
-            if pred(n)
-        ):
+        for n, ts in ((n, benchmark(fun, get_sample(n))) for n in params if pred(n)):
             print(
                 f"k = x = {n} -> {min(ts)}  ({statistics.mean(ts)} ± {mean_stdev(ts)} across {len(ts)} runs)"
             )
@@ -183,12 +179,12 @@ def plots(name: str, results: dict[str, dict[int, list[float]]]) -> None:
 
 if __name__ == "__main__":
     benchmarks = [
-        # DEEP_GAT,
-        # PARBOIL_MRI_Q,
-        # PARBOIL_STENCIL,
-        # RODINIA_HOTSPOT,
-        # RODINIA_KMEANS,
-        # RODINIA_NN,
+        DEEP_GAT,
+        PARBOIL_MRI_Q,
+        PARBOIL_STENCIL,
+        RODINIA_HOTSPOT,
+        RODINIA_KMEANS,
+        RODINIA_NN,
         RODINIA_PATHFINDER,
     ]
 
