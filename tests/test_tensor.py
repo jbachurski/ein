@@ -368,3 +368,20 @@ def test_summation(backend):
         reduce_sum(lambda i: reduce_sum(lambda j: a[i, j])).numpy(backend=backend),
         a0.sum(axis=(0, 1)),
     )
+
+
+@with_backend
+def test_big_permutation(backend):
+    a0 = numpy.random.randn(1, 2, 3, 4, 5, 6)
+    b0 = numpy.transpose(a0, (5, 1, 4, 2, 3, 0))
+    a, b = Array(a0), Array(b0)
+    # None of the following should fail.
+    # - An AssertEq failing in naive indicates the expressions seem wrong
+    # - A NumPy broadcast error indicates some axial permutation code is off.
+
+    c = array(lambda p, q, r, s, t, u: a[q, s, r, p, u, t] + b[t, s, u, r, p, q])  # type: ignore
+    c.numpy(backend=backend)
+    d = array(lambda p, q, r, s, t, u: c[u, t, s, r, q, p])  # type: ignore
+    d.numpy(backend=backend)
+    e = array(lambda p, q, r, s, t, u: c[u, t, s, r, q, p] + d[p, q, r, s, t, u])  # type: ignore
+    e.numpy(backend=backend)
