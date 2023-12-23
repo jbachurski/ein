@@ -22,10 +22,11 @@ def id(x: T) -> T:
     return x
 
 
-def update_size_classes(
+def _update_size_classes(
     program: calculus.Expr,
     sizes: SizeEquivalence,
     skip: Callable[[calculus.Expr], bool],
+    trigger: list[tuple[set[calculus.Expr], calculus.Expr]],
 ) -> None:
     vis = set()
 
@@ -61,10 +62,46 @@ def update_size_classes(
                         calculus.Dim(expr, axis),
                         calculus.Dim(target, axis + 1),
                     )
+            case calculus.Fold(_counter, _count, acc, init, body) if len(
+                init.type.primitive_type.elems
+            ) == 1:
+                rank = expr.type.primitive_type.single.rank
+                for axis in range(rank):
+                    triangle = [
+                        calculus.Dim(calculus.Store(acc, init.type), axis),
+                        calculus.Dim(body, axis),
+                        calculus.Dim(init, axis),
+                    ]
+                    for i in range(3):
+                        trigger.append(
+                            (
+                                {triangle[i], triangle[(i + 1) % 3]},
+                                triangle[(i + 2) % 3],
+                            )
+                        )
+                    trigger.append((set(triangle), calculus.Dim(expr, axis)))
         expr.map(seq(go, id))
         return None
 
     go(program)
+
+
+def update_size_classes(
+    program: calculus.Expr,
+    sizes: SizeEquivalence,
+    skip: Callable[[calculus.Expr], bool],
+) -> None:
+    trigger: list[tuple[set[calculus.Expr], calculus.Expr]] = []
+    _update_size_classes(program, sizes, skip, trigger)
+    while True:
+        got = set()
+        for i, (required, obtained) in enumerate(trigger):
+            if sizes.equiv(*required):
+                sizes.unite(next(iter(required)), obtained)
+                got.add(i)
+        if not got:
+            break
+        trigger = [x for i, x in enumerate(trigger) if i not in got]
 
 
 def find_size_classes(program: calculus.Expr) -> SizeEquivalence:

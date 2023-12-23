@@ -16,7 +16,7 @@ class Equivalence(Generic[T]):
         return self._parent.get(u, u)
 
     def find(self, u: T) -> set[T]:
-        return self._classes.get(u, {u})
+        return self._classes.get(self._get_parent(u), {u})
 
     def equiv(self, *args: T) -> bool:
         if len(args) <= 1:
