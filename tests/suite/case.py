@@ -1,10 +1,9 @@
 import abc
 from typing import Callable, ClassVar, Sequence
 
-import calculus
 import numpy
 
-from ein import Array, Type, function
+from ein import Array, Type, calculus, function
 from ein.calculus import Expr, Variable
 
 

@@ -127,7 +127,7 @@ BENCHMARKS: dict[str, Benchmark] = {
         ],
     ),
     RODINIA_PATHFINDER: (
-        lambda n: Pathfinder.sample(n, n),
+        lambda n: Pathfinder.sample(max(1, n // 10), n * (n // max(1, n // 10))),
         # Higher sizes of Pathfinder cause costs to no longer fit in cache, killing runtime
         list(numpy.geomspace(120, 1e4, 20).astype(int)),
         [
@@ -147,7 +147,11 @@ def perform(
     for name, fun, pred in executors:
         print(f"=== {name} ===")
         result[name] = {}
-        for n, ts in ((n, benchmark(fun, get_sample(n))) for n in params if pred(n)):
+        for n, ts in (
+            (n, benchmark(fun, get_sample(n), do_profile=(n == params[-8])))
+            for n in params
+            if pred(n)
+        ):
             print(
                 f"k = x = {n} -> {min(ts)}  ({statistics.mean(ts)} ± {mean_stdev(ts)} across {len(ts)} runs)"
             )
