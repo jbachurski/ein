@@ -16,9 +16,9 @@ from tests.suite.deep import GAT
 from tests.suite.parboil import MriQ, Stencil
 from tests.suite.rodinia import NN, Hotspot, KMeans, Pathfinder
 
-MIN_RUNS = 3  # 7
-MIN_CAPPED_RUNS = 10  # 100
-CAP_RUNNING_SECONDS = 0.5  # 5.0
+MIN_RUNS = 5
+MIN_CAPPED_RUNS = 20
+CAP_RUNNING_SECONDS = 1.0
 
 
 def benchmark(
