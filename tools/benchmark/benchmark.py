@@ -103,7 +103,7 @@ BENCHMARKS: dict[str, Benchmark] = {
         lambda n: Hotspot.sample(5, n, n),
         list(numpy.geomspace(50, 5e3, 20).astype(int)),
         [
-            ("Ein", precompile(*Hotspot.ein_function()), lambda n: 2 <= n <= 4e3),
+            ("Ein", precompile(*Hotspot.ein_function()), lambda n: 2 <= n <= 5e3),
             ("NumPy", Hotspot.in_numpy, lambda n: 2 <= n <= 5e3),
             ("Python", Hotspot.in_python, lambda n: 2 <= n <= 500),
         ],
