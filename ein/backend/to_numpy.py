@@ -22,20 +22,35 @@ def maybe(f: Callable[[T], S]) -> Callable[[T | None], S | None]:
 def fast_edge_pad(
     target: numpy.ndarray, pads: tuple[tuple[int, int], ...]
 ) -> numpy.ndarray:
-    assert target.ndim == len(pads)
     if not target.size:
         return numpy.empty(tuple(lt + rt for lt, rt in pads))
-    if all(lt == rt == 0 for lt, rt in pads):
-        return target
-    elif len(pads) == 1 and pads[0][1] == 0:
-        res = numpy.empty(target.shape[0] + pads[0][0])
-        res[: pads[0][0]] = target[0]
-        res[pads[0][0] :] = target
-        return res
-    elif len(pads) == 1 and pads[0][0] == 0:
-        res = numpy.empty(target.shape[0] + pads[0][1])
-        res[: -pads[0][1]] = target
-        res[-pads[0][1] :] = target[-1]
+    if sum(lt + rt for lt, rt in pads) == 0:
+        return target.copy()
+    if all(not (lt and rt) for lt, rt in pads):
+        res = numpy.empty([d + lt + rt for d, (lt, rt) in zip(target.shape, pads)])
+        edge_index: list[numpy.ndarray | slice] = []
+        edge_unsqueeze: list[None | slice] = []
+        dest: list[slice] = []
+        dest_op: list[slice] = []
+        skip = slice(None)
+        for lt, rt in pads:
+            if lt == rt == 0:
+                edge_index.append(skip)
+                edge_unsqueeze.append(skip)
+                dest.append(skip)
+                dest_op.append(skip)
+            elif lt == 0:
+                edge_index.append(-1)
+                edge_unsqueeze.append(None)
+                dest.append(slice(-rt))
+                dest_op.append(slice(-rt, None))
+            elif rt == 0:
+                edge_index.append(0)
+                edge_unsqueeze.append(None)
+                dest.append(slice(lt, None))
+                dest_op.append(slice(lt))
+        res[*dest] = target
+        res[*dest_op] = target[*edge_index][*edge_unsqueeze]
         return res
     return numpy.pad(target, pads, mode="edge")  # type: ignore
 
@@ -52,7 +67,8 @@ def stage_in_array(
     ) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
         match expr:
             case array_calculus.Const(array):
-                return lambda env: array.array
+                arr = array.array
+                return lambda env: arr
             case array_calculus.Var(var, _var_rank):
                 return lambda env: env[var]
             case array_calculus.Let(var, bind_, body_):
@@ -231,6 +247,9 @@ def apply_inplace_on_temporaries(program: array_calculus.Expr) -> array_calculus
         array_calculus.TernaryElementwise,
         array_calculus.Range,
         array_calculus.Cast,
+        array_calculus.Pad,
+        array_calculus.Repeat,
+        array_calculus.Reduce,
     )
 
     @cache
