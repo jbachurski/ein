@@ -3,7 +3,7 @@ from functools import cache
 from typing import Callable, Self, TypeAlias, TypeVar
 
 from ein import calculus
-from ein.midend.size_classes import SizeEquivalence
+from ein.midend.size_classes import SizeEquivalence, _dim_of
 from ein.symbols import Index, Symbol
 from ein.type_system import PrimitiveArrayType
 
@@ -83,7 +83,7 @@ def transform_get(
         axes = target._axes + (index,)
         if index not in target_.free_indices:
             is_trivial = {shift, low, high} == {None}
-            dim = calculus.Dim(target_, 0)
+            dim = _dim_of(target_, 0)
             if use_slice_elision and is_trivial and size_class.equiv(index, dim):
                 return Axial(axes, target.expr)
             if use_slice_pads:

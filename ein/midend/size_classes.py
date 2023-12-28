@@ -1,5 +1,7 @@
 from typing import Callable, TypeAlias, TypeVar, Union
 
+import numpy
+
 from ein import calculus
 from ein.symbols import Index
 
@@ -8,6 +10,17 @@ from .equiv import Equivalence
 T = TypeVar("T")
 S = TypeVar("S")
 SizeEquivalence: TypeAlias = Equivalence[Union[Index, calculus.Expr]]
+
+
+def _dim_of(expr: calculus.Expr, axis: int = 0) -> calculus.Expr:
+    match expr:
+        case calculus.Get(target, _item):
+            return _dim_of(target, axis + 1)
+        case calculus.Vec():
+            if axis == 0:
+                return expr.size
+            # return _dim_of(expr.body, axis - 1)
+    return calculus.Dim(expr, axis)
 
 
 def seq(a: Callable[[T], None], f: Callable[[T], S]) -> Callable[[T], S]:
@@ -35,6 +48,14 @@ def _update_size_classes(
             return
         vis.add(expr)
         match expr:
+            case calculus.Const(value):
+                if isinstance(value.value, numpy.ndarray):
+                    shape = value.array.shape
+                    for axis, dim in enumerate(shape):
+                        sizes.unite(
+                            calculus.Dim(expr, axis),
+                            calculus.Const(calculus.Value(dim)),
+                        )
             case calculus.AssertEq(_target, operands):
                 for sub in operands:
                     sizes.unite(expr, sub)

@@ -4,6 +4,7 @@ from typing import Callable, Iterable, NewType, TypeAlias, TypeVar, cast, overlo
 
 from ein import calculus
 from ein.calculus import Expr
+from ein.midend.size_classes import _dim_of
 from ein.symbols import Index, Symbol, Variable
 from ein.type_system import Type, scalar
 
@@ -29,16 +30,6 @@ _WithIndex: TypeAlias = Callable[[Idx, T], T]
 
 def identity(x: T) -> T:
     return x
-
-
-def _dim_of(expr: calculus.Expr, axis: int = 0) -> calculus.Expr:
-    match expr:
-        case calculus.Get(target, _item):
-            return _dim_of(target, axis + 1)
-        case calculus.Vec():
-            if axis == 0:
-                return expr.size
-    return calculus.Dim(expr, axis)
 
 
 def _infer_sizes(body: Expr, symbols: tuple[Symbol, ...], sizes) -> dict[Symbol, Expr]:
