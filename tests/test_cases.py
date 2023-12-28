@@ -36,6 +36,7 @@ def test_mri_q():
     )
     numpy.testing.assert_allclose(MriQ.in_numpy_frugal(*args), ref)
     numpy.testing.assert_allclose(MriQ.in_numpy_einsum(*args), ref)
+    numpy.testing.assert_allclose(MriQ.in_numpy_smart(*args), ref)
     numpy.testing.assert_allclose(MriQ.in_python(*args), ref)
 
 
