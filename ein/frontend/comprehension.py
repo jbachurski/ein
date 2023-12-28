@@ -4,7 +4,7 @@ from typing import Callable, Iterable, NewType, TypeAlias, TypeVar, cast, overlo
 
 from ein import calculus
 from ein.calculus import Expr
-from ein.midend.size_classes import _dim_of
+from ein.midend.size_classes import _dim_of, _with_indices_at_zero
 from ein.symbols import Index, Symbol, Variable
 from ein.type_system import Type, scalar
 
@@ -52,11 +52,13 @@ def _infer_sizes(body: Expr, symbols: tuple[Symbol, ...], sizes) -> dict[Symbol,
         for rank, index in enumerate(symbols):
             # TODO: Implement a lexical scope check to detect when
             #  a bad candidate is picked. Metaprogramming hard!
+            # FIXME: This probably ends up non-deterministic in some way,
+            #  and some candidates picked are worse than others.
             candidates = [
-                candidate
+                _with_indices_at_zero(candidate)
                 for expr, captured in direct_indices.get(index, {}).items()
                 for candidate in [_dim_of(expr)]
-                if not candidate.free_indices and not candidate.free_symbols & captured
+                if not candidate.free_symbols & captured
             ]
             if not candidates:
                 raise ValueError(f"Cannot infer bounds for index: {index}")

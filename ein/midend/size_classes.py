@@ -1,15 +1,22 @@
-from typing import Callable, TypeAlias, TypeVar, Union
+from typing import Callable, TypeVar, Union, cast
 
 import numpy
 
 from ein import calculus
-from ein.symbols import Index
+from ein.symbols import Index, Symbol
 
 from .equiv import Equivalence
+from .substitution import substitute
 
 T = TypeVar("T")
 S = TypeVar("S")
-SizeEquivalence: TypeAlias = Equivalence[Union[Index, calculus.Expr]]
+
+
+def _with_indices_at_zero(expr: calculus.Expr) -> calculus.Expr:
+    subs: dict[Symbol, calculus.Expr] = {
+        index: calculus.Const(calculus.Value(0)) for index in expr.free_indices
+    }
+    return cast(calculus.Expr, substitute(expr, subs))
 
 
 def _dim_of(expr: calculus.Expr, axis: int = 0) -> calculus.Expr:
@@ -19,6 +26,7 @@ def _dim_of(expr: calculus.Expr, axis: int = 0) -> calculus.Expr:
         case calculus.Vec():
             if axis == 0:
                 return expr.size
+            # FIXME: This causes naive to run really slow on test_big_permutation
             # return _dim_of(expr.body, axis - 1)
     return calculus.Dim(expr, axis)
 
@@ -35,16 +43,26 @@ def id(x: T) -> T:
     return x
 
 
+class SizeEquivalence(Equivalence[Union[Index, calculus.Expr]]):
+    def _get_parent(
+        self, u: Union[Index, calculus.Expr]
+    ) -> Union[Index, calculus.Expr]:
+        # We use the rectangular property of comprehensions,
+        # supposing all indexes into arrays are at 0.
+        if isinstance(u, calculus.AbstractExpr):
+            u = _with_indices_at_zero(cast(calculus.Expr, u))
+        return super()._get_parent(u)
+
+
 def _update_size_classes(
     program: calculus.Expr,
     sizes: SizeEquivalence,
-    skip: Callable[[calculus.Expr], bool],
     trigger: list[tuple[set[calculus.Expr], calculus.Expr]],
 ) -> None:
     vis = set()
 
     def go(expr: calculus.Expr) -> None:
-        if expr in vis or skip(expr):
+        if expr in vis:
             return
         vis.add(expr)
         match expr:
@@ -56,9 +74,10 @@ def _update_size_classes(
                             calculus.Dim(expr, axis),
                             calculus.Const(calculus.Value(dim)),
                         )
-            case calculus.AssertEq(_target, operands):
+            case calculus.AssertEq(target, operands):
+                sizes.unite(expr, target)
                 for sub in operands:
-                    sizes.unite(expr, sub)
+                    sizes.unite(operands[0], sub)
             case calculus.Let(var, bind, _body) if len(
                 bind.type.primitive_type.elems
             ) == 1:
@@ -79,6 +98,15 @@ def _update_size_classes(
             case calculus.Get(target, _item):
                 rank = expr.type.primitive_type.single.rank
                 for axis in range(rank):
+                    # We can use the fact arrays themselves are rectangular,
+                    # and suppose the index is anything else (representative is 0).
+                    sizes.unite(
+                        calculus.Dim(expr, axis),
+                        calculus.Dim(
+                            calculus.Get(target, calculus.Const(calculus.Value(0))),
+                            axis,
+                        ),
+                    )
                     sizes.unite(
                         calculus.Dim(expr, axis),
                         calculus.Dim(target, axis + 1),
@@ -110,10 +138,9 @@ def _update_size_classes(
 def update_size_classes(
     program: calculus.Expr,
     sizes: SizeEquivalence,
-    skip: Callable[[calculus.Expr], bool],
 ) -> None:
     trigger: list[tuple[set[calculus.Expr], calculus.Expr]] = []
-    _update_size_classes(program, sizes, skip, trigger)
+    _update_size_classes(program, sizes, trigger)
     while True:
         got = set()
         for i, (required, obtained) in enumerate(trigger):
@@ -127,5 +154,5 @@ def update_size_classes(
 
 def find_size_classes(program: calculus.Expr) -> SizeEquivalence:
     sizes = SizeEquivalence()
-    update_size_classes(program, sizes, lambda _: False)
+    update_size_classes(program, sizes)
     return sizes

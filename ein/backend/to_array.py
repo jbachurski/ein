@@ -109,7 +109,6 @@ def transform(
                                 update_size_classes(
                                     expr_with_realised,
                                     size_class,
-                                    lambda e: bool(set(sum_axes) & e.free_indices),
                                 )
                             axial_operands = [
                                 go(operand, index_sizes | sum_axes, var_axes)
@@ -308,7 +307,11 @@ def would_be_memory_considerate_axis(
         match expr:
             case calculus.Get(target, item):
                 size_matches = size_class.equiv(size, calculus.Dim(target, 0))
-                if not item.free_indices and size_matches:
+                if (
+                    counter in item.free_symbols
+                    and not item.free_indices
+                    and size_matches
+                ):
                     go(target)
                     return expr
             case calculus.Store(symbol, _inner_type):
@@ -363,7 +366,6 @@ def match_reduction(
     update_size_classes(
         vec_expr,
         size_class,
-        lambda e: not (e == vec_expr or index not in e.free_indices),
     )
     vec = go(vec_expr)
     reduced = array_calculus.Reduce(kind, vec.positional_axis(0), vec.expr)
