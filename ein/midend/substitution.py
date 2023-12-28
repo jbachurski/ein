@@ -1,10 +1,11 @@
 from functools import cache
+from typing import Mapping
 
 from ein.symbols import Symbol
 from ein.term import Term
 
 
-def substitute(term: Term, subs: dict[Symbol, Term]) -> Term:
+def substitute(term: Term, subs: Mapping[Symbol, Term]) -> Term:
     relevant_symbols = set(subs)
 
     @cache

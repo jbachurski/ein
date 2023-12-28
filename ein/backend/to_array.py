@@ -1,7 +1,11 @@
+import functools
 import itertools
+from dataclasses import dataclass
 from functools import cache
 from string import ascii_lowercase
 from typing import Callable, Iterable, assert_never, cast
+
+from term import Term
 
 from ein import calculus
 from ein.midend.size_classes import (
@@ -10,7 +14,7 @@ from ein.midend.size_classes import (
     update_size_classes,
 )
 from ein.midend.substitution import substitute
-from ein.symbols import Index, Variable
+from ein.symbols import Index, Symbol, Variable
 from ein.type_system import Pair, Scalar, to_float
 
 from . import array_calculus, array_indexing, axial
@@ -24,7 +28,7 @@ def transform(
     use_slice_pads: bool = True,
     use_slice_elision: bool = True,
     use_reductions: bool = True,
-    use_einsum: bool = False,
+    use_einsum: bool = True,
     do_shape_cancellations: bool = True,
     do_tuple_cancellations: bool = True,
 ) -> array_calculus.Expr:
@@ -37,63 +41,6 @@ def transform(
         index_sizes: dict[Index, array_calculus.Expr],
         var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
-        if use_einsum:
-            realised_axes, summed_axes_, expr_operands = match_einsum(expr)
-            if summed_axes_:
-                realised_sum_axis = {index: Index() for index in summed_axes_}
-                summed_axes = {
-                    realised_sum_axis[index]: go(size, index_sizes, var_axes).normal
-                    for index, size in summed_axes_.items()
-                }
-
-                def with_realised_summed_axes(e: calculus.Expr) -> calculus.Expr:
-                    return cast(
-                        calculus.Expr,
-                        substitute(
-                            e,
-                            {
-                                index: calculus.at(realised_sum_axis[index])
-                                for index in summed_axes_
-                            },
-                        ),
-                    )
-
-                # FIXME: Here, we realise axes along which we were summing (folding) prior.
-                #  This might be a bad idea if those ranges are big - needs a way of establishing intent
-                #  whether elements summed over can be put in memory. To prevent accidentally compiling
-                #  inefficient code for some programs, we need a heuristic that an operand does not
-                #  materialise significantly more than what was already in-memory.
-                #  Note: we associate array(...) constructors to put contents into memory.
-                operands = tuple(
-                    go(
-                        with_realised_summed_axes(expr_operand),
-                        index_sizes | summed_axes,
-                        var_axes,
-                    )
-                    for expr_operand in expr_operands
-                )
-                if any(
-                    set(op1._axes) & set(op2._axes)
-                    for i, op1 in enumerate(operands)
-                    for op2 in operands[:i]
-                ):
-                    axes = tuple(
-                        axis
-                        for axis in axial._alignment(
-                            *(operand._axes for operand in operands)
-                        )
-                        if axis in realised_axes
-                    )
-                    subs = to_einsum_subs(
-                        [operand._axes for operand in operands], tuple(axes)
-                    )
-                    return Axial(
-                        axes,
-                        array_calculus.Einsum(
-                            subs, tuple(operand.expr for operand in operands)
-                        ),
-                    )
-
         match expr:
             case calculus.Const(value):
                 return Axial([], array_calculus.Const(value))
@@ -128,12 +75,78 @@ def transform(
                     array_calculus.Dim(target.positional_axis(pos), target.expr),
                 )
             case calculus.Fold(counter, size_, acc, init_, body_):
+                if use_einsum:
+                    dot = Dot.lift(expr)
+                    if dot.contract and any(len(prod) > 1 for prod in dot.products):
+                        realised_counter = {
+                            counter: Index() for counter in dot.contract
+                        }
+                        subs: dict[Symbol, Term] = {
+                            counter: calculus.at(index)
+                            for counter, index in realised_counter.items()
+                        }
+                        sum_axes = {
+                            realised_counter[counter]: go(
+                                size, index_sizes, var_axes
+                            ).normal
+                            for counter, size in dot.contract.items()
+                        }
+
+                        def go_product(*args: calculus.Expr) -> Axial | None:
+                            for counter, size in dot.contract.items():
+                                for operand in args:
+                                    if not would_be_memory_considerate_axis(
+                                        operand, counter, size, size_class
+                                    ):
+                                        return None
+                            with_realised = [
+                                cast(calculus.Expr, substitute(operand, subs))
+                                for operand in args
+                            ]
+                            axial_operands = [
+                                go(operand, index_sizes | sum_axes, var_axes)
+                                for operand in with_realised
+                            ]
+                            operand_axes = [operand._axes for operand in axial_operands]
+                            result_axes = tuple(
+                                index
+                                for index in axial._alignment(*operand_axes)
+                                if index not in sum_axes
+                            )
+                            subscripts = to_einsum_subs(operand_axes, result_axes)
+                            return Axial(
+                                result_axes,
+                                array_calculus.Einsum(
+                                    subscripts,
+                                    tuple(operand.expr for operand in axial_operands),
+                                ),
+                            )
+
+                        summands: list[Axial] = []
+                        for curr in dot.products:
+                            in_array = go_product(*curr)
+                            if in_array is None:
+                                break
+                            summands.append(in_array)
+                        else:
+                            used_axes = axial._alignment(*(op._axes for op in summands))
+                            return Axial(
+                                used_axes,
+                                functools.reduce(
+                                    lambda a, b: array_calculus.BinaryElementwise(
+                                        array_calculus.BinaryElementwise.Kind.add, a, b
+                                    ),
+                                    (
+                                        op.aligned(used_axes, leftpad=False)
+                                        for op in summands
+                                    ),
+                                ),
+                            )
                 if use_reductions:
                     reduced = match_reduction(
                         *(counter, size_, acc, init_, body_, size_class),  #
                         lambda sub: go(sub, index_sizes, var_axes),
                     )
-
                     if reduced is not None:
                         return reduced
                 size = go(size_, index_sizes, var_axes)
@@ -235,8 +248,6 @@ def transform(
         array_program = cancel_shape_ops(array_program)
     if do_tuple_cancellations:
         array_program = cancel_tuple_ops(array_program)
-    match_sum.cache_clear()
-    match_einsum.cache_clear()
     array_indexing.match_index_clipped_shift.cache_clear()
 
     return array_program
@@ -301,28 +312,6 @@ def would_be_memory_considerate_axis(
     return ok
 
 
-@cache
-def match_sum(
-    expr: calculus.Expr,
-) -> tuple[Variable, calculus.Expr, calculus.Expr] | None:
-    match expr:
-        case calculus.Fold(
-            counter,
-            size,
-            acc,
-            calculus.Const(init),
-            calculus.Add((calculus.Store(acc_, _), body)),
-        ):
-            if (
-                not init.array.ndim
-                and float(init.array) == 0.0
-                and acc == acc_
-                and acc not in body.free_symbols
-            ):
-                return counter, size, body
-    return None
-
-
 def match_reduction_by_body(
     body: calculus.Expr, acc: Variable
 ) -> tuple[calculus.Expr, array_calculus.Reduce.Kind] | None:
@@ -372,25 +361,82 @@ def match_reduction(
     return Axial(vec._axes, reduced_with_init)
 
 
-@cache
-def match_einsum(
-    expr: calculus.Expr,
-) -> tuple[set[Index], dict[Variable, calculus.Expr], tuple[calculus.Expr, ...]]:
-    match expr:
-        case calculus.Multiply((first, second)):
-            first_axes, first_sums, first_operands = match_einsum(first)
-            second_axes, second_sums, second_operands = match_einsum(second)
-            return (
-                first_axes | second_axes,
-                first_sums | second_sums,
-                first_operands + second_operands,
+def match_summation(expr: calculus.Fold) -> tuple[Variable, calculus.Expr] | None:
+    if not isinstance(expr, calculus.Fold):
+        return None
+    red = match_reduction_by_body(expr.body, expr.acc)
+    if red is None:
+        return None
+    body, kind = red
+    if kind != array_calculus.Reduce.Kind.add:
+        return None
+    if expr.init != calculus.Const(calculus.Value(0.0)):
+        return None
+    return expr.counter, body
+
+
+@dataclass(frozen=True)
+class Dot:
+    contract: dict[Variable, calculus.Expr]
+    products: tuple[tuple[calculus.Expr, ...], ...]
+
+    @staticmethod
+    def _values_agree(first: dict, second: dict) -> bool:
+        return all(
+            first[counter] is second[counter] for counter in set(first) & set(second)
+        )
+
+    @classmethod
+    def pure(cls, expr: calculus.Expr) -> "Dot":
+        return cls({}, ((expr,),))
+
+    def sum(self, counter: Variable, size: calculus.Expr) -> "Dot":
+        assert counter not in self.contract
+        return Dot(self.contract | {counter: size}, self.products)
+
+    def __add__(self, other: "Dot") -> "Dot":
+        assert self._values_agree(self.contract, other.contract)
+        return Dot(self.contract | other.contract, self.products + other.products)
+
+    def __mul__(self, other: "Dot") -> "Dot":
+        if set(self.contract) & set(other.contract):
+            raise ValueError(
+                "Multiplying dot products with common contractions is non-linear"
             )
-    sum_pattern = match_sum(expr)
-    if sum_pattern is not None:
-        counter, size, body = sum_pattern
-        axes, sizes, operands = match_einsum(body)
-        return axes, {counter: size, **sizes}, operands
-    return expr.free_indices, {}, (expr,)
+        return Dot(
+            self.contract | other.contract,
+            tuple(p + q for p in self.products for q in other.products),
+        )
+
+    def __neg__(self) -> "Dot":
+        return Dot(
+            self.contract,
+            tuple(
+                tuple(e if i else calculus.Negate((e,)) for i, e in enumerate(p))
+                for p in self.products
+            ),
+        )
+
+    def __sub__(self, other: "Dot") -> "Dot":
+        return self + (-other)
+
+    @classmethod
+    def lift(cls, expr: calculus.Expr) -> "Dot":
+        match expr:
+            case calculus.Fold() if (summation := match_summation(expr)) is not None:
+                counter, body = summation
+                return cls.lift(body).sum(counter, expr.size)
+            case calculus.Add((first, second)):
+                return cls.lift(first) + cls.lift(second)
+            case calculus.Negate((target,)):
+                return -cls.lift(target)
+            case calculus.Subtract((first, second)):
+                return cls.lift(first) - cls.lift(second)
+            case calculus.Multiply((first, second)):
+                fst, snd = cls.lift(first), cls.lift(second)
+                if not (set(fst.contract) & set(snd.contract)):
+                    return fst * snd
+        return cls.pure(expr)
 
 
 def to_einsum_subs(

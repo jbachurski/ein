@@ -212,7 +212,15 @@ def stage_in_array(
                 return lambda env: target(env)[at]
             case array_calculus.Einsum(subs, operands_):
                 operands = tuple(go(op) for op in operands_)
-                return lambda env: numpy.einsum(subs, *(op(env) for op in operands))
+                op_subs, res_subs = subs.split("->")
+                ops_subs = op_subs.split(",")
+                dummy_ops = [
+                    numpy.empty((4,) * len(curr_subs)) for curr_subs in ops_subs
+                ]
+                path = numpy.einsum_path(subs, *dummy_ops, optimize="optimal")[0]
+                return lambda env: numpy.einsum(
+                    subs, *(op(env) for op in operands), optimize=path
+                )
             case _:
                 assert_never(expr)
 
