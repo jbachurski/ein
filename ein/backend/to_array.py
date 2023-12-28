@@ -103,6 +103,14 @@ def transform(
                                 cast(calculus.Expr, substitute(operand, subs))
                                 for operand in args
                             ]
+                            for counter, size in dot.contract.items():
+                                size_class.unite(realised_counter[counter], size)
+                            for expr_with_realised in with_realised:
+                                update_size_classes(
+                                    expr_with_realised,
+                                    size_class,
+                                    lambda e: bool(set(sum_axes) & e.free_indices),
+                                )
                             axial_operands = [
                                 go(operand, index_sizes | sum_axes, var_axes)
                                 for operand in with_realised
@@ -352,7 +360,11 @@ def match_reduction(
         calculus.Expr, substitute(elem, {counter: calculus.at(index)})
     )
     vec_expr = calculus.Vec(index, size, with_counter_axis)
-    update_size_classes(vec_expr, size_class, lambda e: index in e.free_indices)
+    update_size_classes(
+        vec_expr,
+        size_class,
+        lambda e: not (e == vec_expr or index not in e.free_indices),
+    )
     vec = go(vec_expr)
     reduced = array_calculus.Reduce(kind, vec.positional_axis(0), vec.expr)
     reduced_with_init = array_calculus.BinaryElementwise(
