@@ -75,7 +75,10 @@ def stage_in_array(
                 bind, body = go(bind_), go(body_)
 
                 def with_let(env: Env):
-                    env[var] = bind(env)
+                    bound = bind(env)
+                    if isinstance(bound, numpy.ndarray) and bound.base is not None:
+                        bound = bound.copy()
+                    env[var] = bound
                     ret = body(env)
                     del env[var]
                     return ret
