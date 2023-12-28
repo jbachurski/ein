@@ -66,11 +66,11 @@ RODINIA_PATHFINDER = "Rodinia: Pathfinder"
 
 BENCHMARKS: dict[str, Benchmark] = {
     DEEP_GAT: (
-        lambda n: GAT.sample(8, n, n, n),
-        list(numpy.geomspace(8, 100, 20).astype(int)),
+        lambda n: GAT.sample(4, n, n, n),
+        list(numpy.geomspace(50, 150, 20).astype(int)),
         [
-            ("Ein", precompile(*GAT.ein_function()), lambda n: 2 <= n <= 100),
-            ("NumPy", GAT.in_numpy, lambda n: 2 <= n <= 100),
+            ("Ein", precompile(*GAT.ein_function()), lambda n: 2 <= n <= 150),
+            ("NumPy", GAT.in_numpy, lambda n: 2 <= n <= 150),
         ],
     ),
     PARBOIL_MRI_Q: (
