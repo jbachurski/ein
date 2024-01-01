@@ -267,12 +267,12 @@ class AssertEq(AbstractExpr):
 
 @dataclass(frozen=True, eq=False)
 class Dim(AbstractExpr):
-    operand: Expr
+    target: Expr
     axis: int
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"axis": self.axis}, {self.operand}
+        return {"axis": self.axis}, {self.target}
 
     @cached_property
     def type(self) -> Type:
@@ -280,10 +280,10 @@ class Dim(AbstractExpr):
 
     @cached_property
     def subterms(self) -> tuple[Expr, ...]:
-        return (self.operand,)
+        return (self.target,)
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
-        return Dim(f(self.operand), self.axis)
+        return Dim(f(self.target), self.axis)
 
 
 @dataclass(frozen=True, eq=False)
