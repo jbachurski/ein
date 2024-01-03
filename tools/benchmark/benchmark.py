@@ -1,5 +1,6 @@
 import cProfile
 import gc
+import math
 import statistics
 import timeit
 from typing import Any, Callable, Sequence, TypeAlias
@@ -56,6 +57,7 @@ Executor: TypeAlias = tuple[str, Callable, Callable[[int], bool]]
 Executors: TypeAlias = list[Executor]
 Benchmark: TypeAlias = tuple[Callable[[int], tuple], list[int], Executors]
 
+BASELINE_EXECUTOR = "NumPy"
 DEEP_ATTENTION = "Deep: Attention"
 DEEP_GAT = "Deep: GAT"
 PARBOIL_MRI_Q = "Parboil: MRI-Q"
@@ -88,7 +90,7 @@ BENCHMARKS: dict[str, Benchmark] = {
         [
             ("Ein", precompile(*MriQ.ein_function()), lambda n: 100 <= n < 5e4),
             # Uses over 40 GB RAM at 5e4
-            ("NumPy", MriQ.in_numpy, lambda n: 100 <= n < 3e4),
+            ("NumPy", MriQ.in_numpy_einsum, lambda n: 100 <= n < 5e4),
             # Saves memory by a non-idiomatic Python loop
             # ("NumPy (loop)", MriQ.in_numpy_frugal, [n for n in N if n >= 100]),
             # Uses einsum, which is probably best but not general
@@ -162,6 +164,25 @@ def perform(
             )
             result[name][n] = ts
 
+    print("Summary at tail vs baseline:")
+    ratio_samples = 3
+    base_tail = list(result[BASELINE_EXECUTOR])[-ratio_samples:]
+    base_all = result[BASELINE_EXECUTOR]
+    for name, _, _ in executors:
+        curr_tail = list(result[name])[-ratio_samples:]
+        sample_ns = sorted(
+            (set(curr_tail) | set(base_tail)) & (set(result[name]) & set(base_all))
+        )
+        if not sample_ns:
+            print(f"{name: >7}: (no samples)")
+            continue
+        sampled_executor = [min(result[name][n]) for n in sample_ns]
+        sampled_baseline = [min(result[BASELINE_EXECUTOR][n]) for n in sample_ns]
+        sampled_ratios = [t / t0 for t, t0 in zip(sampled_executor, sampled_baseline)]
+        print(sampled_executor, sampled_baseline)
+        est_ratio = math.prod(sampled_ratios) ** (1 / ratio_samples)
+        print(f"{name: >7}: {est_ratio:.3f}x")
+
     return result
 
 
@@ -198,8 +219,8 @@ if __name__ == "__main__":
         RODINIA_PATHFINDER,
     ]
 
-    for name in benchmarks:
-        print(f"\n\n === ||| {name} ||| === ")
-        get_sample, params, executors = BENCHMARKS[name]
+    for benchmark_name in benchmarks:
+        print(f"\n\n === ||| {benchmark_name} ||| === ")
+        get_sample, params, executors = BENCHMARKS[benchmark_name]
         results = perform(get_sample, params, executors)
-        plots(name, results)
+        plots(benchmark_name, results)
