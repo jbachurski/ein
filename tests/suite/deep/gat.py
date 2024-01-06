@@ -17,8 +17,8 @@ class GAT(Case):
         def softmax(x):
             x_max = reduce_max(lambda i: x[i])
             x1 = array(lambda i: (x[i] - x_max).exp())
-            norm = reduce_sum(lambda i: x1[i])
-            return array(lambda i: x1[i] / norm)
+            x1_sum = reduce_sum(lambda i: x1[i])
+            return array(lambda i: x1[i] / x1_sum)
 
         def leaky_relu(x):
             return where(x < 0.0, 0.01 * x, x)
