@@ -82,12 +82,12 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(50, 200, 20).astype(int)),
         [
             ("Ein", precompile(*Attention.ein_function()), lambda n: 2 <= n <= 200),
-            ("NumPy", Attention.in_numpy, lambda n: 2 <= n <= 200),
             (
                 "Ein-Torch",
                 precompile_torch(*Attention.ein_function()),
                 lambda n: 2 <= n <= 200,
             ),
+            ("NumPy", Attention.in_numpy, lambda n: 2 <= n <= 200),
         ],
     ),
     DEEP_GAT: (
@@ -95,12 +95,12 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(50, 150, 20).astype(int)),
         [
             ("Ein", precompile(*GAT.ein_function()), lambda n: 2 <= n <= 150),
-            ("NumPy", GAT.in_numpy, lambda n: 2 <= n <= 150),
             (
                 "Ein-Torch",
                 precompile_torch(*GAT.ein_function()),
                 lambda n: 2 <= n <= 150,
             ),
+            ("NumPy", GAT.in_numpy, lambda n: 2 <= n <= 150),
         ],
     ),
     PARBOIL_MRI_Q: (
@@ -108,6 +108,11 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(50, 1e5, 20).astype(int)),
         [
             ("Ein", precompile(*MriQ.ein_function()), lambda n: 100 <= n < 5e4),
+            (
+                "Ein-Torch",
+                precompile_torch(*MriQ.ein_function()),
+                lambda n: 100 <= n < 5e4,
+            ),
             # Uses over 40 GB RAM at 5e4
             ("NumPy", MriQ.in_numpy_einsum, lambda n: 100 <= n < 5e4),
             # Saves memory by a non-idiomatic Python loop
@@ -125,6 +130,7 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(8, 250, 20).astype(int)),
         [
             ("Ein", precompile(*Stencil.ein_function()), lambda n: 2 <= n <= 250),
+            # ("Ein-Torch", precompile_torch(*Stencil.ein_function()), lambda n: 2 <= n <= 250),
             ("NumPy", Stencil.in_numpy, lambda n: 2 <= n <= 250),
             ("Python", Stencil.in_python, lambda n: 2 <= n <= 30),
         ],
@@ -134,6 +140,7 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(50, 5e3, 20).astype(int)),
         [
             ("Ein", precompile(*Hotspot.ein_function()), lambda n: 2 <= n <= 5e3),
+            # ("Ein-Torch", precompile_torch(*Hotspot.ein_function()), lambda n: 2 <= n <= 5e3),
             ("NumPy", Hotspot.in_numpy, lambda n: 2 <= n <= 5e3),
             ("Python", Hotspot.in_python, lambda n: 2 <= n <= 500),
         ],
@@ -143,6 +150,7 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(50, 300, 20).astype(int)),
         [
             ("Ein", precompile(*KMeans.ein_function()), lambda n: 2 <= n <= 175),
+            # ("Ein-Torch", precompile_torch(*KMeans.ein_function()), lambda n: 2 <= n <= 175),
             ("NumPy", KMeans.in_numpy, lambda n: 2 <= n <= 300),
             ("Python", KMeans.in_python, lambda n: 2 <= n <= 100),
         ],
@@ -152,6 +160,7 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(50, 1e7, 20).astype(int)),
         [
             ("Ein", precompile(*NN.ein_function()), lambda n: 2 <= n <= 2e4),
+            # ("Ein-Torch", precompile_torch(*NN.ein_function()), lambda n: 2 <= n <= 2e4),
             ("NumPy", NN.in_numpy, lambda n: 2 <= n <= 1e7),
             ("Python", NN.in_python, lambda n: 2 <= n <= 4e5),
         ],
@@ -162,6 +171,7 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(120, 1e4, 20).astype(int)),
         [
             ("Ein", precompile(*Pathfinder.ein_function()), lambda n: 2 <= n <= 1e4),
+            # ("Ein-Torch", precompile_torch(*Pathfinder.ein_function()), lambda n: 2 <= n <= 1e4),
             ("NumPy", Pathfinder.in_numpy, lambda n: 2 <= n <= 1e4),
             ("Python", Pathfinder.in_python, lambda n: 2 <= n <= 2e3),
         ],
@@ -233,8 +243,8 @@ def main():
         PARBOIL_MRI_Q,
         PARBOIL_STENCIL,
         RODINIA_HOTSPOT,
-        RODINIA_KMEANS,
-        RODINIA_NN,
+        # RODINIA_KMEANS,
+        # RODINIA_NN,
         RODINIA_PATHFINDER,
     ]
 
