@@ -53,6 +53,15 @@ def precompile(varargs: tuple[Variable, ...], program: Expr) -> Callable:
     return lambda *args: staged({var: arg for var, arg in zip(varargs, args)})
 
 
+def precompile_torch(varargs: tuple[Variable, ...], program: Expr) -> Callable:
+    import torch
+
+    staged = ein.backend.to_torch.stage(program)
+    return lambda *args: staged(
+        {var: torch.from_numpy(arg) for var, arg in zip(varargs, args)}
+    )
+
+
 Executor: TypeAlias = tuple[str, Callable, Callable[[int], bool]]
 Executors: TypeAlias = list[Executor]
 Benchmark: TypeAlias = tuple[Callable[[int], tuple], list[int], Executors]
@@ -74,6 +83,11 @@ BENCHMARKS: dict[str, Benchmark] = {
         [
             ("Ein", precompile(*Attention.ein_function()), lambda n: 2 <= n <= 200),
             ("NumPy", Attention.in_numpy, lambda n: 2 <= n <= 200),
+            (
+                "Ein-Torch",
+                precompile_torch(*Attention.ein_function()),
+                lambda n: 2 <= n <= 200,
+            ),
         ],
     ),
     DEEP_GAT: (
@@ -82,6 +96,11 @@ BENCHMARKS: dict[str, Benchmark] = {
         [
             ("Ein", precompile(*GAT.ein_function()), lambda n: 2 <= n <= 150),
             ("NumPy", GAT.in_numpy, lambda n: 2 <= n <= 150),
+            (
+                "Ein-Torch",
+                precompile_torch(*GAT.ein_function()),
+                lambda n: 2 <= n <= 150,
+            ),
         ],
     ),
     PARBOIL_MRI_Q: (
