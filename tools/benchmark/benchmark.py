@@ -226,7 +226,7 @@ def plots(name: str, results: dict[str, dict[int, list[float]]]) -> None:
     plt.show()
 
 
-if __name__ == "__main__":
+def main():
     benchmarks = [
         DEEP_ATTENTION,
         DEEP_GAT,
@@ -243,3 +243,7 @@ if __name__ == "__main__":
         get_sample, params, executors = BENCHMARKS[benchmark_name]
         results = perform(get_sample, params, executors)
         plots(benchmark_name, results)
+
+
+if __name__ == "__main__":
+    main()
