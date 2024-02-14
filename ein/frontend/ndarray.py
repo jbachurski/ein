@@ -1,4 +1,4 @@
-from typing import TypeAlias, Union, cast
+from typing import Optional, TypeAlias, Union, cast
 
 import numpy
 import numpy.typing
@@ -6,6 +6,13 @@ import numpy.typing
 from ein import calculus
 from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
 from ein.calculus import AbstractExpr, Expr, Value
+from ein.frontend.layout import (
+    AtomLayout,
+    Layout,
+    PositionalLayout,
+    VecLayout,
+    unambiguous_layout,
+)
 from ein.symbols import Variable
 
 ArrayLike: TypeAlias = Union["int | float | bool | numpy.ndarray | Array"]
@@ -13,8 +20,9 @@ ArrayLike: TypeAlias = Union["int | float | bool | numpy.ndarray | Array"]
 
 class Array:
     expr: Expr
+    layout: Layout
 
-    def __init__(self, array_like: ArrayLike | Expr):
+    def __init__(self, array_like: ArrayLike | Expr, layout: Optional[Layout] = None):
         if isinstance(array_like, AbstractExpr):
             expr = cast(Expr, array_like)
         elif isinstance(array_like, Array):
@@ -28,6 +36,7 @@ class Array:
             ), array.dtype
             expr = calculus.Const(Value(array))
         self.expr = expr
+        self.layout = unambiguous_layout(self.expr.type) if layout is None else layout
 
     def numpy(
         self,
@@ -47,9 +56,25 @@ class Array:
             (item_like,) if not isinstance(item_like, tuple) else item_like
         )
         expr = self.expr
+        layout = self.layout
         for axis_item in item:
-            expr = calculus.Get(expr, Array(axis_item).expr)
-        return Array(expr)
+            match layout:
+                case PositionalLayout(subs):
+                    if not isinstance(axis_item, int):
+                        raise ValueError(
+                            f"Underlying value is a tuple so an integer index was expected, "
+                            f"got {type(axis_item).__name__}"
+                        )
+                    layout = subs[axis_item]
+                    for i in range(axis_item):
+                        expr = calculus.Second(expr)
+                    expr = calculus.First(expr)
+                case VecLayout(sub):
+                    expr = calculus.Get(expr, Array(axis_item).expr)
+                    layout = sub
+                case AtomLayout():
+                    raise ValueError("Cannot index into a scalar array")
+        return Array(expr, layout)
 
     def __bool__(self):
         raise TypeError(

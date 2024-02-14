@@ -4,6 +4,7 @@ from typing import Callable, Iterable, NewType, TypeAlias, TypeVar, cast, overlo
 
 from ein import calculus
 from ein.calculus import Expr
+from ein.frontend.layout import VecLayout, build_layout, fold_layout
 from ein.midend.size_classes import _dim_of, _with_indices_at_zero
 from ein.symbols import Index, Symbol, Variable
 from ein.type_system import Type, scalar
@@ -104,11 +105,16 @@ def array(
     n = len(inspect.signature(constructor).parameters) if size is None else len(size)
     indices = [Index() for _ in range(n)]
     wrapped_indices = [Idx(Array(calculus.at(index))) for index in indices]
-    body: Expr = Array(constructor(*wrapped_indices)).expr
+    cons = constructor(*wrapped_indices)
+    layout = build_layout(cons, lambda a: Array(a).layout)
+    body: Expr = fold_layout(
+        cons, lambda a: Array(a).expr, lambda a, b: calculus.Cons(a, b)
+    )
     size_of = _infer_sizes(body, tuple(indices), size)
     for index in reversed(indices):
         body = calculus.Vec(index, size_of[index], body)
-    return Array(Array(body).expr)
+        layout = VecLayout(layout)
+    return Array(body, layout)
 
 
 @overload
