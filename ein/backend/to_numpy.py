@@ -235,11 +235,14 @@ def stage_in_array(
     return go(program)
 
 
+def prepare(program: calculus.Expr) -> array_calculus.Expr:
+    return to_array.transform(struct_of_arrays_transform(program))
+
+
 def stage(
     program: calculus.Expr,
 ) -> Callable[[dict[Variable, numpy.ndarray]], numpy.ndarray]:
-    program = struct_of_arrays_transform(program)
-    return stage_in_array(to_array.transform(program))
+    return stage_in_array(prepare(program))
 
 
 def interpret(

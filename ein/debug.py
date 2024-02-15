@@ -3,7 +3,7 @@ import os.path
 from typing import Any, Iterable, assert_never, cast
 
 from ein import calculus
-from ein.backend import array_calculus, to_array
+from ein.backend import array_calculus, to_numpy
 from ein.midend import lining
 
 try:
@@ -13,6 +13,8 @@ except ImportError:
 
 
 def _snip_limit(s: str, n: int) -> str:
+    while "  " in s:
+        s = s.replace("  ", " ")
     return s[: n // 2 - 1] + "..." + s[-n // 2 + 1 :] if len(s) > n else s
 
 
@@ -23,7 +25,7 @@ def _meta_value_repr(value: Any) -> str:
             if not hasattr(value, "__call__") or not hasattr(value, "__name__")
             else value.__name__
         ),
-        24,
+        30,
     )
 
 
@@ -61,18 +63,8 @@ def graph(program):
     return dot
 
 
-def array_from_phi_program(
-    program: calculus.Expr, *, optimize: bool = True
-) -> array_calculus.Expr:
-    array_program = to_array.transform(
-        program,
-        use_slice_pads=optimize,
-        use_slice_elision=optimize,
-        use_takes=optimize,
-        do_shape_cancellations=optimize,
-        do_tuple_cancellations=optimize,
-    )
-    return array_program
+def array_from_phi_program(program: calculus.Expr) -> array_calculus.Expr:
+    return to_numpy.prepare(program)
 
 
 def plot_graph(dot: pydot.Dot) -> None:
@@ -96,8 +88,8 @@ def plot_phi_graph(program: calculus.Expr) -> None:
     plot_graph(graph(program))
 
 
-def plot_array_graph(program: calculus.Expr, *, optimize: bool = True) -> None:
-    plot_graph(graph(array_from_phi_program(program, optimize=optimize)))
+def plot_array_graph(program: calculus.Expr) -> None:
+    plot_graph(graph(array_from_phi_program(program)))
 
 
 def pretty_print(program: calculus.Expr) -> str:
