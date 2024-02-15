@@ -37,6 +37,7 @@ class VecLayout(AbstractLayout):
 @dataclass(frozen=True)
 class PositionalLayout(AbstractLayout):
     subs: tuple[Layout, ...]
+    tag: type | None = None
 
     def match(self, type_: Type) -> bool:
         assert self.subs
@@ -53,6 +54,7 @@ class PositionalLayout(AbstractLayout):
 @dataclass(frozen=True)
 class LabelledLayout(AbstractLayout):
     subs: tuple[tuple[str, Layout], ...]
+    tag: type | None = None
 
     def match(self, type_: Type) -> bool:
         assert self.subs
@@ -71,9 +73,11 @@ def build_layout(obj, f) -> Layout:
         if not obj:
             raise ValueError("Constructed layout cannot contain empty nodes")
     if isinstance(obj, (tuple, list)):
-        return PositionalLayout(tuple(build_layout(o, f) for o in obj))
+        return PositionalLayout(tuple(build_layout(o, f) for o in obj), type(obj))
     if isinstance(obj, dict):
-        return LabelledLayout(tuple((n, build_layout(o, f)) for n, o in obj.items()))
+        return LabelledLayout(
+            tuple((n, build_layout(o, f)) for n, o in obj.items()), type(obj)
+        )
     return f(obj)
 
 
