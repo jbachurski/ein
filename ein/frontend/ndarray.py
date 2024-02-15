@@ -8,6 +8,7 @@ from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
 from ein.calculus import AbstractExpr, Expr, Value
 from ein.frontend.layout import (
     AtomLayout,
+    LabelledLayout,
     Layout,
     PositionalLayout,
     VecLayout,
@@ -16,6 +17,12 @@ from ein.frontend.layout import (
 from ein.symbols import Variable
 
 ArrayLike: TypeAlias = Union["int | float | bool | numpy.ndarray | Array"]
+
+
+def _project_tuple(expr: calculus.Expr, i: int, n: int) -> calculus.Expr:
+    for _ in range(i):
+        expr = calculus.Second(expr)
+    return calculus.First(expr) if i + 1 < n else expr
 
 
 class Array:
@@ -27,6 +34,9 @@ class Array:
             expr = cast(Expr, array_like)
         elif isinstance(array_like, Array):
             expr = array_like.expr
+            if layout is not None:
+                assert layout == array_like.layout
+            layout = array_like.layout
         else:
             array = numpy.array(array_like)
             assert array.dtype in (
@@ -51,7 +61,9 @@ class Array:
             )
         return BACKENDS[backend](self.expr, env)
 
-    def __getitem__(self, item_like: ArrayLike | tuple[ArrayLike, ...]) -> "Array":
+    def __getitem__(
+        self, item_like: ArrayLike | str | tuple[ArrayLike | str, ...]
+    ) -> "Array":
         item: tuple[ArrayLike, ...] = (
             (item_like,) if not isinstance(item_like, tuple) else item_like
         )
@@ -66,14 +78,25 @@ class Array:
                             f"got {type(axis_item).__name__}"
                         )
                     layout = subs[axis_item]
-                    for i in range(axis_item):
-                        expr = calculus.Second(expr)
-                    expr = calculus.First(expr) if axis_item + 1 < len(subs) else expr
+                    expr = _project_tuple(expr, axis_item, len(subs))
+                case LabelledLayout(subs):
+                    if not isinstance(axis_item, str):
+                        raise ValueError(
+                            f"Underlying value is a record so a string key was expected, "
+                            f"got {type(axis_item).__name__}"
+                        )
+                    layout = dict(subs)[axis_item]
+                    (pos,) = (
+                        i for i, (name, _) in enumerate(subs) if name == axis_item
+                    )
+                    expr = _project_tuple(expr, pos, len(subs))
                 case VecLayout(sub):
                     expr = calculus.Get(expr, Array(axis_item).expr)
                     layout = sub
                 case AtomLayout():
                     raise ValueError("Cannot index into a scalar array")
+                case _:
+                    assert False, f"Unexpected layout {layout}"
         return Array(expr, layout)
 
     def __bool__(self):

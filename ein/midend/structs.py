@@ -51,9 +51,9 @@ def struct_of_arrays_transform(program: Expr):
 def main():
     from ein import Array, array, debug, structs
 
-    expr = struct_of_arrays_transform(
-        array(lambda j: structs(lambda i: (i, i**2, i**3), size=10)[j, 2]).expr
-    )
+    s = structs(lambda i: (i, i**2, {"+": i**3, "-": -(i**3)}), size=10)
+    a = array(lambda j: s[j, 2, "+"])
+    expr = struct_of_arrays_transform(a.expr)
     print(expr)
     debug.plot_phi_graph(expr)
     print(Array(expr).numpy())

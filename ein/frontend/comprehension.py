@@ -117,7 +117,7 @@ def structs(
     cons = constructor(*wrapped_indices)
     layout = build_layout(cons, lambda a: Array(a).layout)
     body: Expr = fold_layout(
-        cons, lambda a: Array(a).expr, lambda a, b: calculus.Cons(a, b)
+        layout, cons, lambda a: Array(a).expr, lambda a, b: calculus.Cons(a, b)
     )
     size_of = _infer_sizes(body, tuple(indices), size)
     for index in reversed(indices):
