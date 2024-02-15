@@ -7,6 +7,7 @@ from ein import calculus
 from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
 from ein.calculus import AbstractExpr, Expr, Value
 from ein.frontend.layout import (
+    AbstractLayout,
     AtomLayout,
     LabelledLayout,
     Layout,
@@ -47,9 +48,22 @@ class Array:
             expr = calculus.Const(Value(array))
         self.expr = expr
         self.layout = unambiguous_layout(self.expr.type) if layout is None else layout
+        assert isinstance(self.layout, AbstractLayout)
         assert (
             getattr(self.layout, "tag", None) is None
         ), "Unexpected tagged layout in this context"
+
+    @staticmethod
+    def _maybe_tag(layout, expr):
+        if (tag := getattr(layout, "tag", None)) is not None:
+            subs = list(layout.values())  # type: ignore
+            return tag(
+                *(
+                    Array(_project_tuple(expr, i, len(subs)), sub)
+                    for i, sub in enumerate(subs)
+                )
+            )
+        return Array(expr, layout)
 
     def numpy(
         self,
@@ -88,10 +102,10 @@ class Array:
                             f"Underlying value is a record so a string key was expected, "
                             f"got {type(axis_item).__name__}"
                         )
-                    layout = dict(subs)[axis_item]
                     (pos,) = (
                         i for i, (name, _) in enumerate(subs) if name == axis_item
                     )
+                    _name, layout = subs[pos]
                     expr = _project_tuple(expr, pos, len(subs))
                 case VecLayout(sub):
                     expr = calculus.Get(expr, Array(axis_item).expr)
@@ -100,15 +114,7 @@ class Array:
                     raise ValueError("Cannot index into a scalar array")
                 case _:
                     assert False, f"Unexpected layout {layout}"
-        if (tag := getattr(layout, "tag", None)) is not None:
-            subs = layout.subs  # type: ignore
-            return tag(
-                *(
-                    Array(_project_tuple(expr, i, len(subs)), sub)
-                    for i, sub in enumerate(subs)
-                )
-            )
-        return Array(expr, layout)
+        return self._maybe_tag(layout, expr)
 
     def __bool__(self):
         raise TypeError(

@@ -39,6 +39,9 @@ class PositionalLayout(AbstractLayout):
     subs: tuple[Layout, ...]
     tag: type | None = None
 
+    def values(self) -> tuple[Layout, ...]:
+        return self.subs
+
     def match(self, type_: Type) -> bool:
         assert self.subs
         if len(self.subs) == 1:
@@ -55,6 +58,9 @@ class PositionalLayout(AbstractLayout):
 class LabelledLayout(AbstractLayout):
     subs: tuple[tuple[str, Layout], ...]
     tag: type | None = None
+
+    def values(self) -> tuple[Layout, ...]:
+        return tuple(sub for _, sub in self.subs)
 
     def match(self, type_: Type) -> bool:
         assert self.subs
@@ -125,14 +131,3 @@ def unambiguous_layout(type_: Type) -> Layout:
                 "Expression type contains pairs, which cannot form an unambiguous array-struct layout"
             )
     assert_never(type_)
-
-
-if __name__ == "__main__":
-    layout = build_layout(
-        [
-            AtomLayout(),
-            [[AtomLayout(), AtomLayout()], PositionalLayout((AtomLayout(),))],
-        ],
-        lambda x: x,
-    )
-    print(layout)
