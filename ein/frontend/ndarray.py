@@ -68,7 +68,7 @@ class Array:
                     layout = subs[axis_item]
                     for i in range(axis_item):
                         expr = calculus.Second(expr)
-                    expr = calculus.First(expr)
+                    expr = calculus.First(expr) if axis_item + 1 < len(subs) else expr
                 case VecLayout(sub):
                     expr = calculus.Get(expr, Array(axis_item).expr)
                     layout = sub
