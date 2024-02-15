@@ -76,12 +76,12 @@ class Matrix:
         )
 
 
-def test_wrapper_sanity():
+def test_matrix_sanity():
     a = Matrix(array(lambda i, j: 2 * i + j, size=(2, 2)))
     numpy.testing.assert_allclose((a + a).elem.numpy(), numpy.array([[0, 2], [4, 6]]))
 
 
-def test_wrapper_batches():
+def test_matrix_batches():
     base = numpy.array([[1, 2], [3, 4]], dtype=float)
     scales = structs(
         lambda a: Matrix.eye(2).scale(a.to_float()),
