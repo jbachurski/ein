@@ -92,7 +92,7 @@ class Value:
 Expr: TypeAlias = Union[
     "Const | Store | Let | AssertEq | Dim | Get | Vec | Fold | "
     "Cons | First | Second |"
-    "Negate | Reciprocal | Exp | Sin | LogicalNot | CastToFloat | "
+    "Negate | Reciprocal | Exp | Sin | Cos | LogicalNot | CastToFloat | "
     "Add | Subtract | Multiply | Modulo | Power | Min | Max | "
     "Less | LessEqual | Equal | NotEqual | "
     "LogicalAnd | LogicalOr | Where"
@@ -503,6 +503,11 @@ class Exp(AbstractUnaryScalarOperator):
 @dataclass(frozen=True, eq=False)
 class Sin(AbstractUnaryScalarOperator):
     ufunc = numpy.sin
+
+
+@dataclass(frozen=True, eq=False)
+class Cos(AbstractUnaryScalarOperator):
+    ufunc = numpy.cos
 
 
 @dataclass(frozen=True, eq=False)

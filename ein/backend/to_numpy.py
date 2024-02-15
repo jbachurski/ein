@@ -5,6 +5,7 @@ import numpy
 
 from ein import calculus
 from ein.midend.lining import outline
+from ein.midend.structs import struct_of_arrays_transform
 from ein.symbols import Variable
 
 from . import array_calculus, to_array
@@ -237,6 +238,7 @@ def stage_in_array(
 def stage(
     program: calculus.Expr,
 ) -> Callable[[dict[Variable, numpy.ndarray]], numpy.ndarray]:
+    program = struct_of_arrays_transform(program)
     return stage_in_array(to_array.transform(program))
 
 

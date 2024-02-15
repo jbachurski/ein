@@ -496,6 +496,7 @@ class UnaryElementwise(AbstractElementwise):
         reciprocal = enum.auto()
         exp = enum.auto()
         sin = enum.auto()
+        cos = enum.auto()
         logical_not = enum.auto()
 
     kind: Kind
@@ -682,6 +683,7 @@ ELEMENTWISE_UFUNCS: dict[Any, Any] = {
     numpy.reciprocal: partial(UnaryElementwise, UnaryElementwise.Kind.reciprocal),
     numpy.exp: partial(UnaryElementwise, UnaryElementwise.Kind.exp),
     numpy.sin: partial(UnaryElementwise, UnaryElementwise.Kind.sin),
+    numpy.cos: partial(UnaryElementwise, UnaryElementwise.Kind.cos),
     numpy.logical_not: partial(UnaryElementwise, UnaryElementwise.Kind.logical_not),
     numpy.add: partial(BinaryElementwise, BinaryElementwise.Kind.add),
     numpy.subtract: partial(BinaryElementwise, BinaryElementwise.Kind.subtract),
@@ -704,6 +706,7 @@ ELEMENTWISE_KINDS = {
     UnaryElementwise.Kind.reciprocal: numpy.reciprocal,
     UnaryElementwise.Kind.exp: numpy.exp,
     UnaryElementwise.Kind.sin: numpy.sin,
+    UnaryElementwise.Kind.cos: numpy.cos,
     UnaryElementwise.Kind.logical_not: numpy.logical_not,
     BinaryElementwise.Kind.add: numpy.add,
     BinaryElementwise.Kind.subtract: numpy.subtract,
