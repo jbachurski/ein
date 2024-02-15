@@ -1,5 +1,5 @@
 import abc
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from typing import TypeAlias, assert_never
 
 from ein.type_system import Pair, Scalar, Type, Vector
@@ -74,9 +74,17 @@ def build_layout(obj, f) -> Layout:
             raise ValueError("Constructed layout cannot contain empty nodes")
     if isinstance(obj, (tuple, list)):
         return PositionalLayout(tuple(build_layout(o, f) for o in obj), type(obj))
-    if isinstance(obj, dict):
+    elif isinstance(obj, dict):
         return LabelledLayout(
             tuple((n, build_layout(o, f)) for n, o in obj.items()), type(obj)
+        )
+    elif is_dataclass(obj):
+        return LabelledLayout(
+            tuple(
+                (field.name, build_layout(getattr(obj, field.name), f))
+                for field in fields(obj)
+            ),
+            type(obj),
         )
     return f(obj)
 
@@ -94,6 +102,13 @@ def fold_layout(layout, obj, f, merge):
                 ]
             )
         case LabelledLayout(subs):
+            if is_dataclass(obj):
+                return reduce(
+                    [
+                        fold_layout(sub, getattr(obj, name), f, merge)
+                        for name, sub in subs
+                    ]
+                )
             assert len(subs) == len(obj)
             return reduce([fold_layout(sub, obj[name], f, merge) for name, sub in subs])
     return f(obj)

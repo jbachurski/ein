@@ -47,6 +47,9 @@ class Array:
             expr = calculus.Const(Value(array))
         self.expr = expr
         self.layout = unambiguous_layout(self.expr.type) if layout is None else layout
+        assert (
+            getattr(self.layout, "tag", None) is None
+        ), "Unexpected tagged layout in this context"
 
     def numpy(
         self,
@@ -97,6 +100,14 @@ class Array:
                     raise ValueError("Cannot index into a scalar array")
                 case _:
                     assert False, f"Unexpected layout {layout}"
+        if (tag := getattr(layout, "tag", None)) is not None:
+            subs = layout.subs  # type: ignore
+            return tag(
+                *(
+                    Array(_project_tuple(expr, i, len(subs)), sub)
+                    for i, sub in enumerate(subs)
+                )
+            )
         return Array(expr, layout)
 
     def __bool__(self):
@@ -198,6 +209,9 @@ class Array:
 
     def sin(self) -> "Array":
         return Array(calculus.Sin((self.expr,)))
+
+    def cos(self) -> "Array":
+        return Array(calculus.Cos((self.expr,)))
 
     def tanh(self) -> "Array":
         a, b = self.exp(), (-self).exp()

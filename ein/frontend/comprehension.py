@@ -1,6 +1,16 @@
 import functools
 import inspect
-from typing import Callable, Iterable, NewType, TypeAlias, TypeVar, cast, overload
+from typing import (
+    Any,
+    Callable,
+    Iterable,
+    NewType,
+    Protocol,
+    TypeAlias,
+    TypeVar,
+    cast,
+    overload,
+)
 
 from ein import calculus
 from ein.calculus import Expr
@@ -15,8 +25,17 @@ T = TypeVar("T")
 Idx = NewType("Idx", Array)
 Size: TypeAlias = Array | int
 
+
+class _Dataclass(Protocol):
+    __dataclass_fields__: Any
+
+
 StructLike: TypeAlias = (
-    list["StructLike"] | tuple["StructLike", ...] | dict[str, "StructLike"] | ArrayLike
+    list["StructLike"]
+    | tuple["StructLike", ...]
+    | dict[str, "StructLike"]
+    | ArrayLike
+    | Any
 )
 _FromIndex: TypeAlias = Callable[[Idx], Array]
 _FromIndices: TypeAlias = (
@@ -108,7 +127,7 @@ def function(
 
 def structs(
     constructor: _StructFromIndices, *, size: tuple[Size, ...] | Size | None = None
-) -> Array:
+) -> Any:
     if size is not None and not isinstance(size, tuple):
         size = (size,)
     n = len(inspect.signature(constructor).parameters) if size is None else len(size)
