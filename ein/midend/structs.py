@@ -65,6 +65,10 @@ def main():
     print(Array(expr).numpy())
     numpy.testing.assert_allclose(Array(expr).numpy(), [-(i**3) for i in range(10)])
 
+    def linspace(a, b, n):
+        n = Array(n)
+        return array(lambda i: i.to_float() * (b - a) / n.to_float() + a, size=n)
+
     @dataclass
     class C:
         real: Array  # scalar
@@ -79,14 +83,8 @@ def main():
                 self.real * other.imag + self.imag * other.real,
             )
 
-    c = structs(
-        lambda i: C(
-            (3.14 * i.to_float() / 10.0).cos(),
-            (3.14 * i.to_float() / 10.0).sin(),
-        ),
-        size=11,
-    )
-
+    p = linspace(0.0, 3.14, 11)
+    c = structs(lambda i: C(p[i].cos(), p[i].sin()))
     cc = array(lambda i: (c[i] * c[i] + c[i]).real)
 
     def cis(x):
