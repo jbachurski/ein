@@ -15,12 +15,21 @@ T = TypeVar("T")
 Idx = NewType("Idx", Array)
 Size: TypeAlias = Array | int
 
+StructLike: TypeAlias = (
+    list["StructLike"] | tuple["StructLike", ...] | dict[str, "StructLike"] | ArrayLike
+)
 _FromIndex: TypeAlias = Callable[[Idx], Array]
 _FromIndices: TypeAlias = (
     Callable[[Idx], ArrayLike]
     | Callable[[Idx, Idx], ArrayLike]
     | Callable[[Idx, Idx, Idx], ArrayLike]
     | Callable[[Idx, Idx, Idx, Idx], ArrayLike]
+)
+_StructFromIndices: TypeAlias = (
+    Callable[[Idx], StructLike]
+    | Callable[[Idx, Idx], StructLike]
+    | Callable[[Idx, Idx, Idx], StructLike]
+    | Callable[[Idx, Idx, Idx, Idx], StructLike]
 )
 Arrays2 = tuple[Array, Array]
 Arrays3 = tuple[Array, Array, Array]
@@ -97,8 +106,8 @@ def function(
     return tuple(arg.var for arg in args), Array(fun(*args)).expr
 
 
-def array(
-    constructor: _FromIndices, *, size: tuple[Size, ...] | Size | None = None
+def structs(
+    constructor: _StructFromIndices, *, size: tuple[Size, ...] | Size | None = None
 ) -> Array:
     if size is not None and not isinstance(size, tuple):
         size = (size,)
@@ -115,6 +124,12 @@ def array(
         body = calculus.Vec(index, size_of[index], body)
         layout = VecLayout(layout)
     return Array(body, layout)
+
+
+def array(
+    constructor: _FromIndices, *, size: tuple[Size, ...] | Size | None = None
+) -> Array:
+    return structs(constructor, size=size)
 
 
 @overload

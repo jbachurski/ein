@@ -49,10 +49,10 @@ def struct_of_arrays_transform(program: Expr):
 
 
 def main():
-    from ein import Array, array, debug
+    from ein import Array, array, debug, structs
 
     expr = struct_of_arrays_transform(
-        array(lambda j: array(lambda i: (i, i**2, i**3), size=10)[j, 2]).expr
+        array(lambda j: structs(lambda i: (i, i**2, i**3), size=10)[j, 2]).expr
     )
     print(expr)
     debug.plot_phi_graph(expr)
