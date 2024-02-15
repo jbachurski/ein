@@ -39,9 +39,6 @@ class PositionalLayout(AbstractLayout):
     subs: tuple[Layout, ...]
     tag: type | None = None
 
-    def values(self) -> tuple[Layout, ...]:
-        return self.subs
-
     def match(self, type_: Type) -> bool:
         assert self.subs
         if len(self.subs) == 1:
@@ -58,9 +55,6 @@ class PositionalLayout(AbstractLayout):
 class LabelledLayout(AbstractLayout):
     subs: tuple[tuple[str, Layout], ...]
     tag: type | None = None
-
-    def values(self) -> tuple[Layout, ...]:
-        return tuple(sub for _, sub in self.subs)
 
     def match(self, type_: Type) -> bool:
         assert self.subs

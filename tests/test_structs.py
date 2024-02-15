@@ -10,7 +10,7 @@ def test_adhoc_structs():
     from ein import array, structs
 
     s = structs(lambda i: (i, i**2, {"+": i**3, "-": -(i**3)}), size=10)
-    a = array(lambda j: s[j, 2, "-"])
+    a = array(lambda j: s[j][2]["-"])
     numpy.testing.assert_allclose(a.numpy(), [-(i**3) for i in range(10)])
 
 

@@ -54,16 +54,23 @@ class Array:
         ), "Unexpected tagged layout in this context"
 
     @staticmethod
-    def _maybe_tag(layout, expr):
-        if (tag := getattr(layout, "tag", None)) is not None:
-            subs = list(layout.values())  # type: ignore
-            return tag(
-                *(
-                    Array(_project_tuple(expr, i, len(subs)), sub)
+    def _maybe_tag(expr, layout):
+        if (tag := getattr(layout, "tag", None)) is None:
+            return Array(expr, layout)
+        match layout:
+            case PositionalLayout(subs):
+                args = [
+                    Array._maybe_tag(_project_tuple(expr, i, len(subs)), sub)
                     for i, sub in enumerate(subs)
-                )
-            )
-        return Array(expr, layout)
+                ]
+                return tag(*args) if tag not in (tuple, list) else tag(args)
+            case LabelledLayout(subs):
+                kwargs = {
+                    name: Array._maybe_tag(_project_tuple(expr, i, len(subs)), sub)
+                    for i, (name, sub) in enumerate(subs)
+                }
+                return tag(**kwargs)
+        assert False, "Expected a tag for layout: {layout}"
 
     def numpy(
         self,
@@ -88,33 +95,14 @@ class Array:
         layout = self.layout
         for axis_item in item:
             match layout:
-                case PositionalLayout(subs):
-                    if not isinstance(axis_item, int):
-                        raise ValueError(
-                            f"Underlying value is a tuple so an integer index was expected, "
-                            f"got {type(axis_item).__name__}"
-                        )
-                    layout = subs[axis_item]
-                    expr = _project_tuple(expr, axis_item, len(subs))
-                case LabelledLayout(subs):
-                    if not isinstance(axis_item, str):
-                        raise ValueError(
-                            f"Underlying value is a record so a string key was expected, "
-                            f"got {type(axis_item).__name__}"
-                        )
-                    (pos,) = (
-                        i for i, (name, _) in enumerate(subs) if name == axis_item
-                    )
-                    _name, layout = subs[pos]
-                    expr = _project_tuple(expr, pos, len(subs))
                 case VecLayout(sub):
                     expr = calculus.Get(expr, Array(axis_item).expr)
                     layout = sub
                 case AtomLayout():
                     raise ValueError("Cannot index into a scalar array")
                 case _:
-                    assert False, f"Unexpected layout {layout}"
-        return self._maybe_tag(layout, expr)
+                    assert False, f"Unexpected layout in indexing: {layout}"
+        return self._maybe_tag(expr, layout)
 
     def __bool__(self):
         raise TypeError(
