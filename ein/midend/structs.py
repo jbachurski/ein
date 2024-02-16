@@ -45,4 +45,9 @@ def struct_of_arrays_transform(program: Expr):
                 return elim(p)
         return expr
 
-    return elim(go(program))
+    original_type = program.type
+    program = elim(go(program))
+    assert (
+        original_type == program.type
+    ), "Transformation changed resulting program type"
+    return program
