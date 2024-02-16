@@ -90,12 +90,12 @@ class Value:
 
 
 Expr: TypeAlias = Union[
-    "Const | Store | Let | AssertEq | Dim | Get | Vec | Fold | "
+    "Const | Store | Let | AssertEq | Dim | Get | Vec | Fold |"
     "Cons | First | Second |"
     "Negate | Reciprocal | Exp | Sin | Cos | LogicalNot | CastToFloat | "
     "Add | Subtract | Multiply | Modulo | Power | Min | Max | "
-    "Less | LessEqual | Equal | NotEqual | "
-    "LogicalAnd | LogicalOr | Where"
+    "Less | LessEqual | Equal | NotEqual | LogicalAnd | LogicalOr | Where |"
+    "Extrinsic"
 ]
 
 
@@ -598,6 +598,28 @@ class AbstractTernaryScalarOperator(AbstractScalarOperator):
 @dataclass(frozen=True, eq=False)
 class Where(AbstractTernaryScalarOperator):
     ufunc = staticmethod(numpy.where)  # type: ignore
+
+
+@dataclass(frozen=True, eq=False)
+class Extrinsic(AbstractExpr):
+    _type: Type
+    fun: Callable
+    operands: tuple[Expr, ...]
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"fun": self.fun.__name__}, {*self.operands}
+
+    @cached_property
+    def type(self) -> Type:
+        return self._type
+
+    @property
+    def subterms(self) -> tuple[Expr, ...]:
+        return self.operands
+
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return Extrinsic(self._type, self.fun, tuple(f(op) for op in self.operands))
 
 
 def variable(var: Variable, type_: Type) -> Store:

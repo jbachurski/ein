@@ -145,6 +145,10 @@ def pretty_print(program: calculus.Expr) -> str:
             case calculus.Second(target):
                 yield "snd"
                 yield from ("  " + line for line in go(target))
+            case calculus.Extrinsic(_type, fun, operands):
+                yield f"extrinsic<{fun.__name__}>"
+                for op in operands:
+                    yield from ("  " + line for line in go(op))
             case _:
                 assert_never(expr)
 

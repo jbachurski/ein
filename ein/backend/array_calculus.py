@@ -22,7 +22,7 @@ Expr: TypeAlias = (
     "Const | Var | Let | Dim | Range | "
     "Transpose | Squeeze | Unsqueeze | Gather | Take | Slice | Pad | Repeat | "
     "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold | "
-    "Tuple | Untuple | Einsum"
+    "Tuple | Untuple | Einsum | Extrinsic"
 )
 
 
@@ -665,6 +665,28 @@ class Einsum(AbstractExpr):
             for op, operand in zip(ops, self.operands)
         )
         return PrimitiveType.of_array(len(res), float)
+
+
+@dataclass(frozen=True, eq=False)
+class Extrinsic(AbstractExpr):
+    _type: PrimitiveType
+    fun: Callable
+    operands: tuple[Expr, ...]
+
+    @property
+    def subterms(self) -> tuple[Expr, ...]:
+        return self.operands
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Extrinsic":
+        return Extrinsic(self._type, self.fun, tuple(f(sub) for sub in self.operands))
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"fun": self.fun.__name__}, {*self.operands}
+
+    @cached_property
+    def type(self) -> PrimitiveType:
+        return self._type
 
 
 REDUCE_KINDS: dict[Any, Any] = {

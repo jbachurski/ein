@@ -8,10 +8,7 @@ from ein.symbols import Variable
 from . import naive, to_array, to_numpy, to_torch  # noqa
 
 Backend: TypeAlias = Literal["naive", "numpy"]
-BACKENDS: dict[
-    Backend,
-    Callable[[Expr, dict[Variable, numpy.ndarray]], numpy.ndarray],
-] = {
+BACKENDS: dict[str, Callable[[Expr, dict[Variable, numpy.ndarray]], numpy.ndarray]] = {
     "naive": naive.interpret,
     "numpy": to_numpy.interpret,
 }

@@ -235,6 +235,14 @@ def transform(
                 k = len(target_.type.first.primitive_type.elems)
                 n = len(target_.type.primitive_type.elems)
                 return go(target_, index_sizes, var_axes).slice_tuple(k, n)
+            case calculus.Extrinsic(_type, fun, operands_):
+                ops = [go(op, index_sizes, var_axes) for op in operands_]
+                used_axes = axial._alignment(*(op._axes for op in ops))
+                ops_expr = tuple(op.aligned(used_axes, leftpad=False) for op in ops)
+                prim_type = _type.primitive_type.with_rank_delta(len(used_axes))
+                return Axial(
+                    used_axes, array_calculus.Extrinsic(prim_type, fun, ops_expr)
+                )
             case _:
                 assert_never(expr)
         assert False  # noqa

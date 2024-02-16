@@ -197,6 +197,9 @@ def stage_in_array(
             case array_calculus.Einsum(subs, operands_):
                 operands = tuple(go(op) for op in operands_)
                 return lambda env: torch.einsum(subs, *[op(env) for op in operands])
+            case array_calculus.Extrinsic(_, fun, operands_):
+                operands = tuple(go(op) for op in operands_)
+                return lambda env: fun(*(op(env) for op in operands))
             case _:
                 assert_never(expr)
 

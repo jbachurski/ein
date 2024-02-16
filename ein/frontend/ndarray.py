@@ -1,4 +1,4 @@
-from typing import Optional, TypeAlias, Union, cast
+from typing import Callable, Optional, Sequence, TypeAlias, Union, cast
 
 import numpy
 import numpy.typing
@@ -16,6 +16,7 @@ from ein.frontend.layout import (
     unambiguous_layout,
 )
 from ein.symbols import Variable
+from ein.type_system import AbstractType, Type
 
 ArrayLike: TypeAlias = Union["int | float | bool | numpy.ndarray | Array"]
 
@@ -76,7 +77,7 @@ class Array:
         self,
         *,
         env: dict[Variable, numpy.ndarray] | None = None,
-        backend: Backend = DEFAULT_BACKEND,
+        backend: Backend | str = DEFAULT_BACKEND,
     ) -> numpy.ndarray:
         env = env if env is not None else {}
         if not self.expr.free_symbols <= set(env):
@@ -210,3 +211,34 @@ class Array:
     def tanh(self) -> "Array":
         a, b = self.exp(), (-self).exp()
         return (a - b) / (a + b)
+
+
+def ext(
+    fun: Callable, signature: "Type | tuple[Sequence[Type], Type]"
+) -> Callable[..., Array]:
+    input_signature: Sequence[Type] | None
+    if isinstance(signature, AbstractType):
+        input_signature = None
+        output_signature = signature
+    else:
+        input_signature, output_signature = signature
+        input_signature = tuple(input_signature)
+
+    def extrinsic(*args: ArrayLike) -> Array:
+        operands = tuple(Array(a).expr for a in args)
+        if input_signature is not None:
+            for i, (op, exp) in enumerate(zip(operands, input_signature, strict=True)):
+                assert unambiguous_layout(op.type)
+                if op.type != exp:
+                    raise TypeError(
+                        f"Expected {exp} in argument {i} of {extrinsic.__name__}, got {op.type}"
+                    )
+        return Array(calculus.Extrinsic(output_signature, fun, operands))
+
+    if hasattr(fun, "__name__"):
+        extrinsic.__name__ = f"{extrinsic}_{fun.__name__}"
+    return extrinsic
+
+
+def arr(array_like: ArrayLike) -> Array:
+    return Array(array_like)

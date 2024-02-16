@@ -61,6 +61,8 @@ def _interpret(expr: Expr, env: dict[Symbol, Value]) -> Value:
             return Value(
                 expr.ufunc(*(_interpret(operand, env).array for operand in operands))
             )
+        case calculus.Extrinsic(_, fun, operands):
+            return Value(fun(*(_interpret(operand, env).array for operand in operands)))
         case _:
             assert_never(expr)
 

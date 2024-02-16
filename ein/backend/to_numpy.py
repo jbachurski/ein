@@ -225,6 +225,9 @@ def stage_in_array(
                 return lambda env: numpy.einsum(
                     subs, *(op(env) for op in operands), optimize=path
                 )
+            case array_calculus.Extrinsic(_, fun, operands_):
+                operands = tuple(go(op) for op in operands_)
+                return lambda env: fun(*(op(env) for op in operands))
             case _:
                 assert_never(expr)
 
