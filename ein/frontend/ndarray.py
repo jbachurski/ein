@@ -31,23 +31,9 @@ class Array:
     expr: Expr
     layout: Layout
 
-    def __init__(self, array_like: ArrayLike | Expr, layout: Optional[Layout] = None):
-        if isinstance(array_like, AbstractExpr):
-            expr = cast(Expr, array_like)
-        elif isinstance(array_like, Array):
-            expr = array_like.expr
-            if layout is not None:
-                assert layout == array_like.layout
-            layout = array_like.layout
-        else:
-            array = numpy.array(array_like)
-            assert array.dtype in (
-                numpy.dtype(bool),
-                numpy.dtype(float),
-                numpy.dtype(int),
-            ), array.dtype
-            expr = calculus.Const(Value(array))
-        self.expr = expr
+    def __init__(self, expr: Expr, layout: Optional[Layout] = None):
+        assert isinstance(expr, AbstractExpr)
+        self.expr = cast(Expr, expr)
         self.layout = unambiguous_layout(self.expr.type) if layout is None else layout
         assert isinstance(self.layout, AbstractLayout)
         assert (
@@ -97,7 +83,7 @@ class Array:
         for axis_item in item:
             match layout:
                 case VecLayout(sub):
-                    expr = calculus.Get(expr, Array(axis_item).expr)
+                    expr = calculus.Get(expr, wrap(axis_item).expr)
                     layout = sub
                 case AtomLayout():
                     raise ValueError("Cannot index into a scalar array")
@@ -118,13 +104,13 @@ class Array:
         return Array(calculus.CastToFloat((self.expr,)))
 
     def __add__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Add((self.expr, Array(other).expr)))
+        return Array(calculus.Add((self.expr, wrap(other).expr)))
 
     def __sub__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Subtract((self.expr, Array(other).expr)))
+        return Array(calculus.Subtract((self.expr, wrap(other).expr)))
 
     def __mul__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Multiply((self.expr, Array(other).expr)))
+        return Array(calculus.Multiply((self.expr, wrap(other).expr)))
 
     __radd__ = __add__
     __rmul__ = __mul__
@@ -136,13 +122,13 @@ class Array:
         return other + (-self)
 
     def __truediv__(self, other: ArrayLike) -> "Array":
-        return self * Array(calculus.Reciprocal((Array(other).expr,)))
+        return self * Array(calculus.Reciprocal((wrap(other).expr,)))
 
     def __rtruediv__(self, other: ArrayLike) -> "Array":
-        return Array(other) / self
+        return wrap(other) / self
 
     def __mod__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Modulo((self.expr, Array(other).expr)))
+        return Array(calculus.Modulo((self.expr, wrap(other).expr)))
 
     def __pow__(self, power, modulo=None):
         if modulo is not None:
@@ -161,43 +147,43 @@ class Array:
 
             return go(power)
 
-        return Array(calculus.Power((self.expr, Array(power).expr)))
+        return Array(calculus.Power((self.expr, wrap(power).expr)))
 
     def __invert__(self) -> "Array":
         return Array(calculus.LogicalNot((self.expr,)))
 
     def __and__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.LogicalAnd((self.expr, Array(other).expr)))
+        return Array(calculus.LogicalAnd((self.expr, wrap(other).expr)))
 
     def __or__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.LogicalOr((self.expr, Array(other).expr)))
+        return Array(calculus.LogicalOr((self.expr, wrap(other).expr)))
 
     def __lt__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Less((self.expr, Array(other).expr)))
+        return Array(calculus.Less((self.expr, wrap(other).expr)))
 
     def __ne__(self, other: ArrayLike) -> "Array":  # type: ignore
-        return Array(calculus.NotEqual((self.expr, Array(other).expr)))
+        return Array(calculus.NotEqual((self.expr, wrap(other).expr)))
 
     def __eq__(self, other: ArrayLike) -> "Array":  # type: ignore
-        return Array(calculus.Equal((self.expr, Array(other).expr)))
+        return Array(calculus.Equal((self.expr, wrap(other).expr)))
 
     def __gt__(self, other: ArrayLike) -> "Array":
-        return Array(other).__lt__(self)
+        return wrap(other).__lt__(self)
 
     def __le__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.LessEqual((self.expr, Array(other).expr)))
+        return Array(calculus.LessEqual((self.expr, wrap(other).expr)))
 
     def __ge__(self, other: ArrayLike) -> "Array":
-        return Array(other).__le__(self)
+        return wrap(other).__le__(self)
 
     def where(self, true: ArrayLike, false: ArrayLike) -> "Array":
-        return Array(calculus.Where((self.expr, Array(true).expr, Array(false).expr)))
+        return Array(calculus.Where((self.expr, wrap(true).expr, wrap(false).expr)))
 
     def min(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Min((self.expr, Array(other).expr)))
+        return Array(calculus.Min((self.expr, wrap(other).expr)))
 
     def max(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Max((self.expr, Array(other).expr)))
+        return Array(calculus.Max((self.expr, wrap(other).expr)))
 
     def exp(self) -> "Array":
         return Array(calculus.Exp((self.expr,)))
@@ -225,7 +211,7 @@ def ext(
         input_signature = tuple(input_signature)
 
     def extrinsic(*args: ArrayLike) -> Array:
-        operands = tuple(Array(a).expr for a in args)
+        operands = tuple(wrap(a).expr for a in args)
         if input_signature is not None:
             for i, (op, exp) in enumerate(zip(operands, input_signature, strict=True)):
                 assert unambiguous_layout(op.type)
@@ -240,5 +226,17 @@ def ext(
     return extrinsic
 
 
-def arr(array_like: ArrayLike) -> Array:
-    return Array(array_like)
+def wrap(array_like: ArrayLike) -> Array:
+    if isinstance(array_like, Array):
+        expr = array_like.expr
+        layout = array_like.layout
+    else:
+        array = numpy.array(array_like)
+        assert array.dtype in (
+            numpy.dtype(bool),
+            numpy.dtype(float),
+            numpy.dtype(int),
+        ), array.dtype
+        expr = calculus.Const(Value(array))
+        layout = None
+    return Array(expr, layout)

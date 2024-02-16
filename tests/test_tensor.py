@@ -15,6 +15,7 @@ from ein import (
     matrix,
     scalar,
     vector,
+    wrap,
 )
 from ein.frontend import std
 from ein.frontend.std import reduce_max, reduce_min, reduce_sum, where
@@ -93,7 +94,7 @@ def test_uv_loss(backend, with_bounds_inference):
     x_values = numpy.random.randn(m, n)
     u_values = numpy.random.randn(m, k)
     v_values = numpy.random.randn(n, k)
-    x, u, v = Array(x_values), Array(u_values), Array(v_values)
+    x, u, v = wrap(x_values), wrap(u_values), wrap(v_values)
 
     inner_sum: Any = (
         reduce_sum if with_bounds_inference else functools.partial(reduce_sum, count=k)
@@ -147,7 +148,7 @@ def test_switches(interpret):
 @with_interpret
 def test_reuse(interpret):
     a0 = numpy.array([[1.0, 2.0], [3.0, 4.0]])
-    a = Array(a0)
+    a = wrap(a0)
     b = array(lambda i, j: a[i, j] ** 2)
     c = array(lambda i, j: 2.0 * b[i, j] + b[i, j] ** 0.33)
     numpy.testing.assert_allclose(
@@ -161,9 +162,9 @@ def test_fibonacci_fold(interpret):
         return fold(
             array(lambda i: 0, size=n),
             lambda i, acc: array(
-                lambda j: Array(i == j).where(
-                    Array(j == 0).where(
-                        0, Array(j == 1).where(1, acc[i - 1] + acc[i - 2])
+                lambda j: wrap(i == j).where(
+                    wrap(j == 0).where(
+                        0, wrap(j == 1).where(1, acc[i - 1] + acc[i - 2])
                     ),
                     acc[j],
                 )
@@ -180,8 +181,8 @@ def test_fibonacci_fold(interpret):
 
 @with_backend
 def test_inline_interpret(backend):
-    a = Array(numpy.random.randn(20, 30))
-    b = Array(numpy.random.randn(30))
+    a = wrap(numpy.random.randn(20, 30))
+    b = wrap(numpy.random.randn(30))
     numpy.testing.assert_allclose(
         array(lambda i: reduce_sum(lambda j: a[i, j] * b[j])).numpy(backend=backend),
         a.numpy(backend=backend) @ b.numpy(backend=backend),
@@ -286,7 +287,7 @@ def test_matrix_power_times_vector(interpret):
 
     def pow_mult(m: Array, n: Array, v: Array) -> Array:
         k = m.size(0)
-        id_k = array(lambda i, j: Array(i == j).where(1.0, 0.0), size=(k, k))
+        id_k = array(lambda i, j: wrap(i == j).where(1.0, 0.0), size=(k, k))
         mn, vn = fold(
             (id_k, v), lambda t, mv: (matmat(mv[0], m), matvec(m, mv[1])), count=n
         )
@@ -340,7 +341,7 @@ def test_diagonal(interpret):
 def test_clipped_shift(backend):
     n = 3
     a0 = list(range(n))
-    a = Array(numpy.array(a0))
+    a = wrap(numpy.array(a0))
 
     for shift in range(-n, n + 1):
         for low in range(n):
@@ -357,7 +358,7 @@ def test_clipped_shift(backend):
 def test_summation(backend):
     n = 4
     a0 = numpy.random.randn(n, n)
-    a = Array(a0)
+    a = wrap(a0)
 
     numpy.testing.assert_allclose(
         array(lambda i: reduce_sum(lambda j: a[i, j])).numpy(backend=backend),
@@ -377,7 +378,7 @@ def test_summation(backend):
 def test_big_permutation(backend):
     a0 = numpy.random.randn(1, 2, 3, 4, 5, 6)
     b0 = numpy.transpose(a0, (5, 1, 4, 2, 3, 0))
-    a, b = Array(a0), Array(b0)
+    a, b = wrap(a0), wrap(b0)
     # None of the following should fail.
     # - An AssertEq failing in naive indicates the expressions seem wrong
     # - A NumPy broadcast error indicates some axial permutation code is off.

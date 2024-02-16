@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy.testing
 import pytest
 
-from ein import Array, array, structs
+from ein import Array, array, structs, wrap
 from ein.frontend.std import reduce_sum, where
 
 
@@ -35,7 +35,7 @@ def test_complex_scalars(backend):
             )
 
     def linspace(a, b, n):
-        n = Array(n)
+        n = wrap(n)
         return array(lambda i: i.to_float() * (b - a) / (n - 1).to_float() + a, size=n)
 
     p = linspace(0.0, 3.14, 11)
@@ -55,8 +55,8 @@ class Matrix:
     elem: Array
 
     @classmethod
-    def of(cls, arr) -> "Matrix":
-        return Matrix(Array(arr))
+    def of(cls, a) -> "Matrix":
+        return Matrix(wrap(a))
 
     @classmethod
     def square(cls, n, constructor):

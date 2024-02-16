@@ -3,7 +3,7 @@ from math import hypot
 import numpy
 
 from ein import Array, array, fold, scalar, vector
-from ein.frontend.std import reduce_argmin
+from ein.frontend.std import reduce_argmin, where
 
 from ..case import Case
 
@@ -16,7 +16,7 @@ class NN(Case):
         k, x, y, xs, ys = args
 
         def update(vec, p, x):
-            return array(lambda i: Array(i != p).where(vec[i], x))
+            return array(lambda i: where(i != p, vec[i], x))
 
         def step_nn(i, acc):
             dist, res = acc

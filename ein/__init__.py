@@ -2,7 +2,7 @@ from .backend.naive import interpret as interpret_with_naive
 from .backend.to_numpy import interpret as interpret_with_numpy
 from .backend.to_torch import interpret as interpret_with_torch
 from .frontend.comprehension import array, fold, function, structs
-from .frontend.ndarray import Array, arr, ext
+from .frontend.ndarray import Array, ext, wrap
 from .type_system import Scalar, Type, Vector, matrix, ndarray, scalar, vector
 
 __all__ = [
@@ -10,7 +10,7 @@ __all__ = [
     "array",
     "fold",
     "ext",
-    "arr",
+    "wrap",
     "structs",
     "function",
     "Type",
