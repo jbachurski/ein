@@ -7,7 +7,6 @@ from typing import (
     Protocol,
     TypeAlias,
     TypeVar,
-    cast,
     overload,
 )
 
@@ -112,22 +111,12 @@ def _infer_sizes(body: Expr, symbols: tuple[Symbol, ...], sizes) -> dict[Symbol,
     return size_of
 
 
-class VariableArray(Array):
-    expr: calculus.Store
-
-    def __init__(self, type_: Type):
-        super().__init__(calculus.Store(Variable(), type_))
-
-    @property
-    def var(self) -> Variable:
-        return cast(Variable, self.expr.symbol)
-
-
 def function(
     types: Iterable[Type], fun: Callable[..., ArrayLike]
 ) -> tuple[tuple[Variable, ...], Expr]:
-    args = [VariableArray(typ) for typ in types]
-    return tuple(arg.var for arg in args), Array(fun(*args)).expr
+    arg_vars = [calculus.variable(Variable(), type_) for type_ in types]
+    args = [Array(var) for var in arg_vars]
+    return tuple(var.var for var in arg_vars), Array(fun(*args)).expr
 
 
 def structs(
