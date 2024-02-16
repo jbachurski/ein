@@ -5,6 +5,7 @@ from ein import (
     Scalar,
     interpret_with_naive,
     interpret_with_numpy,
+    interpret_with_torch,
     matrix,
     scalar,
     vector,
@@ -39,7 +40,9 @@ from ein.calculus import (
 )
 
 with_interpret = pytest.mark.parametrize(
-    "interpret", [interpret_with_naive, interpret_with_numpy], ids=["naive", "numpy"]
+    "interpret",
+    [interpret_with_naive, interpret_with_numpy, interpret_with_torch],
+    ids=["naive", "numpy", "torch"],
 )
 
 
