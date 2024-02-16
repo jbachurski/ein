@@ -53,8 +53,8 @@ def test_mul_grid(interpret):
 )
 def test_matmul(interpret, with_bounds_inference):
     def matmul(a: Array, b: Array):
-        n, k = a.dim(0), a.dim(1)
-        _k, m = b.dim(0), b.dim(1)
+        n, k = a.size(0), a.size(1)
+        _k, m = b.size(0), b.size(1)
         array_: Any = (
             array if with_bounds_inference else functools.partial(array, size=(n, m))
         )
@@ -282,7 +282,7 @@ def test_matrix_power_times_vector(interpret):
         return array(lambda i: reduce_sum(lambda k: a[i, k] * b[k]))
 
     def pow_mult(m: Array, n: Array, v: Array) -> Array:
-        k = m.dim(0)
+        k = m.size(0)
         id_k = array(lambda i, j: Array(i == j).where(1.0, 0.0), size=(k, k))
         mn, vn = fold(
             (id_k, v), lambda t, mv: (matmat(mv[0], m), matvec(m, mv[1])), count=n
@@ -310,7 +310,7 @@ def test_mean_smoothing(interpret):
         return r
 
     def smooth(a: Array) -> Array:
-        n = a.dim(0)
+        n = a.size(0)
         return array(
             lambda i: where(
                 (i > 0) & (i + 1 < n),

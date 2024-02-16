@@ -17,7 +17,7 @@ class KMeans(Case):
             return reduce_sum(lambda d: (p1[d] - p2[d]) ** 2)
 
         def fold_centres(_i: Array, centres: Array) -> Array:
-            ks, ds = centres.dim(0), centres.dim(1)
+            ks, ds = centres.size(0), centres.size(1)
             members = array(
                 lambda i: reduce_argmin(lambda j: dist(points[i], centres[j]))
             )

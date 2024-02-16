@@ -14,7 +14,7 @@ class Stencil(Case):
     @staticmethod
     def in_ein(*args: Array) -> Array:
         it, A0 = args
-        nx, ny, nz = A0.dim(0), A0.dim(1), A0.dim(2)
+        nx, ny, nz = A0.size(0), A0.size(1), A0.size(2)
         return fold(
             A0,
             lambda _, A: array(

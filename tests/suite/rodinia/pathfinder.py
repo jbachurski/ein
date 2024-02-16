@@ -12,7 +12,7 @@ class Pathfinder(Case):
     @staticmethod
     def in_ein(*args: Array) -> Array:
         (costs,) = args
-        n = costs.dim(1)
+        n = costs.size(1)
         return fold(
             array(lambda i: 0.0, size=n),
             lambda t, dist: array(

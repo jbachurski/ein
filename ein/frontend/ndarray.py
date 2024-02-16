@@ -111,7 +111,7 @@ class Array:
             "did you accidentally include it in an if or while statement?"
         )
 
-    def dim(self, axis: int) -> "Array":
+    def size(self, axis: int) -> "Array":
         return Array(calculus.Dim(self.expr, axis))
 
     def to_float(self) -> "Array":
