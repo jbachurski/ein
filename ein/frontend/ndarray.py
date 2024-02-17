@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Sequence, TypeAlias, Union, cast
+from typing import Any, Callable, Optional, Sequence, TypeAlias, Union, cast
 
 import numpy
 import numpy.typing
@@ -18,7 +18,8 @@ from ein.frontend.layout import (
 from ein.symbols import Variable
 from ein.type_system import AbstractType, Type
 
-ArrayLike: TypeAlias = Union["int | float | bool | numpy.ndarray | Array"]
+Array: TypeAlias = Any
+ArrayLike: TypeAlias = int | float | bool | numpy.ndarray | Union["Scalar", "Vec"]
 
 
 def _project_tuple(expr: calculus.Expr, i: int, n: int) -> calculus.Expr:
@@ -27,37 +28,32 @@ def _project_tuple(expr: calculus.Expr, i: int, n: int) -> calculus.Expr:
     return calculus.First(expr) if i + 1 < n else expr
 
 
-class Array:
+def _to_array(expr: Expr, layout: Layout | None = None):
+    if layout is None:
+        layout = unambiguous_layout(expr.type)
+    tag: Any = getattr(layout, "tag", None)
+    match layout:
+        case AtomLayout():
+            return Scalar(expr)
+        case VecLayout(_sub):
+            return Vec(expr, layout)
+        case PositionalLayout(subs):
+            args = [
+                _to_array(_project_tuple(expr, i, len(subs)), sub)
+                for i, sub in enumerate(subs)
+            ]
+            return tag(*args) if tag not in (tuple, list) else tag(args)
+        case LabelledLayout(subs):
+            kwargs = {
+                name: _to_array(_project_tuple(expr, i, len(subs)), sub)
+                for i, (name, sub) in enumerate(subs)
+            }
+            return tag(**kwargs)
+    assert False, "Expected a tag for layout: {layout}"
+
+
+class ArrayBase:
     expr: Expr
-    layout: Layout
-
-    def __init__(self, expr: Expr, layout: Optional[Layout] = None):
-        assert isinstance(expr, AbstractExpr)
-        self.expr = cast(Expr, expr)
-        self.layout = unambiguous_layout(self.expr.type) if layout is None else layout
-        assert isinstance(self.layout, AbstractLayout)
-        assert (
-            getattr(self.layout, "tag", None) is None
-        ), "Unexpected tagged layout in this context"
-
-    @staticmethod
-    def _maybe_tag(expr, layout):
-        if (tag := getattr(layout, "tag", None)) is None:
-            return Array(expr, layout)
-        match layout:
-            case PositionalLayout(subs):
-                args = [
-                    Array._maybe_tag(_project_tuple(expr, i, len(subs)), sub)
-                    for i, sub in enumerate(subs)
-                ]
-                return tag(*args) if tag not in (tuple, list) else tag(args)
-            case LabelledLayout(subs):
-                kwargs = {
-                    name: Array._maybe_tag(_project_tuple(expr, i, len(subs)), sub)
-                    for i, (name, sub) in enumerate(subs)
-                }
-                return tag(**kwargs)
-        assert False, "Expected a tag for layout: {layout}"
 
     def numpy(
         self,
@@ -71,6 +67,30 @@ class Array:
                 f"Cannot evaluate array, as it depends on free variables: {self.expr.free_symbols}"
             )
         return BACKENDS[backend](self.expr, env)
+
+    def __bool__(self):
+        raise TypeError(
+            "Ein arrays don't have a boolean value and cannot be used in conditions - "
+            "did you accidentally include it in an if or while statement?"
+        )
+
+
+class Vec(ArrayBase):
+    expr: Expr
+    _layout: Layout
+
+    def __init__(self, expr: Expr, layout: Optional[Layout] = None):
+        assert isinstance(expr, AbstractExpr)
+        self.expr = cast(Expr, expr)
+        self._layout = unambiguous_layout(self.expr.type) if layout is None else layout
+        assert isinstance(self._layout, AbstractLayout)
+        assert (
+            getattr(self._layout, "tag", None) is None
+        ), "Unexpected tagged layout in this context"
+
+    @property
+    def layout(self):
+        return self._layout
 
     def __getitem__(
         self, item_like: ArrayLike | str | tuple[ArrayLike | str, ...]
@@ -89,46 +109,52 @@ class Array:
                     raise ValueError("Cannot index into a scalar array")
                 case _:
                     assert False, f"Unexpected layout in indexing: {layout}"
-        return self._maybe_tag(expr, layout)
+        return _to_array(expr, layout)
 
-    def __bool__(self):
-        raise TypeError(
-            "Ein arrays don't have a boolean value and cannot be used in conditions - "
-            "did you accidentally include it in an if or while statement?"
-        )
+    def size(self, axis: int) -> "Scalar":
+        return Scalar(calculus.Dim(self.expr, axis))
 
-    def size(self, axis: int) -> "Array":
-        return Array(calculus.Dim(self.expr, axis))
 
-    def to_float(self) -> "Array":
-        return Array(calculus.CastToFloat((self.expr,)))
+class Scalar(ArrayBase):
+    expr: Expr
 
-    def __add__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Add((self.expr, wrap(other).expr)))
+    def __init__(self, expr: Expr):
+        assert isinstance(expr, AbstractExpr)
+        self.expr = cast(Expr, expr)
 
-    def __sub__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Subtract((self.expr, wrap(other).expr)))
+    @property
+    def layout(self) -> Layout:
+        return AtomLayout()
 
-    def __mul__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Multiply((self.expr, wrap(other).expr)))
+    def to_float(self) -> "Scalar":
+        return Scalar(calculus.CastToFloat((self.expr,)))
+
+    def __add__(self, other: ArrayLike) -> "Scalar":
+        return Scalar(calculus.Add((self.expr, wrap(other).expr)))
+
+    def __sub__(self, other: ArrayLike) -> "Scalar":
+        return Scalar(calculus.Subtract((self.expr, wrap(other).expr)))
+
+    def __mul__(self, other: ArrayLike) -> "Scalar":
+        return Scalar(calculus.Multiply((self.expr, wrap(other).expr)))
 
     __radd__ = __add__
     __rmul__ = __mul__
 
-    def __neg__(self) -> "Array":
-        return Array(calculus.Negate((self.expr,)))
+    def __neg__(self) -> "Scalar":
+        return Scalar(calculus.Negate((self.expr,)))
 
-    def __rsub__(self, other: ArrayLike) -> "Array":
-        return other + (-self)
+    def __rsub__(self, other: ArrayLike) -> "Scalar":
+        return (-self) + other
 
-    def __truediv__(self, other: ArrayLike) -> "Array":
-        return self * Array(calculus.Reciprocal((wrap(other).expr,)))
+    def __truediv__(self, other: ArrayLike) -> "Scalar":
+        return self * Scalar(calculus.Reciprocal((wrap(other).expr,)))
 
-    def __rtruediv__(self, other: ArrayLike) -> "Array":
-        return wrap(other) / self
+    def __rtruediv__(self, other: ArrayLike) -> "Scalar":
+        return cast(Scalar, wrap(other) / self)
 
-    def __mod__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Modulo((self.expr, wrap(other).expr)))
+    def __mod__(self, other: ArrayLike) -> "Scalar":
+        return Scalar(calculus.Modulo((self.expr, wrap(other).expr)))
 
     def __pow__(self, power, modulo=None):
         if modulo is not None:
@@ -137,7 +163,7 @@ class Array:
             if power < 0:
                 return (1.0 / self) ** (-power)
 
-            def go(k: int) -> Array:
+            def go(k: int) -> Scalar:
                 if k == 1:
                     return self
                 elif k % 2:
@@ -147,54 +173,54 @@ class Array:
 
             return go(power)
 
-        return Array(calculus.Power((self.expr, wrap(power).expr)))
+        return Scalar(calculus.Power((self.expr, wrap(power).expr)))
 
-    def __invert__(self) -> "Array":
-        return Array(calculus.LogicalNot((self.expr,)))
+    def __invert__(self) -> "Scalar":
+        return Scalar(calculus.LogicalNot((self.expr,)))
 
-    def __and__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.LogicalAnd((self.expr, wrap(other).expr)))
+    def __and__(self, other: ArrayLike) -> "Scalar":
+        return Scalar(calculus.LogicalAnd((self.expr, wrap(other).expr)))
 
-    def __or__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.LogicalOr((self.expr, wrap(other).expr)))
+    def __or__(self, other: ArrayLike) -> "Scalar":
+        return Scalar(calculus.LogicalOr((self.expr, wrap(other).expr)))
 
-    def __lt__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Less((self.expr, wrap(other).expr)))
+    def __lt__(self, other: ArrayLike) -> "Scalar":
+        return Scalar(calculus.Less((self.expr, wrap(other).expr)))
 
-    def __ne__(self, other: ArrayLike) -> "Array":  # type: ignore
-        return Array(calculus.NotEqual((self.expr, wrap(other).expr)))
+    def __ne__(self, other: ArrayLike) -> "Scalar":  # type: ignore
+        return Scalar(calculus.NotEqual((self.expr, wrap(other).expr)))
 
-    def __eq__(self, other: ArrayLike) -> "Array":  # type: ignore
-        return Array(calculus.Equal((self.expr, wrap(other).expr)))
+    def __eq__(self, other: ArrayLike) -> "Scalar":  # type: ignore
+        return Scalar(calculus.Equal((self.expr, wrap(other).expr)))
 
-    def __gt__(self, other: ArrayLike) -> "Array":
-        return wrap(other).__lt__(self)
+    def __gt__(self, other: ArrayLike) -> "Scalar":
+        return cast(Scalar, wrap(other).__lt__(self))
 
-    def __le__(self, other: ArrayLike) -> "Array":
-        return Array(calculus.LessEqual((self.expr, wrap(other).expr)))
+    def __le__(self, other: ArrayLike) -> "Scalar":
+        return Scalar(calculus.LessEqual((self.expr, wrap(other).expr)))
 
-    def __ge__(self, other: ArrayLike) -> "Array":
-        return wrap(other).__le__(self)
+    def __ge__(self, other: ArrayLike) -> "Scalar":
+        return cast(Scalar, wrap(other).__le__(self))
 
-    def where(self, true: ArrayLike, false: ArrayLike) -> "Array":
-        return Array(calculus.Where((self.expr, wrap(true).expr, wrap(false).expr)))
+    def where(self, true: ArrayLike, false: ArrayLike) -> "Scalar":
+        return Scalar(calculus.Where((self.expr, wrap(true).expr, wrap(false).expr)))
 
-    def min(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Min((self.expr, wrap(other).expr)))
+    def min(self, other: ArrayLike) -> "Scalar":
+        return Scalar(calculus.Min((self.expr, wrap(other).expr)))
 
-    def max(self, other: ArrayLike) -> "Array":
-        return Array(calculus.Max((self.expr, wrap(other).expr)))
+    def max(self, other: ArrayLike) -> "Scalar":
+        return Scalar(calculus.Max((self.expr, wrap(other).expr)))
 
-    def exp(self) -> "Array":
-        return Array(calculus.Exp((self.expr,)))
+    def exp(self) -> "Scalar":
+        return Scalar(calculus.Exp((self.expr,)))
 
-    def sin(self) -> "Array":
-        return Array(calculus.Sin((self.expr,)))
+    def sin(self) -> "Scalar":
+        return Scalar(calculus.Sin((self.expr,)))
 
-    def cos(self) -> "Array":
-        return Array(calculus.Cos((self.expr,)))
+    def cos(self) -> "Scalar":
+        return Scalar(calculus.Cos((self.expr,)))
 
-    def tanh(self) -> "Array":
+    def tanh(self) -> "Scalar":
         a, b = self.exp(), (-self).exp()
         return (a - b) / (a + b)
 
@@ -219,7 +245,7 @@ def ext(
                     raise TypeError(
                         f"Expected {exp} in argument {i} of {extrinsic.__name__}, got {op.type}"
                     )
-        return Array(calculus.Extrinsic(output_signature, fun, operands))
+        return _to_array(calculus.Extrinsic(output_signature, fun, operands))
 
     if hasattr(fun, "__name__"):
         extrinsic.__name__ = f"{extrinsic}_{fun.__name__}"
@@ -227,16 +253,13 @@ def ext(
 
 
 def wrap(array_like: ArrayLike) -> Array:
-    if isinstance(array_like, Array):
-        expr = array_like.expr
-        layout = array_like.layout
-    else:
-        array = numpy.array(array_like)
-        assert array.dtype in (
-            numpy.dtype(bool),
-            numpy.dtype(float),
-            numpy.dtype(int),
-        ), array.dtype
-        expr = calculus.Const(Value(array))
-        layout = None
-    return Array(expr, layout)
+    if isinstance(array_like, (Scalar, Vec)):
+        return cast(Array, array_like)
+    array = numpy.array(array_like)
+    assert array.dtype in (
+        numpy.dtype(bool),
+        numpy.dtype(float),
+        numpy.dtype(int),
+    ), array.dtype
+    expr = calculus.Const(Value(array))
+    return _to_array(expr)

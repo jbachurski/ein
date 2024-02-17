@@ -1,13 +1,13 @@
 import numpy
 
-from ein import Array, array, fold, matrix, scalar
+from ein import Array, array, fold, matrix_type, scalar_type
 from ein.frontend.std import reduce_argmin, reduce_sum, where
 
 from ..case import Case
 
 
 class KMeans(Case):
-    ein_types = [matrix(float), scalar(int), scalar(int)]
+    ein_types = [matrix_type(float), scalar_type(int), scalar_type(int)]
 
     @staticmethod
     def in_ein(*args: Array) -> Array:

@@ -12,9 +12,9 @@ from ein import (
     interpret_with_naive,
     interpret_with_numpy,
     interpret_with_torch,
-    matrix,
-    scalar,
-    vector,
+    matrix_type,
+    scalar_type,
+    vector_type,
     wrap,
 )
 from ein.frontend import std
@@ -30,13 +30,13 @@ with_interpret = pytest.mark.parametrize(
 
 def test_type_checks():
     with pytest.raises(TypeError):
-        _ = function([scalar(int)], lambda n: 1 + array(lambda i: 0, size=n))
+        _ = function([scalar_type(int)], lambda n: 1 + array(lambda i: 0, size=n))
 
 
 @with_interpret
 def test_mul_grid(interpret):
     (n0,), grid_expr = function(
-        [scalar(int)],
+        [scalar_type(int)],
         lambda n: array(
             lambda i, j: (i.to_float() + 1.0) / (j.to_float() + 1.0), size=(n, n)
         ),
@@ -69,7 +69,7 @@ def test_matmul(interpret, with_bounds_inference):
         )
         return array_(lambda i, j: sum_(lambda t: a[i, t] * b[t, j]))
 
-    (a0, b0), matmul_expr = function([matrix(float), matrix(float)], matmul)
+    (a0, b0), matmul_expr = function([matrix_type(float), matrix_type(float)], matmul)
 
     first = numpy.array([[1, 2, 3], [4, 5, 6]], dtype=float)
     second = numpy.array([[1], [0], [-1]], dtype=float)
@@ -120,7 +120,7 @@ def test_uv_loss(backend, with_bounds_inference):
 @with_interpret
 def test_max_minus_min(interpret):
     (a, b), expr = function(
-        [vector(float), vector(float)],
+        [vector_type(float), vector_type(float)],
         lambda a, b: reduce_max(lambda i: a[i] * b[i])
         - reduce_min(lambda i: a[i] * b[i]),
     )
@@ -137,7 +137,7 @@ def test_switches(interpret):
         m = array(lambda i: (a[i] > b[i]).where(a[i], b[i]))
         return array(lambda i: (m[i] > 0.0).where(1, (a[i] == b[i]).where(0, -1)))
 
-    (a0, b0), sgn_max_expr = function([vector(float), vector(float)], sgn_max)
+    (a0, b0), sgn_max_expr = function([vector_type(float), vector_type(float)], sgn_max)
     a_values, b_values = numpy.random.randn(16), numpy.random.randn(16)
     numpy.testing.assert_allclose(
         interpret(sgn_max_expr, {a0: a_values, b0: b_values}),
@@ -172,7 +172,7 @@ def test_fibonacci_fold(interpret):
             count=n,
         )
 
-    (n0,), fib_expr = function([scalar(int)], fib)
+    (n0,), fib_expr = function([scalar_type(int)], fib)
     numpy.testing.assert_allclose(
         interpret(fib_expr, {n0: numpy.array(8)}),
         [0, 1, 1, 2, 3, 5, 8, 13],
@@ -207,7 +207,7 @@ def test_trial_division_primes(interpret):
             size=n,
         )
 
-    (n0,), expr = function([scalar(int)], trial_division)
+    (n0,), expr = function([scalar_type(int)], trial_division)
     N = 30
     numpy.testing.assert_allclose(
         interpret(expr, {n0: numpy.array(N)}),
@@ -226,7 +226,7 @@ def test_sieve_primes(interpret):
             count=n,
         )
 
-    (n0,), expr = function([scalar(int)], sieve)
+    (n0,), expr = function([scalar_type(int)], sieve)
     N = 30
     numpy.testing.assert_allclose(
         interpret(expr, {n0: numpy.array(N)}),
@@ -237,7 +237,8 @@ def test_sieve_primes(interpret):
 @with_interpret
 def test_double_transpose(interpret):
     (a0,), expr = function(
-        [matrix(float)], lambda a: array(lambda i, j: array(lambda k, l: a[l, k])[j, i])
+        [matrix_type(float)],
+        lambda a: array(lambda i, j: array(lambda k, l: a[l, k])[j, i]),
     )
     arr = numpy.random.randn(3, 3)
     numpy.testing.assert_allclose(interpret(expr, {a0: arr}), arr)
@@ -251,7 +252,7 @@ def test_symmetric_sum(interpret):
     def f(x: Array) -> Array:
         return array(lambda i, j: x[i, j] + x[j, i])
 
-    (a0,), expr = function([matrix(float)], lambda a: f(f(f(a))))
+    (a0,), expr = function([matrix_type(float)], lambda a: f(f(f(a))))
     arr = numpy.random.randn(2, 2)
     numpy.testing.assert_allclose(interpret(expr, {a0: arr}), f1(f1(f1(arr))))
 
@@ -259,7 +260,7 @@ def test_symmetric_sum(interpret):
 @with_interpret
 def test_argmin(interpret):
     def argmin_trig(n: Array, a: Array) -> Array:
-        def step(i: Array, j: Array, acc: tuple[Array, ...]) -> tuple[Array, Array]:
+        def step(i: Array, j: Array, acc: tuple[Array, Array]) -> tuple[Array, Array]:
             v = (a[i] + j.to_float()).sin()
             return (v > acc[0]).where(v, acc[0]), (v > acc[0]).where(i, acc[1])
 
@@ -268,7 +269,7 @@ def test_argmin(interpret):
             size=n,
         )
 
-    (n0, a0), expr = function([scalar(int), vector(float)], argmin_trig)
+    (n0, a0), expr = function([scalar_type(int), vector_type(float)], argmin_trig)
     sample_n = 5
     sample_a = numpy.random.randn(sample_n)
     numpy.testing.assert_allclose(
@@ -293,7 +294,9 @@ def test_matrix_power_times_vector(interpret):
         )
         return matvec(mn, vn)
 
-    (m0, n0, v0), expr = function([matrix(float), scalar(int), vector(float)], pow_mult)
+    (m0, n0, v0), expr = function(
+        [matrix_type(float), scalar_type(int), vector_type(float)], pow_mult
+    )
     sample_n, sample_k = 2, 3
     sample_m = numpy.random.randn(sample_k, sample_k)
     sample_v = numpy.random.randn(sample_k)
@@ -323,7 +326,7 @@ def test_mean_smoothing(interpret):
             )
         )
 
-    (a0,), expr = function([vector(float)], smooth)
+    (a0,), expr = function([vector_type(float)], smooth)
     sample_a = numpy.random.randn(10)
 
     numpy.testing.assert_allclose(interpret(expr, {a0: sample_a}), smooth1(sample_a))
@@ -331,7 +334,7 @@ def test_mean_smoothing(interpret):
 
 @with_interpret
 def test_diagonal(interpret):
-    (a0,), expr = function([matrix(float)], lambda a: array(lambda i: a[i, i]))
+    (a0,), expr = function([matrix_type(float)], lambda a: array(lambda i: a[i, i]))
     sample_a = numpy.random.randn(10, 10)
 
     numpy.testing.assert_allclose(interpret(expr, {a0: sample_a}), numpy.diag(sample_a))

@@ -3,8 +3,9 @@ from typing import Callable, ClassVar, Sequence
 
 import numpy
 
-from ein import Array, Type, calculus, function
+from ein import Array, calculus, function
 from ein.calculus import Expr, Variable
+from ein.type_system import Type
 
 
 class Case(abc.ABC):

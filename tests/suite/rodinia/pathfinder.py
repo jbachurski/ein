@@ -1,13 +1,13 @@
 import numpy
 
-from ein import Array, array, fold, matrix
+from ein import Array, array, fold, matrix_type
 from ein.frontend import std
 
 from ..case import Case
 
 
 class Pathfinder(Case):
-    ein_types = [matrix(float)]
+    ein_types = [matrix_type(float)]
 
     @staticmethod
     def in_ein(*args: Array) -> Array:

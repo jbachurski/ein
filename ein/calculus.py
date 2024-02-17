@@ -14,9 +14,9 @@ from ein.type_system import (
     Scalar,
     Type,
     Vector,
-    ndarray,
+    ndarray_type,
     resolve_scalar_signature,
-    scalar,
+    scalar_type,
     to_float,
 )
 
@@ -82,7 +82,9 @@ class Value:
     @property
     def type(self) -> Type:
         if isinstance(self.value, numpy.ndarray):
-            return ndarray(self.array.ndim, Scalar.from_dtype(self.array.dtype).kind)
+            return ndarray_type(
+                self.array.ndim, Scalar.from_dtype(self.array.dtype).kind
+            )
         elif isinstance(self.value, tuple):
             first, second = self.value
             return Pair(first.type, second.type)
@@ -276,7 +278,7 @@ class Dim(AbstractExpr):
 
     @cached_property
     def type(self) -> Type:
-        return scalar(int)
+        return scalar_type(int)
 
     @cached_property
     def subterms(self) -> tuple[Expr, ...]:
@@ -627,4 +629,4 @@ def variable(var: Variable, type_: Type) -> Store:
 
 
 def at(index: Index) -> Store:
-    return Store(index, scalar(int))
+    return Store(index, scalar_type(int))

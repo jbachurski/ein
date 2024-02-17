@@ -15,12 +15,12 @@ from ein.calculus import Expr
 from ein.frontend.layout import Layout, VecLayout, build_layout, fold_layout
 from ein.midend.size_classes import _dim_of, _with_indices_at_zero
 from ein.symbols import Index, Symbol, Variable
-from ein.type_system import Type, scalar
+from ein.type_system import Type, scalar_type
 
-from .ndarray import Array, ArrayLike, wrap
+from .ndarray import Array, ArrayLike, Scalar, _to_array, wrap
 
 T = TypeVar("T")
-Idx = NewType("Idx", Array)
+Idx = NewType("Idx", Scalar)
 Size: TypeAlias = Array | int
 
 
@@ -115,7 +115,7 @@ def function(
     types: Iterable[Type], fun: Callable[..., ArrayLike]
 ) -> tuple[tuple[Variable, ...], Expr]:
     arg_vars = [calculus.variable(Variable(), type_) for type_ in types]
-    args = [Array(var) for var in arg_vars]
+    args = [_to_array(var) for var in arg_vars]
     return tuple(var.var for var in arg_vars), wrap(fun(*args)).expr
 
 
@@ -126,7 +126,7 @@ def structs(
         size = (size,)
     n = len(inspect.signature(constructor).parameters) if size is None else len(size)
     indices = [Index() for _ in range(n)]
-    wrapped_indices = [Idx(Array(calculus.at(index))) for index in indices]
+    wrapped_indices = [Idx(_to_array(calculus.at(index))) for index in indices]
     cons = constructor(*wrapped_indices)
     layout = build_layout(cons, lambda a: wrap(a).layout)
     body: Expr = _layout_struct_to_expr(layout, cons)
@@ -134,7 +134,7 @@ def structs(
     for index in reversed(indices):
         body = calculus.Vec(index, size_of[index], body)
         layout = VecLayout(layout)
-    return Array(body, layout)
+    return _to_array(body, layout)
 
 
 def array(
@@ -170,10 +170,10 @@ def fold(init: StructLike, step: _WithIndex[Any], count: Size | None = None) -> 
 def fold(init, step, count=None):
     layout = build_layout(init, lambda a: wrap(a).layout)
     init_expr: Expr = _layout_struct_to_expr(layout, init)
-    counter = calculus.variable(Variable(), scalar(int))
-    arg_index = Array(counter)
+    counter = calculus.variable(Variable(), scalar_type(int))
+    arg_index = _to_array(counter)
     acc_var = Variable()
-    arg_acc = Array._maybe_tag(calculus.variable(acc_var, init_expr.type), layout)
+    arg_acc = _to_array(calculus.variable(acc_var, init_expr.type), layout)
     body = step(arg_index, arg_acc)
     layout_ = build_layout(init, lambda a: wrap(a).layout)
     if layout != layout_:
@@ -188,4 +188,4 @@ def fold(init, step, count=None):
     body = calculus.Fold(
         counter.var, size_of[counter.var], acc_var, init_expr, body_expr
     )
-    return Array._maybe_tag(body, layout)
+    return _to_array(body, layout)

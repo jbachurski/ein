@@ -1,14 +1,14 @@
 import numpy
 import scipy
 
-from ein import Array, array, ndarray
+from ein import Array, array, ndarray_type
 from ein.frontend.std import reduce_max, reduce_sum, where
 
 from ..case import Case
 
 
 class GAT(Case):
-    ein_types = list(map(lambda k: ndarray(k, float), (3, 4, 3, 3, 4, 2)))
+    ein_types = list(map(lambda k: ndarray_type(k, float), (3, 4, 3, 3, 4, 2)))
 
     @staticmethod
     def in_ein(*args: Array) -> Array:

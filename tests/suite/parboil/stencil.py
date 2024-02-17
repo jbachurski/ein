@@ -1,6 +1,6 @@
 import numpy
 
-from ein import Array, array, fold, ndarray, scalar
+from ein import Array, array, fold, ndarray_type, scalar_type
 from ein.frontend.std import where
 
 from ..case import Case
@@ -9,7 +9,7 @@ C0, C1 = 1 / 6, 1 / 6 / 6
 
 
 class Stencil(Case):
-    ein_types = [scalar(int), ndarray(3, float)]
+    ein_types = [scalar_type(int), ndarray_type(3, float)]
 
     @staticmethod
     def in_ein(*args: Array) -> Array:

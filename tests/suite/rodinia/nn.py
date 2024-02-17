@@ -2,14 +2,14 @@ from math import hypot
 
 import numpy
 
-from ein import Array, array, fold, scalar, vector
+from ein import Array, array, fold, scalar_type, vector_type
 from ein.frontend.std import reduce_argmin, where
 
 from ..case import Case
 
 
 class NN(Case):
-    ein_types = [scalar(int)] + [scalar(float)] * 2 + [vector(float)] * 2
+    ein_types = [scalar_type(int)] + [scalar_type(float)] * 2 + [vector_type(float)] * 2
 
     @staticmethod
     def in_ein(*args: Array) -> Array:

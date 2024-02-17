@@ -1,17 +1,22 @@
 import numpy
 import scipy
 
-from ein import Array, Vector, array, matrix, vector
+from ein import Array, array, matrix_type, vector_type
 from ein.frontend.std import reduce_sum
+from ein.type_system import Vector as VectorType
 
 from ..case import Case
 
 
 class Attention(Case):
     ein_types = (
-        [matrix(float)] * 4
-        + [vector(float)] * 3
-        + [Vector(matrix(float)), Vector(vector(float)), Vector(vector(float))]
+        [matrix_type(float)] * 4
+        + [vector_type(float)] * 3
+        + [
+            VectorType(matrix_type(float)),
+            VectorType(vector_type(float)),
+            VectorType(vector_type(float)),
+        ]
     )
 
     @staticmethod

@@ -15,7 +15,7 @@ from ein.type_system import (
     PrimitiveType,
     ScalarKind,
     resolve_scalar_signature,
-    scalar,
+    scalar_type,
 )
 
 Expr: TypeAlias = (
@@ -482,7 +482,7 @@ class AbstractElementwise(AbstractExpr):
         signature, constraints = UFUNC_SIGNATURES[ELEMENTWISE_KINDS[self.kind]]  # type: ignore
         rank = max(op.type.single.rank for op in self.operands)
         kind = resolve_scalar_signature(
-            (scalar(op.type.single.kind) for op in self.operands),
+            (scalar_type(op.type.single.kind) for op in self.operands),
             signature,
             constraints,
         ).kind

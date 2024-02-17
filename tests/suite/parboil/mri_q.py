@@ -3,14 +3,14 @@ from math import sin, tau
 import numpy
 from numpy import newaxis
 
-from ein import Array, array, vector
+from ein import Array, array, vector_type
 from ein.frontend.std import reduce_sum
 
 from ..case import Case
 
 
 class MriQ(Case):
-    ein_types = [vector(float)] * 8
+    ein_types = [vector_type(float)] * 8
 
     @staticmethod
     def in_ein(*args: Array) -> Array:

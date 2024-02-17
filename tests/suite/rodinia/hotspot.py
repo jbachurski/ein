@@ -2,7 +2,7 @@ from typing import Any
 
 import numpy
 
-from ein import Array, array, fold, matrix, scalar
+from ein import Array, array, fold, matrix_type, scalar_type
 from ein.frontend.std import max_monoid, min_monoid
 
 from ..case import Case
@@ -34,7 +34,7 @@ def params(r, c):
 
 
 class Hotspot(Case):
-    ein_types = [scalar(int), matrix(float), matrix(float)]
+    ein_types = [scalar_type(int), matrix_type(float), matrix_type(float)]
 
     @staticmethod
     def in_ein(*args: Array) -> Array:
