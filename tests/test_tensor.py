@@ -32,7 +32,7 @@ with_interpret = pytest.mark.parametrize(
 
 def test_type_checks():
     with pytest.raises(TypeError):
-        _ = function([scalar_type(int)], lambda n: 1 + array(lambda i: 0, size=n))
+        _ = function([scalar_type(int)], lambda n: 1 + array(lambda i: 0, size=n))  # type: ignore
 
 
 @with_interpret
@@ -162,7 +162,7 @@ def test_reuse(interpret):
 def test_fibonacci_fold(interpret):
     def fib(n: Array) -> Array:
         return fold(
-            array(lambda i: 0, size=n),
+            array(lambda i: wrap(0), size=n),
             lambda i, acc: array(
                 lambda j: where(
                     i == j,

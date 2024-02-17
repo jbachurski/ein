@@ -133,11 +133,15 @@ def array(
 
 
 @overload
-def array(constructor: _FromIndices, *, size: tuple[Size, ...] | None = None) -> Array:
+def array(
+    constructor: Callable[[Idx, Idx, Idx, Idx], T],
+    *,
+    size: tuple[Size, Size, Size] | None = None,
+) -> Vec[Vec[Vec[Vec[T]]]]:
     ...
 
 
-def array(constructor, *, size=None) -> Array:
+def array(constructor, *, size=None):
     if size is not None and not isinstance(size, tuple):
         size = (size,)
     n = len(inspect.signature(constructor).parameters) if size is None else len(size)
