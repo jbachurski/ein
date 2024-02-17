@@ -21,7 +21,7 @@ from .ndarray import Array, ArrayLike, Scalar, Vec, _to_array, wrap
 
 T = TypeVar("T")
 Idx = NewType("Idx", Scalar)
-Size: TypeAlias = Array | int
+Size: TypeAlias = int | Scalar
 
 
 class _Dataclass(Protocol):
@@ -41,17 +41,9 @@ _FromIndices: TypeAlias = (
     | Callable[[Idx, Idx], ArrayLike]
     | Callable[[Idx, Idx, Idx], ArrayLike]
     | Callable[[Idx, Idx, Idx, Idx], ArrayLike]
+    | Callable[[Idx, Idx, Idx, Idx, Idx], ArrayLike]
+    | Callable[[Idx, Idx, Idx, Idx, Idx, Idx], ArrayLike]
 )
-_StructFromIndices: TypeAlias = (
-    Callable[[Idx], StructLike]
-    | Callable[[Idx, Idx], StructLike]
-    | Callable[[Idx, Idx, Idx], StructLike]
-    | Callable[[Idx, Idx, Idx, Idx], StructLike]
-)
-Arrays2 = tuple[Array, Array]
-Arrays3 = tuple[Array, Array, Array]
-ArrayLikes2 = tuple[ArrayLike, ArrayLike]
-ArrayLikes3 = tuple[ArrayLike, ArrayLike, ArrayLike]
 _WithIndex: TypeAlias = Callable[[Idx, T], T]
 
 
@@ -161,31 +153,7 @@ def array(constructor, *, size=None) -> Array:
     return _to_array(body, layout)
 
 
-@overload
-def fold(init: ArrayLike, step: _WithIndex[Array], count: Size | None = None) -> Array:
-    ...
-
-
-@overload
-def fold(
-    init: ArrayLikes2, step: _WithIndex[Arrays2], count: Size | None = None
-) -> Arrays2:
-    ...
-
-
-@overload
-def fold(
-    init: ArrayLikes3, step: _WithIndex[Arrays3], count: Size | None = None
-) -> Arrays3:
-    ...
-
-
-@overload
-def fold(init: StructLike, step: _WithIndex[Any], count: Size | None = None) -> Any:
-    ...
-
-
-def fold(init, step, count=None):
+def fold(init: T, step: _WithIndex[T], count: Size | None = None) -> T:
     layout = build_layout(init, lambda a: wrap(a).layout)
     init_expr: Expr = _layout_struct_to_expr(layout, init)
     counter = calculus.variable(Variable(), scalar_type(int))
@@ -203,7 +171,7 @@ def fold(init, step, count=None):
     size_of = _infer_sizes(
         body_expr, (counter.var,), (count,) if count is not None else None
     )
-    body = calculus.Fold(
+    expr = calculus.Fold(
         counter.var, size_of[counter.var], acc_var, init_expr, body_expr
     )
-    return _to_array(body, layout)
+    return _to_array(expr, layout)
