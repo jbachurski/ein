@@ -49,7 +49,7 @@ def reduce_max(f: _FromIndex, count: Size | None = None) -> Array:
 def reduce_argmin(f: _FromIndex, count: Size | None = None) -> Array:
     def concat(a: tuple[Array, Array], b: tuple[Array, Array]) -> tuple[Array, Array]:
         lt = a[0] <= b[0]
-        return lt.where(a[0], b[0]), lt.where(a[1], b[1])
+        return where(lt, a[0], b[0]), where(lt, a[1], b[1])
 
     return Monoid((wrap(float("+inf")), wrap(0)), concat).reduce(
         lambda i: (f(i), i), count

@@ -134,8 +134,8 @@ def test_max_minus_min(interpret):
 @with_interpret
 def test_switches(interpret):
     def sgn_max(a: Array, b: Array) -> Array:
-        m = array(lambda i: (a[i] > b[i]).where(a[i], b[i]))
-        return array(lambda i: (m[i] > 0.0).where(1, (a[i] == b[i]).where(0, -1)))
+        m = array(lambda i: where(a[i] > b[i], a[i], b[i]))
+        return array(lambda i: where(m[i] > 0.0, 1, where(a[i] == b[i], 0, -1)))
 
     (a0, b0), sgn_max_expr = function([vector_type(float), vector_type(float)], sgn_max)
     a_values, b_values = numpy.random.randn(16), numpy.random.randn(16)
@@ -162,10 +162,9 @@ def test_fibonacci_fold(interpret):
         return fold(
             array(lambda i: 0, size=n),
             lambda i, acc: array(
-                lambda j: wrap(i == j).where(
-                    wrap(j == 0).where(
-                        0, wrap(j == 1).where(1, acc[i - 1] + acc[i - 2])
-                    ),
+                lambda j: where(
+                    i == j,
+                    where(j == 0, 0, where(j == 1, 1, acc[i - 1] + acc[i - 2])),
                     acc[j],
                 )
             ),
@@ -262,7 +261,7 @@ def test_argmin(interpret):
     def argmin_trig(n: Array, a: Array) -> Array:
         def step(i: Array, j: Array, acc: tuple[Array, Array]) -> tuple[Array, Array]:
             v = (a[i] + j.to_float()).sin()
-            return (v > acc[0]).where(v, acc[0]), (v > acc[0]).where(i, acc[1])
+            return where(v > acc[0], v, acc[0]), where(v > acc[0], i, acc[1])
 
         return array(
             lambda j: fold((-float("inf"), 0), lambda i, acc: step(i, j, acc))[1],
@@ -288,7 +287,7 @@ def test_matrix_power_times_vector(interpret):
 
     def pow_mult(m: Array, n: Array, v: Array) -> Array:
         k = m.size(0)
-        id_k = array(lambda i, j: wrap(i == j).where(1.0, 0.0), size=(k, k))
+        id_k = array(lambda i, j: where(i == j, 1.0, 0.0), size=(k, k))
         mn, vn = fold(
             (id_k, v), lambda t, mv: (matmat(mv[0], m), matvec(m, mv[1])), count=n
         )
