@@ -485,6 +485,7 @@ class AbstractScalarOperator(AbstractExpr, abc.ABC):
 @dataclass(frozen=True, eq=False)
 class AbstractUnaryScalarOperator(AbstractScalarOperator, abc.ABC):
     operands: tuple[Expr]
+    ufunc: ClassVar[Callable]
 
 
 @dataclass(frozen=True, eq=False)

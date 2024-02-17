@@ -17,7 +17,7 @@ from ein.midend.size_classes import _dim_of, _with_indices_at_zero
 from ein.symbols import Index, Symbol, Variable
 from ein.type_system import Type, scalar_type
 
-from .ndarray import Array, ArrayLike, Scalar, _to_array, wrap
+from .ndarray import Array, ArrayLike, Scalar, Vec, _to_array, wrap
 
 T = TypeVar("T")
 Idx = NewType("Idx", Scalar)
@@ -137,9 +137,33 @@ def structs(
     return _to_array(body, layout)
 
 
+@overload
+def array(constructor: Callable[[Idx], T], *, size: Size | None = None) -> Vec[T]:
+    ...
+
+
+@overload
 def array(
-    constructor: _FromIndices, *, size: tuple[Size, ...] | Size | None = None
-) -> Array:
+    constructor: Callable[[Idx, Idx], T], *, size: tuple[Size, Size] | None = None
+) -> Vec[Vec[T]]:
+    ...
+
+
+@overload
+def array(
+    constructor: Callable[[Idx, Idx, Idx], T],
+    *,
+    size: tuple[Size, Size, Size] | None = None,
+) -> Vec[Vec[Vec[T]]]:
+    ...
+
+
+@overload
+def array(constructor: _FromIndices, *, size: tuple[Size, ...] | None = None) -> Array:
+    ...
+
+
+def array(constructor, *, size=None) -> Array:
     return structs(constructor, size=size)
 
 

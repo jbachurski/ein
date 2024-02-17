@@ -1,7 +1,16 @@
-from typing import Any, Callable, Optional, Sequence, TypeAlias, Union, cast
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Sequence,
+    TypeAlias,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+)
 
 import numpy
-import numpy.typing
 
 from ein import calculus
 from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
@@ -18,8 +27,11 @@ from ein.frontend.layout import (
 from ein.symbols import Variable
 from ein.type_system import AbstractType, Type
 
+T = TypeVar("T")
+S = TypeVar("S")
 Array: TypeAlias = Any
-ArrayLike: TypeAlias = int | float | bool | numpy.ndarray | Union["Scalar", "Vec"]
+ScalarLike = Union[int, float, bool, "Scalar"]
+ArrayLike: TypeAlias = ScalarLike | numpy.ndarray | Union["Vec"]
 
 
 def _project_tuple(expr: calculus.Expr, i: int, n: int) -> calculus.Expr:
@@ -75,11 +87,11 @@ class ArrayBase:
         )
 
 
-class Vec(ArrayBase):
+class Vec(ArrayBase, Generic[T]):
     expr: Expr
     _layout: Layout
 
-    def __init__(self, expr: Expr, layout: Optional[Layout] = None):
+    def __init__(self, expr: Expr, layout: "Layout | None" = None):
         assert isinstance(expr, AbstractExpr)
         self.expr = cast(Expr, expr)
         self._layout = unambiguous_layout(self.expr.type) if layout is None else layout
@@ -92,12 +104,28 @@ class Vec(ArrayBase):
     def layout(self):
         return self._layout
 
+    @overload
+    def __getitem__(self, item_like: ScalarLike) -> T:
+        ...
+
+    @overload
+    def __getitem__(self: "Vec[Vec[S]]", item_like: tuple[ScalarLike, ScalarLike]) -> S:
+        ...
+
+    @overload
     def __getitem__(
-        self, item_like: ArrayLike | str | tuple[ArrayLike | str, ...]
-    ) -> "Array":
-        item: tuple[ArrayLike, ...] = (
-            (item_like,) if not isinstance(item_like, tuple) else item_like
-        )
+        self: "Vec[Vec[Vec[S]]]", item_like: tuple[ScalarLike, ScalarLike, ScalarLike]
+    ) -> S:
+        ...
+
+    @overload
+    def __getitem__(
+        self: "Vec[Vec[Vec[Vec[S]]]]", item_like: tuple[ScalarLike, ...]
+    ) -> Array:
+        ...
+
+    def __getitem__(self, item_like):
+        item = (item_like,) if not isinstance(item_like, tuple) else item_like
         expr = self.expr
         layout = self.layout
         for axis_item in item:
@@ -129,13 +157,13 @@ class Scalar(ArrayBase):
     def to_float(self) -> "Scalar":
         return Scalar(calculus.CastToFloat((self.expr,)))
 
-    def __add__(self, other: ArrayLike) -> "Scalar":
+    def __add__(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.Add((self.expr, wrap(other).expr)))
 
-    def __sub__(self, other: ArrayLike) -> "Scalar":
+    def __sub__(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.Subtract((self.expr, wrap(other).expr)))
 
-    def __mul__(self, other: ArrayLike) -> "Scalar":
+    def __mul__(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.Multiply((self.expr, wrap(other).expr)))
 
     __radd__ = __add__
@@ -144,16 +172,16 @@ class Scalar(ArrayBase):
     def __neg__(self) -> "Scalar":
         return Scalar(calculus.Negate((self.expr,)))
 
-    def __rsub__(self, other: ArrayLike) -> "Scalar":
+    def __rsub__(self, other: ScalarLike) -> "Scalar":
         return (-self) + other
 
-    def __truediv__(self, other: ArrayLike) -> "Scalar":
+    def __truediv__(self, other: ScalarLike) -> "Scalar":
         return self * Scalar(calculus.Reciprocal((wrap(other).expr,)))
 
-    def __rtruediv__(self, other: ArrayLike) -> "Scalar":
+    def __rtruediv__(self, other: ScalarLike) -> "Scalar":
         return cast(Scalar, wrap(other) / self)
 
-    def __mod__(self, other: ArrayLike) -> "Scalar":
+    def __mod__(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.Modulo((self.expr, wrap(other).expr)))
 
     def __pow__(self, power, modulo=None):
@@ -178,37 +206,37 @@ class Scalar(ArrayBase):
     def __invert__(self) -> "Scalar":
         return Scalar(calculus.LogicalNot((self.expr,)))
 
-    def __and__(self, other: ArrayLike) -> "Scalar":
+    def __and__(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.LogicalAnd((self.expr, wrap(other).expr)))
 
-    def __or__(self, other: ArrayLike) -> "Scalar":
+    def __or__(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.LogicalOr((self.expr, wrap(other).expr)))
 
-    def __lt__(self, other: ArrayLike) -> "Scalar":
+    def __lt__(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.Less((self.expr, wrap(other).expr)))
 
-    def __ne__(self, other: ArrayLike) -> "Scalar":  # type: ignore
+    def __ne__(self, other: ScalarLike) -> "Scalar":  # type: ignore
         return Scalar(calculus.NotEqual((self.expr, wrap(other).expr)))
 
-    def __eq__(self, other: ArrayLike) -> "Scalar":  # type: ignore
+    def __eq__(self, other: ScalarLike) -> "Scalar":  # type: ignore
         return Scalar(calculus.Equal((self.expr, wrap(other).expr)))
 
-    def __gt__(self, other: ArrayLike) -> "Scalar":
+    def __gt__(self, other: ScalarLike) -> "Scalar":
         return cast(Scalar, wrap(other).__lt__(self))
 
-    def __le__(self, other: ArrayLike) -> "Scalar":
+    def __le__(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.LessEqual((self.expr, wrap(other).expr)))
 
-    def __ge__(self, other: ArrayLike) -> "Scalar":
+    def __ge__(self, other: ScalarLike) -> "Scalar":
         return cast(Scalar, wrap(other).__le__(self))
 
-    def where(self, true: ArrayLike, false: ArrayLike) -> "Scalar":
+    def where(self, true: ScalarLike, false: ScalarLike) -> "Scalar":
         return Scalar(calculus.Where((self.expr, wrap(true).expr, wrap(false).expr)))
 
-    def min(self, other: ArrayLike) -> "Scalar":
+    def min(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.Min((self.expr, wrap(other).expr)))
 
-    def max(self, other: ArrayLike) -> "Scalar":
+    def max(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.Max((self.expr, wrap(other).expr)))
 
     def exp(self) -> "Scalar":
@@ -250,6 +278,16 @@ def ext(
     if hasattr(fun, "__name__"):
         extrinsic.__name__ = f"{extrinsic}_{fun.__name__}"
     return extrinsic
+
+
+@overload
+def wrap(array_like: ScalarLike) -> Scalar:
+    ...
+
+
+@overload
+def wrap(array_like: ArrayLike) -> Array:
+    ...
 
 
 def wrap(array_like: ArrayLike) -> Array:

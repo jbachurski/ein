@@ -3,12 +3,12 @@ from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
 
 from .comprehension import Idx, Size, _FromIndex, fold
-from .ndarray import Array, ArrayLike, wrap
+from .ndarray import Array, ArrayLike, Scalar, ScalarLike, wrap
 
 T = TypeVar("T", Array, tuple[Array, Array], tuple[Array, Array, Array])
 
 
-def where(cond: ArrayLike, true: ArrayLike, false: ArrayLike) -> Array:
+def where(cond: ScalarLike, true: ScalarLike, false: ScalarLike) -> Scalar:
     return wrap(cond).where(true, false)
 
 

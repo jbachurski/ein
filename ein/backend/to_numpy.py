@@ -29,7 +29,7 @@ def fast_edge_pad(
         return target.copy()
     if all(not (lt and rt) for lt, rt in pads):
         res = numpy.empty([d + lt + rt for d, (lt, rt) in zip(target.shape, pads)])
-        edge_index: list[numpy.ndarray | slice] = []
+        edge_index: list[int | numpy.ndarray | slice] = []
         edge_unsqueeze: list[None | slice] = []
         dest: list[slice] = []
         dest_op: list[slice] = []
@@ -90,7 +90,7 @@ def stage_in_array(
                 return lambda env: numpy.array(target(env).shape[axis])
             case array_calculus.Range(size_):
                 size = go(size_)
-                return lambda env: numpy.arange(size(env))
+                return lambda env: numpy.arange(int(size(env)))
             case array_calculus.Transpose(permutation, target_):
                 target = go(target_)
                 return lambda env: numpy.transpose(target(env), permutation)
