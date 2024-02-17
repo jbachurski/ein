@@ -101,7 +101,9 @@ def outline(program: Term) -> Term:
 
         if tree:
             visit(prog)
-        assert free_symbols == prog.free_symbols
+        assert (
+            free_symbols == prog.free_symbols
+        ), f"Internal error: free symbol set changed from {free_symbols} to {prog.free_symbols}"
 
     # Get rid of any existing let-bindings
     program = inline(program)
