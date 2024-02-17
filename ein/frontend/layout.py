@@ -75,11 +75,9 @@ def build_layout(obj, f) -> Layout:
         if not obj:
             raise ValueError("Constructed layout cannot contain empty nodes")
     if isinstance(obj, (tuple, list)):
-        return PositionalLayout(tuple(build_layout(o, f) for o in obj), type(obj))
+        return PositionalLayout(tuple(build_layout(o, f) for o in obj))
     elif isinstance(obj, dict):
-        return LabelledLayout(
-            tuple((n, build_layout(o, f)) for n, o in obj.items()), type(obj)
-        )
+        return LabelledLayout(tuple((n, build_layout(o, f)) for n, o in obj.items()))
     elif is_dataclass(obj):
         return LabelledLayout(
             tuple(
@@ -91,29 +89,65 @@ def build_layout(obj, f) -> Layout:
     return f(obj)
 
 
-def fold_layout(layout, obj, f, merge):
-    def reduce(args):
-        return args[0] if len(args) == 1 else merge(args[0], reduce(args[1:]))
+def fold_layout(layout, args, atom, vec, merge):
+    def get(name):
+        def do(x):
+            return getattr(x, name) if hasattr(x, name) else x[name]
+
+        return do
+
+    def reduce(xs):
+        return xs[0] if len(xs) == 1 else merge(xs[0], reduce(xs[1:]))
 
     match layout:
+        case AtomLayout():
+            return atom(*args)
+        case VecLayout(_sub):
+            return vec(*args)
         case PositionalLayout(subs):
             return reduce(
                 [
-                    fold_layout(sub, o, f, merge)
-                    for sub, o in zip(subs, obj, strict=True)
+                    fold_layout(sub, sub_args, atom, vec, merge)
+                    for sub, sub_args in zip(subs, zip(*args), strict=True)
                 ]
             )
         case LabelledLayout(subs):
-            if is_dataclass(obj):
-                return reduce(
-                    [
-                        fold_layout(sub, getattr(obj, name), f, merge)
-                        for name, sub in subs
-                    ]
-                )
-            assert len(subs) == len(obj)
-            return reduce([fold_layout(sub, obj[name], f, merge) for name, sub in subs])
-    return f(obj)
+            return reduce(
+                [
+                    fold_layout(sub, map(get(name), args), atom, vec, merge)
+                    for name, sub in subs
+                ]
+            )
+        case _:
+            assert_never(layout)
+
+
+def map_layout(layout, args, atom, vec):
+    def get(name):
+        def do(x):
+            return getattr(x, name) if hasattr(x, name) else x[name]
+
+        return do
+
+    match layout:
+        case AtomLayout():
+            return atom(*args)
+        case VecLayout(_sub):
+            return vec(*args)
+        case PositionalLayout(subs, tag):
+            ret_args = tuple(
+                map_layout(sub, sub_args, atom, vec)
+                for sub, sub_args in zip(subs, zip(*args), strict=True)
+            )
+            return tag(*ret_args) if tag is not None else ret_args
+        case LabelledLayout(subs, tag):
+            ret_kwargs = {
+                name: map_layout(sub, map(get(name), args), atom, vec)
+                for name, sub in subs
+            }
+            return tag(**ret_kwargs) if tag is not None else ret_kwargs
+        case _:
+            assert_never(layout)
 
 
 def unambiguous_layout(type_: Type) -> Layout:

@@ -2,14 +2,24 @@ import functools
 from dataclasses import dataclass
 from typing import Callable, Generic, TypeVar
 
-from .comprehension import Idx, Size, _FromIndex, fold
-from .ndarray import Array, ArrayLike, Scalar, ScalarLike, wrap
+from .comprehension import Idx, Size, _FromIndex, array, fold
+from .layout import build_layout, map_layout
+from .ndarray import Array, ArrayLike, Scalar, wrap
 
 T = TypeVar("T", Array, tuple[Array, Array], tuple[Array, Array, Array])
 
 
-def where(cond: ScalarLike, true: ScalarLike, false: ScalarLike) -> Scalar:
-    return wrap(cond).where(true, false)
+def where(cond: bool | Scalar, true: T, false: T) -> T:
+    layout_ = build_layout(true, lambda a: wrap(a).layout)
+    layout = build_layout(false, lambda a: wrap(a).layout)
+    assert layout == layout_
+    c = wrap(cond)
+    return map_layout(
+        layout,
+        [true, false],
+        lambda t, f: c.where(t, f),
+        lambda ts, fs: array(lambda i: where(cond, ts[i], fs[i])),
+    )
 
 
 @dataclass
@@ -48,8 +58,7 @@ def reduce_max(f: _FromIndex, count: Size | None = None) -> Array:
 
 def reduce_argmin(f: _FromIndex, count: Size | None = None) -> Array:
     def concat(a: tuple[Array, Array], b: tuple[Array, Array]) -> tuple[Array, Array]:
-        lt = a[0] <= b[0]
-        return where(lt, a[0], b[0]), where(lt, a[1], b[1])
+        return where(a[0] <= b[0], a, b)
 
     return Monoid((wrap(float("+inf")), wrap(0)), concat).reduce(
         lambda i: (f(i), i), count

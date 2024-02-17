@@ -43,24 +43,23 @@ def _project_tuple(expr: calculus.Expr, i: int, n: int) -> calculus.Expr:
 def _to_array(expr: Expr, layout: Layout | None = None):
     if layout is None:
         layout = unambiguous_layout(expr.type)
-    tag: Any = getattr(layout, "tag", None)
     match layout:
         case AtomLayout():
             return Scalar(expr)
         case VecLayout(_sub):
             return Vec(expr, layout)
-        case PositionalLayout(subs):
-            args = [
+        case PositionalLayout(subs, tag):
+            args = tuple(
                 _to_array(_project_tuple(expr, i, len(subs)), sub)
                 for i, sub in enumerate(subs)
-            ]
-            return tag(*args) if tag not in (tuple, list) else tag(args)
-        case LabelledLayout(subs):
+            )
+            return tag(*args) if tag is not None else args
+        case LabelledLayout(subs, tag):
             kwargs = {
                 name: _to_array(_project_tuple(expr, i, len(subs)), sub)
                 for i, (name, sub) in enumerate(subs)
             }
-            return tag(**kwargs)
+            return tag(**kwargs) if tag is not None else kwargs
     assert False, "Expected a tag for layout: {layout}"
 
 
@@ -300,11 +299,8 @@ def wrap(array_like: ArrayLike) -> Array:
 def wrap(array_like: ArrayLike) -> Array:
     if isinstance(array_like, (Scalar, Vec)):
         return cast(Array, array_like)
+    if not isinstance(array_like, (int, float, bool, numpy.ndarray)):
+        raise TypeError(f"Invalid type for an ein Array: {type(array_like).__name__}")
     array = numpy.array(array_like)
-    assert array.dtype in (
-        numpy.dtype(bool),
-        numpy.dtype(float),
-        numpy.dtype(int),
-    ), array.dtype
     expr = calculus.Const(Value(array))
     return _to_array(expr)

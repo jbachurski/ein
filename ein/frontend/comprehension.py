@@ -53,7 +53,11 @@ def identity(x: T) -> T:
 
 def _layout_struct_to_expr(layout: Layout, struct) -> Expr:
     return fold_layout(
-        layout, struct, lambda a: wrap(a).expr, lambda a, b: calculus.Cons(a, b)
+        layout,
+        [struct],
+        lambda a: wrap(a).expr,
+        lambda a: a.expr,
+        lambda a, b: calculus.Cons(a, b),
     )
 
 
@@ -112,6 +116,11 @@ def function(
 
 
 @overload
+def array(constructor: Callable[[], T]) -> Array:
+    ...
+
+
+@overload
 def array(constructor: Callable[[Idx], T], *, size: Size | None = None) -> Vec[T]:
     ...
 
@@ -162,8 +171,8 @@ def fold(init: T, step: _WithIndex[T], count: Size | None = None) -> T:
     init_expr: Expr = _layout_struct_to_expr(layout, init)
     counter = calculus.variable(Variable(), scalar_type(int))
     arg_index = _to_array(counter)
-    acc_var = Variable()
-    arg_acc = _to_array(calculus.variable(acc_var, init_expr.type), layout)
+    acc = calculus.variable(Variable(), init_expr.type)
+    arg_acc = _to_array(acc, layout)
     body = step(arg_index, arg_acc)
     layout_ = build_layout(init, lambda a: wrap(a).layout)
     if layout != layout_:
@@ -176,6 +185,6 @@ def fold(init: T, step: _WithIndex[T], count: Size | None = None) -> T:
         body_expr, (counter.var,), (count,) if count is not None else None
     )
     expr = calculus.Fold(
-        counter.var, size_of[counter.var], acc_var, init_expr, body_expr
+        counter.var, size_of[counter.var], acc.var, init_expr, body_expr
     )
     return _to_array(expr, layout)
