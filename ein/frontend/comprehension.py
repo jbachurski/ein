@@ -119,24 +119,6 @@ def function(
     return tuple(var.var for var in arg_vars), wrap(fun(*args)).expr
 
 
-def structs(
-    constructor: _StructFromIndices, *, size: tuple[Size, ...] | Size | None = None
-) -> Any:
-    if size is not None and not isinstance(size, tuple):
-        size = (size,)
-    n = len(inspect.signature(constructor).parameters) if size is None else len(size)
-    indices = [Index() for _ in range(n)]
-    wrapped_indices = [Idx(_to_array(calculus.at(index))) for index in indices]
-    cons = constructor(*wrapped_indices)
-    layout = build_layout(cons, lambda a: wrap(a).layout)
-    body: Expr = _layout_struct_to_expr(layout, cons)
-    size_of = _infer_sizes(body, tuple(indices), size)
-    for index in reversed(indices):
-        body = calculus.Vec(index, size_of[index], body)
-        layout = VecLayout(layout)
-    return _to_array(body, layout)
-
-
 @overload
 def array(constructor: Callable[[Idx], T], *, size: Size | None = None) -> Vec[T]:
     ...
@@ -164,7 +146,19 @@ def array(constructor: _FromIndices, *, size: tuple[Size, ...] | None = None) ->
 
 
 def array(constructor, *, size=None) -> Array:
-    return structs(constructor, size=size)
+    if size is not None and not isinstance(size, tuple):
+        size = (size,)
+    n = len(inspect.signature(constructor).parameters) if size is None else len(size)
+    indices = [Index() for _ in range(n)]
+    wrapped_indices = [Idx(_to_array(calculus.at(index))) for index in indices]
+    cons = constructor(*wrapped_indices)
+    layout = build_layout(cons, lambda a: wrap(a).layout)
+    body: Expr = _layout_struct_to_expr(layout, cons)
+    size_of = _infer_sizes(body, tuple(indices), size)
+    for index in reversed(indices):
+        body = calculus.Vec(index, size_of[index], body)
+        layout = VecLayout(layout)
+    return _to_array(body, layout)
 
 
 @overload

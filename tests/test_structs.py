@@ -3,15 +3,13 @@ from dataclasses import dataclass
 import numpy.testing
 import pytest
 
-from ein import Array, array, structs, wrap
+from ein import Array, array, wrap
 from ein.frontend.std import reduce_sum, where
 
 
 @pytest.mark.parametrize("backend", ["naive", "numpy"])
 def test_adhoc_structs(backend):
-    from ein import array, structs
-
-    s = structs(lambda i: (i, i**2, {"+": i**3, "-": -(i**3)}), size=10)
+    s = array(lambda i: (i, i**2, {"+": i**3, "-": -(i**3)}), size=10)
     a = array(lambda j: s[j][2]["-"])
     numpy.testing.assert_allclose(
         a.numpy(backend=backend), [-(i**3) for i in range(10)]
@@ -39,7 +37,7 @@ def test_complex_scalars(backend):
         return array(lambda i: i.to_float() * (b - a) / (n - 1).to_float() + a, size=n)
 
     p = linspace(0.0, 3.14, 11)
-    c = structs(lambda i: C(p[i].cos(), p[i].sin()))
+    c = array(lambda i: C(p[i].cos(), p[i].sin()))
     cc = array(lambda i: (c[i] * c[i] + c[i]).real)
 
     def cis(x):
@@ -89,11 +87,11 @@ def test_matrix_sanity():
 @pytest.mark.parametrize("backend", ["naive", "numpy"])
 def test_matrix_batches(backend):
     base = numpy.array([[1, 2], [3, 4]], dtype=float)
-    scales = structs(
+    scales = array(
         lambda a: Matrix.eye(2).scale(a.to_float()),
         size=4,
     )
-    matrices = structs(lambda a: scales[a] @ Matrix.of(base))
+    matrices = array(lambda a: scales[a] @ Matrix.of(base))
 
     got = array(lambda i: matrices[i].elem).numpy(backend=backend)
     exp = numpy.arange(4)[:, None, None] * numpy.array(base)
