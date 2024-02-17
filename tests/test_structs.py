@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy.testing
 import pytest
 
-from ein import Array, array, wrap
+from ein import Array, Scalar, array, wrap
 from ein.frontend.std import reduce_sum, where
 
 
@@ -16,22 +16,23 @@ def test_adhoc_structs(backend):
     )
 
 
+@dataclass
+class C:
+    real: Scalar
+    imag: Scalar
+
+    def __add__(self, other: "C") -> "C":
+        return C(self.real + other.real, self.imag + other.imag)
+
+    def __mul__(self, other: "C") -> "C":
+        return C(
+            self.real * other.real - self.imag * other.imag,
+            self.real * other.imag + self.imag * other.real,
+        )
+
+
 @pytest.mark.parametrize("backend", ["naive", "numpy"])
 def test_complex_scalars(backend):
-    @dataclass
-    class C:
-        real: Array
-        imag: Array
-
-        def __add__(self, other) -> "C":
-            return C(self.real + other.real, self.imag + other.imag)
-
-        def __mul__(self, other) -> "C":
-            return C(
-                self.real * other.real - self.imag * other.imag,
-                self.real * other.imag + self.imag * other.real,
-            )
-
     def linspace(a, b, n):
         n = wrap(n)
         return array(lambda i: i.to_float() * (b - a) / (n - 1).to_float() + a, size=n)

@@ -120,7 +120,14 @@ class Vec(ArrayBase, Generic[T]):
 
     @overload
     def __getitem__(
-        self: "Vec[Vec[Vec[Vec[S]]]]", item_like: tuple[ScalarLike, ...]
+        self: "Vec[Vec[Vec[Vec[S]]]]",
+        item_like: tuple[ScalarLike, ScalarLike, ScalarLike, ScalarLike],
+    ) -> S:
+        ...
+
+    @overload
+    def __getitem__(
+        self: "Vec[Vec[Vec[Vec[Vec[S]]]]]", item_like: tuple[ScalarLike, ...]
     ) -> Array:
         ...
 
