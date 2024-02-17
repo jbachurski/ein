@@ -1,10 +1,14 @@
+from typing import TypeVar
+
 import numpy
 import scipy
 
-from ein import Array, array, ndarray_type
+from ein import Array, Scalar, Vec, array, ndarray_type
 from ein.frontend.std import reduce_max, reduce_sum, where
 
 from ..case import Case
+
+T = TypeVar("T")
 
 
 class GAT(Case):
@@ -12,15 +16,21 @@ class GAT(Case):
 
     @staticmethod
     def in_ein(*args: Array) -> Array:
+        adj: Vec[Vec[Vec[Scalar]]]
+        vals: Vec[Vec[Vec[Vec[Scalar]]]]
+        s: Vec[Vec[Vec[Scalar]]]
+        t: Vec[Vec[Vec[Scalar]]]
+        e: Vec[Vec[Vec[Vec[Scalar]]]]
+        g: Vec[Vec[Scalar]]
         adj, vals, s, t, e, g = args
 
-        def softmax(x):
+        def softmax(x: Vec[T]) -> Vec[T]:
             x_max = reduce_max(lambda i: x[i])
             x1 = array(lambda i: (x[i] - x_max).exp())
             x1_sum = reduce_sum(lambda i: x1[i])
             return array(lambda i: x1[i] / x1_sum)
 
-        def leaky_relu(x):
+        def leaky_relu(x: Scalar) -> Scalar:
             return where(x < 0.0, 0.01 * x, x)
 
         bias = array(lambda b, u, v: (adj[b, u, v] - 1.0) * 1e9)
