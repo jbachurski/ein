@@ -1,7 +1,9 @@
+import abc
 from typing import (
     Any,
     Callable,
     Generic,
+    Self,
     Sequence,
     TypeAlias,
     TypeVar,
@@ -22,6 +24,8 @@ from ein.frontend.layout import (
     Layout,
     PositionalLayout,
     VecLayout,
+    build_layout,
+    fold_layout,
     unambiguous_layout,
 )
 from ein.symbols import Variable
@@ -38,6 +42,16 @@ def _project_tuple(expr: calculus.Expr, i: int, n: int) -> calculus.Expr:
     for _ in range(i):
         expr = calculus.Second(expr)
     return calculus.First(expr) if i + 1 < n else expr
+
+
+def _layout_struct_to_expr(layout: Layout, struct) -> Expr:
+    return fold_layout(
+        layout,
+        [struct],
+        lambda a: wrap(a).expr,
+        lambda a: a.expr,
+        lambda a, b: calculus.Cons(a, b),
+    )
 
 
 def _to_array(expr: Expr, layout: Layout | None = None):
@@ -65,6 +79,20 @@ def _to_array(expr: Expr, layout: Layout | None = None):
 
 class ArrayBase:
     expr: Expr
+
+    @abc.abstractmethod
+    def assume(self, other: "ArrayBase") -> Self:
+        ...
+
+    def _assume_expr(self, other: "ArrayBase") -> calculus.Expr:
+        return calculus.First(
+            calculus.Cons(
+                self.expr,
+                _layout_struct_to_expr(
+                    build_layout(other, lambda a: wrap(a).layout), other
+                ),
+            )
+        )
 
     def numpy(
         self,
@@ -98,6 +126,9 @@ class Vec(ArrayBase, Generic[T]):
         assert (
             getattr(self._layout, "tag", None) is None
         ), "Unexpected tagged layout in this context"
+
+    def assume(self, other: "ArrayBase") -> Self:
+        return type(self)(self._assume_expr(other), self.layout)
 
     @property
     def layout(self):
@@ -159,6 +190,9 @@ class Scalar(ArrayBase):
     @property
     def layout(self) -> Layout:
         return AtomLayout()
+
+    def assume(self, other: "ArrayBase") -> Self:
+        return type(self)(self._assume_expr(other))
 
     def to_float(self) -> "Scalar":
         return Scalar(calculus.CastToFloat((self.expr,)))

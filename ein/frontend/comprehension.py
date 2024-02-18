@@ -12,12 +12,20 @@ from typing import (
 
 from ein import calculus
 from ein.calculus import Expr
-from ein.frontend.layout import Layout, VecLayout, build_layout, fold_layout
+from ein.frontend.layout import VecLayout, build_layout
 from ein.midend.size_classes import _dim_of, _with_indices_at_zero
 from ein.symbols import Index, Symbol, Variable
 from ein.type_system import Type, scalar_type
 
-from .ndarray import Array, ArrayLike, Scalar, Vec, _to_array, wrap
+from .ndarray import (
+    Array,
+    ArrayLike,
+    Scalar,
+    Vec,
+    _layout_struct_to_expr,
+    _to_array,
+    wrap,
+)
 
 T = TypeVar("T")
 Idx = NewType("Idx", Scalar)
@@ -51,59 +59,50 @@ def identity(x: T) -> T:
     return x
 
 
-def _layout_struct_to_expr(layout: Layout, struct) -> Expr:
-    return fold_layout(
-        layout,
-        [struct],
-        lambda a: wrap(a).expr,
-        lambda a: a.expr,
-        lambda a, b: calculus.Cons(a, b),
-    )
-
-
-def _infer_sizes(body: Expr, symbols: tuple[Symbol, ...], sizes) -> dict[Symbol, Expr]:
-    if sizes is None:
-        size_of: dict[Symbol, Expr] = {}
-        direct_indices: dict[Symbol, dict[Expr, set[Symbol]]] = {}
-        visited: set[Expr] = set()
-
-        def go(sub: Expr, captured: set[Symbol]) -> Expr:
-            if sub in visited:
-                return sub
-            match sub:
-                case calculus.Get(target, calculus.Store(symbol)):
-                    direct_indices.setdefault(symbol, {})[target] = captured
-            sub.map(lambda sub1: go(sub1, captured | sub.captured_symbols))
-            return sub
-
-        go(body, set())
-
-        for rank, index in enumerate(symbols):
-            # TODO: Implement a lexical scope check to detect when
-            #  a bad candidate is picked. Metaprogramming hard!
-            # FIXME: This probably ends up non-deterministic in some way,
-            #  and some candidates picked are worse than others.
-            candidates = [
-                _with_indices_at_zero(candidate)
-                for expr, captured in direct_indices.get(index, {}).items()
-                for candidate in [_dim_of(expr)]
-                if not candidate.free_symbols & captured
-            ]
-            if not candidates:
-                raise ValueError(f"Cannot infer bounds for index: {index}")
-            else:
-                # TODO: Handle the ignored cases here by requiring equivalence.
-                shape_expr: Expr
-                shape_expr, *_ = candidates
-                size_of[index] = (
-                    calculus.AssertEq(shape_expr, tuple(candidates))
-                    if len(candidates) > 1
-                    else shape_expr
-                )
-    else:
-        size_of = {
+def _infer_sizes(
+    body: Expr, symbols: tuple[Symbol, ...], initial_captured: set[Symbol], sizes
+) -> dict[Symbol, Expr]:
+    if sizes is not None:
+        return {
             index: wrap(size).expr for index, size in zip(symbols, sizes, strict=True)
         }
+    size_of: dict[Symbol, Expr] = {}
+    direct_indices: dict[Symbol, dict[Expr, set[Symbol]]] = {}
+    visited: set[Expr] = set()
+
+    def go(sub: Expr, captured: set[Symbol]) -> Expr:
+        if sub in visited:
+            return sub
+        match sub:
+            case calculus.Get(target, calculus.Store(symbol)):
+                direct_indices.setdefault(symbol, {})[target] = captured
+        sub.map(lambda sub1: go(sub1, captured | sub.captured_symbols))
+        return sub
+
+    go(body, {*symbols, *initial_captured})
+
+    for rank, index in enumerate(symbols):
+        # TODO: Implement a lexical scope check to detect when
+        #  a bad candidate is picked. Metaprogramming hard!
+        # FIXME: This probably ends up non-deterministic in some way,
+        #  and some candidates picked are worse than others.
+        candidates = [
+            _with_indices_at_zero(candidate)
+            for expr, captured in direct_indices.get(index, {}).items()
+            for candidate in [_dim_of(expr)]
+            if not candidate.free_symbols & captured
+        ]
+        if not candidates:
+            raise ValueError(f"Cannot infer bounds for index: {index}")
+        else:
+            # TODO: Handle the ignored cases here by requiring equivalence.
+            shape_expr: Expr
+            shape_expr, *_ = candidates
+            size_of[index] = (
+                calculus.AssertEq(shape_expr, tuple(candidates))
+                if len(candidates) > 1
+                else shape_expr
+            )
     return size_of
 
 
@@ -159,7 +158,7 @@ def array(constructor, *, size=None):
     cons = constructor(*wrapped_indices)
     layout = build_layout(cons, lambda a: wrap(a).layout)
     body: Expr = _layout_struct_to_expr(layout, cons)
-    size_of = _infer_sizes(body, tuple(indices), size)
+    size_of = _infer_sizes(body, tuple(indices), set(), size)
     for index in reversed(indices):
         body = calculus.Vec(index, size_of[index], body)
         layout = VecLayout(layout)
@@ -182,7 +181,7 @@ def fold(init: T, step: _WithIndex[T], count: Size | None = None) -> T:
         )
     body_expr: Expr = _layout_struct_to_expr(layout, body)
     size_of = _infer_sizes(
-        body_expr, (counter.var,), (count,) if count is not None else None
+        body_expr, (counter.var,), {acc.var}, (count,) if count is not None else None
     )
     expr = calculus.Fold(
         counter.var, size_of[counter.var], acc.var, init_expr, body_expr
