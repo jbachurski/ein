@@ -23,6 +23,7 @@ seaborn = "^0.13.0"
 line-profiler = { extras = ["ipython"], version = "^4.1.2" }
 numba = "^0.58.1"
 torch = "^2.1.2"
+pyarrow = "^15.0.0"
 
 [build-system]
 requires = ["poetry-core"]
