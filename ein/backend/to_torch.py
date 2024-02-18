@@ -50,7 +50,7 @@ def stage_in_array(
     ) -> Callable[[Env], torch.Tensor | tuple[torch.Tensor, ...]]:
         match expr:
             case array_calculus.Const(array):
-                arr = torch.from_numpy(array.array)
+                arr = torch.from_numpy(array.array.copy())
                 return lambda env: arr
             case array_calculus.Var(var, _var_rank):
                 return lambda env: env[var]
