@@ -4,7 +4,7 @@ from typing import Generic, Self, TypeVar
 
 import numpy
 
-from ein import Array, Scalar, Vec, array, fold, matrix_type, wrap
+from ein import Scalar, Vec, array, fold, matrix_type, wrap
 from ein.frontend import std
 from ein.frontend.typed import array2
 
@@ -113,9 +113,10 @@ class FunWithSemirings(Case):
     ein_types = [matrix_type(float)]
 
     @staticmethod
-    def in_ein(d_elem: Vec[Vec[Scalar]]) -> Array:
-        d = array(lambda i, j: Tropical(d_elem[i, j]))
-        return SemiringMatrix(d).closure.elem
+    def in_ein(d0: Vec[Vec[Scalar]]) -> Vec[Vec[Scalar]]:
+        d = SemiringMatrix(array2(lambda i, j: Tropical(d0[i, j])))
+        d_star = d.closure
+        return array2(lambda i, j: d_star.elem[i, j].x)
 
     @staticmethod
     def in_numpy(d: numpy.ndarray) -> numpy.ndarray:
