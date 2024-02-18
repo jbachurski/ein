@@ -1,6 +1,6 @@
 import numpy
 
-from ein import interpret_with_numpy
+from ein import interpret_with_naive, interpret_with_numpy
 
 
 def test_attention():
@@ -21,6 +21,21 @@ def test_gat():
 
     numpy.testing.assert_allclose(
         GAT.in_ein_function(interpret_with_numpy, *args), GAT.in_numpy(*args)
+    )
+
+
+def test_semiring():
+    from .suite.misc.semiring import FunWithSemirings
+
+    args = FunWithSemirings.sample()
+    numpy.testing.assert_allclose(
+        FunWithSemirings.in_ein_function(interpret_with_naive, *args),
+        FunWithSemirings.in_numpy(*args),
+    )
+
+    numpy.testing.assert_allclose(
+        FunWithSemirings.in_ein_function(interpret_with_naive, *args),
+        FunWithSemirings.in_python(*args),
     )
 
 

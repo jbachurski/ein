@@ -14,6 +14,7 @@ import ein
 from ein.calculus import Expr
 from ein.symbols import Variable
 from tests.suite.deep import GAT, Attention
+from tests.suite.misc import FunWithSemirings as Semirings
 from tests.suite.parboil import MriQ, Stencil
 from tests.suite.rodinia import NN, Hotspot, KMeans, Pathfinder
 
@@ -69,6 +70,7 @@ Benchmark: TypeAlias = tuple[Callable[[int], tuple], list[int], Executors]
 BASELINE_EXECUTOR = "NumPy"
 DEEP_ATTENTION = "Deep: Attention"
 DEEP_GAT = "Deep: GAT"
+MISC_SEMIRINGS = "Misc: Fun with Semirings"
 PARBOIL_MRI_Q = "Parboil: MRI-Q"
 PARBOIL_STENCIL = "Parboil: Stencil"
 RODINIA_HOTSPOT = "Rodinia: Hotspot"
@@ -101,6 +103,14 @@ BENCHMARKS: dict[str, Benchmark] = {
                 lambda n: 2 <= n <= 150,
             ),
             ("NumPy", GAT.in_numpy, lambda n: 2 <= n <= 150),
+        ],
+    ),
+    MISC_SEMIRINGS: (
+        lambda n: Semirings.sample(n),
+        list(numpy.geomspace(70, 700, 20).astype(int)),
+        [
+            ("Ein", precompile(*Semirings.ein_function()), lambda n: n <= 700),
+            ("NumPy", Semirings.in_numpy, lambda n: n <= 700),
         ],
     ),
     PARBOIL_MRI_Q: (
@@ -240,6 +250,7 @@ def main():
     benchmarks = [
         DEEP_ATTENTION,
         DEEP_GAT,
+        MISC_SEMIRINGS,
         PARBOIL_MRI_Q,
         PARBOIL_STENCIL,
         RODINIA_HOTSPOT,

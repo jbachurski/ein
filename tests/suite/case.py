@@ -10,16 +10,7 @@ from ein.type_system import Type
 
 class Case(abc.ABC):
     ein_types: ClassVar[Sequence[Type]]
-
-    @staticmethod
-    @abc.abstractmethod
-    def in_ein(*args: Array) -> Array:
-        ...
-
-    @staticmethod
-    @abc.abstractmethod
-    def in_numpy(*args: numpy.ndarray) -> numpy.ndarray:
-        ...
+    in_ein: ClassVar[Callable[..., Array]]
 
     @staticmethod
     @abc.abstractmethod

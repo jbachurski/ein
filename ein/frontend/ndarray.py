@@ -81,10 +81,10 @@ class ArrayBase:
     expr: Expr
 
     @abc.abstractmethod
-    def assume(self, other: "ArrayBase") -> Self:
+    def assume(self, other) -> Self:
         ...
 
-    def _assume_expr(self, other: "ArrayBase") -> calculus.Expr:
+    def _assume_expr(self, other) -> calculus.Expr:
         return calculus.First(
             calculus.Cons(
                 self.expr,
@@ -127,7 +127,7 @@ class Vec(ArrayBase, Generic[T]):
             getattr(self._layout, "tag", None) is None
         ), "Unexpected tagged layout in this context"
 
-    def assume(self, other: "ArrayBase") -> Self:
+    def assume(self, other) -> Self:
         return type(self)(self._assume_expr(other), self.layout)
 
     @property
@@ -191,7 +191,7 @@ class Scalar(ArrayBase):
     def layout(self) -> Layout:
         return AtomLayout()
 
-    def assume(self, other: "ArrayBase") -> Self:
+    def assume(self, other) -> Self:
         return type(self)(self._assume_expr(other))
 
     def to_float(self) -> "Scalar":
