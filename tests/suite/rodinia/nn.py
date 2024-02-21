@@ -1,9 +1,10 @@
+from functools import partial
 from math import hypot
 
 import numpy
 
-from ein import Array, array, fold, scalar_type, vector_type
-from ein.frontend.std import reduce_argmin, where
+from ein import Scalar, Vec, array, ext, fold, scalar_type, vector_type, wrap
+from ein.frontend.typed import array1
 
 from ..case import Case
 
@@ -12,21 +13,30 @@ class NN(Case):
     ein_types = [scalar_type(int)] + [scalar_type(float)] * 2 + [vector_type(float)] * 2
 
     @staticmethod
-    def in_ein(*args: Array) -> Array:
-        k, x, y, xs, ys = args
+    def in_ein(
+        k: Scalar, x: Scalar, y: Scalar, xs: Vec[Scalar], ys: Vec[Scalar]
+    ) -> Vec[Scalar]:
+        def update(vec: Vec[Scalar], p: Scalar, x: Scalar) -> Vec[Scalar]:
+            # return array1(lambda i: where(i != p, vec[i], x))
+            # unsafe!
+            def with_update(arr, pos, val):
+                arr[..., pos] = val
+                return arr
 
-        def update(vec, p, x):
-            return array(lambda i: where(i != p, vec[i], x))
+            return ext(with_update, vec.expr.type)(vec, p, x)
+
+        def argmin(vec: Vec[Scalar]) -> Scalar:
+            return ext(partial(numpy.argmin, axis=-1), scalar_type(int))(vec)
 
         def step_nn(i, acc):
             dist, res = acc
-            p = reduce_argmin(lambda i: dist[i])
-            return update(dist, p, float("+inf")), update(res, i, p)
+            p = argmin(dist)
+            return update(dist, p, wrap(float("+inf"))), update(res, i, p)
 
         return fold(
             (
-                array(lambda i: ((x - xs[i]) ** 2 + (y - ys[i]) ** 2) ** 0.5),
-                array(lambda i: 0, size=k),
+                array1(lambda i: ((x - xs[i]) ** 2 + (y - ys[i]) ** 2) ** 0.5),
+                array(lambda i: wrap(0), size=k),
             ),
             step_nn,
             count=k,

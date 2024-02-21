@@ -166,13 +166,13 @@ BENCHMARKS: dict[str, Benchmark] = {
         ],
     ),
     RODINIA_NN: (
-        lambda n: NN.sample(n, 20),
-        list(numpy.geomspace(50, 1e7, 20).astype(int)),
+        lambda n: NN.sample(n, 100),
+        list(numpy.geomspace(101, 2e6, 20).astype(int)),
         [
-            ("Ein", precompile(*NN.ein_function()), lambda n: 2 <= n <= 2e4),
+            ("Ein", precompile(*NN.ein_function()), lambda n: 2 <= n <= 2e6),
             # ("Ein-Torch", precompile_torch(*NN.ein_function()), lambda n: 2 <= n <= 2e4),
-            ("NumPy", NN.in_numpy, lambda n: 2 <= n <= 1e7),
-            ("Python", NN.in_python, lambda n: 2 <= n <= 4e5),
+            ("NumPy", NN.in_numpy, lambda n: 2 <= n <= 2e6),
+            ("Python", NN.in_python, lambda n: 2 <= n <= 1e5),
         ],
     ),
     RODINIA_PATHFINDER: (
@@ -255,7 +255,7 @@ def main():
         PARBOIL_STENCIL,
         RODINIA_HOTSPOT,
         # RODINIA_KMEANS,
-        # RODINIA_NN,
+        RODINIA_NN,
         RODINIA_PATHFINDER,
     ]
 
