@@ -682,7 +682,7 @@ class Extrinsic(AbstractExpr):
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"fun": self.fun.__name__}, {*self.operands}
+        return {"fun": getattr(self.fun, "__name__", repr(self.fun))}, {*self.operands}
 
     @cached_property
     def type(self) -> PrimitiveType:
