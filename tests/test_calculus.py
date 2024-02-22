@@ -30,7 +30,6 @@ from ein.calculus import (
     Reciprocal,
     Second,
     Sin,
-    Value,
     Variable,
     Vec,
     Where,
@@ -38,6 +37,7 @@ from ein.calculus import (
     variable,
 )
 from ein.type_system import Scalar
+from ein.value import Value
 
 with_interpret = pytest.mark.parametrize(
     "interpret",

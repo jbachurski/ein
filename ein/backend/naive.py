@@ -3,10 +3,11 @@ from typing import assert_never, cast
 import numpy
 
 from ein import calculus
-from ein.calculus import Expr, Value
+from ein.calculus import Expr
 from ein.midend.lining import outline
 from ein.midend.structs import struct_of_arrays_transform
 from ein.symbols import Symbol, Variable
+from ein.value import Value
 
 
 def _interpret(expr: Expr, env: dict[Symbol, Value]) -> Value:

@@ -50,7 +50,11 @@ def stage_in_array(
     ) -> Callable[[Env], torch.Tensor | tuple[torch.Tensor, ...]]:
         match expr:
             case array_calculus.Const(array):
-                arr = torch.from_numpy(array.array.copy())
+                # Do this to avoid torch complaining about lack of support
+                # - we ought to never modify constants anyway
+                array.array.flags.writeable = True
+                arr = torch.from_numpy(array.array)
+                array.array.flags.writeable = False
                 return lambda env: arr
             case array_calculus.Var(var, _var_rank):
                 return lambda env: env[var]

@@ -16,7 +16,7 @@ import numpy
 
 from ein import calculus
 from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
-from ein.calculus import AbstractExpr, Expr, Value
+from ein.calculus import AbstractExpr, Expr
 from ein.frontend.layout import (
     AbstractLayout,
     AtomLayout,
@@ -30,12 +30,13 @@ from ein.frontend.layout import (
 )
 from ein.symbols import Variable
 from ein.type_system import AbstractType, Type
+from ein.value import Value, _TorchTensor
 
 T = TypeVar("T")
 S = TypeVar("S")
 Array: TypeAlias = Any
-ScalarLike = Union[int, float, bool, "Scalar"]
-ArrayLike: TypeAlias = ScalarLike | numpy.ndarray | Union["Vec"]
+ScalarLike = int | float | bool | Union["Scalar"]
+ArrayLike: TypeAlias = ScalarLike | numpy.ndarray | _TorchTensor | Union["Vec"]
 
 
 def _project_tuple(expr: calculus.Expr, i: int, n: int) -> calculus.Expr:
@@ -77,7 +78,7 @@ def _to_array(expr: Expr, layout: Layout | None = None):
     assert False, "Expected a tag for layout: {layout}"
 
 
-class ArrayBase:
+class _Array:
     expr: Expr
 
     @abc.abstractmethod
@@ -114,7 +115,7 @@ class ArrayBase:
         )
 
 
-class Vec(ArrayBase, Generic[T]):
+class Vec(_Array, Generic[T]):
     expr: Expr
     _layout: Layout
 
@@ -180,7 +181,7 @@ class Vec(ArrayBase, Generic[T]):
         return Scalar(calculus.Dim(self.expr, axis))
 
 
-class Scalar(ArrayBase):
+class Scalar(_Array):
     expr: Expr
 
     def __init__(self, expr: Expr):
@@ -330,10 +331,10 @@ def wrap(array_like: ArrayLike) -> Array:
     ...
 
 
-def wrap(array_like: ArrayLike) -> Array:
+def wrap(array_like):
     if isinstance(array_like, (Scalar, Vec)):
         return cast(Array, array_like)
-    if not isinstance(array_like, (int, float, bool, numpy.ndarray)):
+    if not isinstance(array_like, (int, float, bool, numpy.ndarray, _TorchTensor)):
         raise TypeError(f"Invalid type for an ein Array: {type(array_like).__name__}")
     array = numpy.array(array_like)
     expr = calculus.Const(Value(array))

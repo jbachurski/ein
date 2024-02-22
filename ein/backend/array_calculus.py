@@ -6,7 +6,6 @@ from typing import Any, Callable, Optional, TypeAlias, cast
 
 import numpy
 
-from ein.calculus import Value
 from ein.symbols import Symbol, Variable
 from ein.term import Term
 from ein.type_system import (
@@ -17,6 +16,7 @@ from ein.type_system import (
     resolve_scalar_signature,
     scalar_type,
 )
+from ein.value import Value
 
 Expr: TypeAlias = (
     "Const | Var | Let | Dim | Range | "
