@@ -1,7 +1,7 @@
 import numpy
 import torch
 
-from ein import Scalar, array, ext, scalar_type, wrap
+from ein import Scalar, Vec, array, ext, function, scalar_type, wrap
 
 
 def test_backend_call():
@@ -29,3 +29,14 @@ def test_basic_extrinsic():
     torch.testing.assert_allclose(
         array(lambda i, j: relu(a[i, j])).torch(), torch.relu(a0)
     )
+
+
+def test_function():
+    @function
+    def outer(x: Vec[Scalar], y: Vec[Scalar]) -> Vec[Vec[Scalar]]:
+        return array(lambda i, j: x[i] * y[j])
+
+    a, b = torch.randn(3), torch.randn(4)
+    torch.testing.assert_allclose(outer(a, b), outer.torch(a, b))
+    torch.testing.assert_allclose(outer(a, b), a[:, None] * b[None, :])
+    torch.testing.assert_allclose(outer(a, b), outer(a, b.numpy()))

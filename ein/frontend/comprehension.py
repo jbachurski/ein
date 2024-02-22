@@ -1,21 +1,12 @@
 import inspect
-from typing import (
-    Any,
-    Callable,
-    Iterable,
-    NewType,
-    Protocol,
-    TypeAlias,
-    TypeVar,
-    overload,
-)
+from typing import Any, Callable, NewType, Protocol, TypeAlias, TypeVar, overload
 
 from ein import calculus
 from ein.calculus import Expr
 from ein.frontend.layout import VecLayout, build_layout
 from ein.midend.size_classes import _dim_of, _with_indices_at_zero
 from ein.symbols import Index, Symbol, Variable
-from ein.type_system import Type, scalar_type
+from ein.type_system import scalar_type
 
 from .ndarray import (
     Array,
@@ -104,14 +95,6 @@ def _infer_sizes(
                 else shape_expr
             )
     return size_of
-
-
-def function(
-    types: Iterable[Type], fun: Callable[..., ArrayLike]
-) -> tuple[tuple[Variable, ...], Expr]:
-    arg_vars = [calculus.variable(Variable(), type_) for type_ in types]
-    args = [_to_array(var) for var in arg_vars]
-    return tuple(var.var for var in arg_vars), wrap(fun(*args)).expr
 
 
 @overload

@@ -2,7 +2,7 @@ from typing import cast
 
 import numpy
 
-from ein.type_system import Pair, Scalar, Type, ndarray_type
+from ein.type_system import Pair, Type, type_from_ndarray
 
 BIG_DATA_SIZE: int = 1024
 
@@ -79,9 +79,7 @@ class Value:
     @property
     def type(self) -> Type:
         if isinstance(self.value, numpy.ndarray):
-            return ndarray_type(
-                self.array.ndim, Scalar.from_dtype(self.array.dtype).kind
-            )
+            return type_from_ndarray(self.array)
         elif isinstance(self.value, tuple):
             first, second = self.value
             return Pair(first.type, second.type)

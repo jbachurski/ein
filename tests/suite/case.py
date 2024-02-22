@@ -3,7 +3,7 @@ from typing import Callable, ClassVar, Sequence
 
 import numpy
 
-from ein import Array, calculus, function
+from ein import Array, calculus, with_varargs
 from ein.calculus import Expr, Variable
 from ein.type_system import Type
 
@@ -19,7 +19,7 @@ class Case(abc.ABC):
 
     @classmethod
     def ein_function(cls) -> tuple[tuple[Variable, ...], calculus.Expr]:
-        return function(cls.ein_types, cls.in_ein)
+        return with_varargs(cls.ein_types, cls.in_ein)
 
     @classmethod
     def in_ein_function(

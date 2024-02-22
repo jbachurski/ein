@@ -5,6 +5,21 @@ from typing import Any, Iterable, Self, TypeAlias
 
 import numpy
 
+try:
+    import torch
+
+    _TORCH_DTYPE_MAP = {
+        torch.int16: numpy.int16,
+        torch.int32: numpy.int32,
+        torch.int64: numpy.int64,
+        torch.float16: numpy.float16,
+        torch.float32: numpy.float32,
+        torch.float64: numpy.float64,
+        torch.bool: numpy.bool_,
+    }
+except ImportError:
+    _TORCH_DTYPE_MAP = {}
+
 Type: TypeAlias = "Scalar | Vector | Pair"
 ScalarKind: TypeAlias = type[bool] | type[int] | type[float]
 SCALAR_TYPES: tuple[ScalarKind, ...] = (bool, int, float)
@@ -27,7 +42,7 @@ class Scalar(AbstractType):
 
     @staticmethod
     def from_dtype(dtype: numpy.dtype) -> "Scalar":
-        t = dtype.type
+        t = _TORCH_DTYPE_MAP[dtype] if dtype in _TORCH_DTYPE_MAP else dtype.type
         if issubclass(t, numpy.bool_):
             return scalar_type(bool)
         elif issubclass(t, numpy.integer):
@@ -95,6 +110,10 @@ def matrix_type(type_: ScalarKind) -> Vector:
 
 def ndarray_type(rank: int, type_: ScalarKind) -> Type:
     return Vector(ndarray_type(rank - 1, type_)) if rank else scalar_type(type_)
+
+
+def type_from_ndarray(arr) -> Type:
+    return ndarray_type(arr.ndim, Scalar.from_dtype(arr.dtype).kind)
 
 
 @dataclass(frozen=True)
