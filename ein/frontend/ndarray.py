@@ -81,6 +81,18 @@ def _to_array(expr: Expr, layout: Layout | None = None):
 class _Array:
     expr: Expr
 
+    def __bool__(self):
+        raise TypeError(
+            "Ein arrays don't have a boolean value and cannot be used in conditions - "
+            "did you accidentally include it in an if or while statement?"
+        )
+
+    def __iter__(self):
+        raise TypeError(
+            "Ein arrays cannot be iterated over, as their computation is staged lazily - "
+            "did you accidentally include it in a for-loop?"
+        )
+
     @abc.abstractmethod
     def assume(self, other) -> Self:
         ...
@@ -95,6 +107,9 @@ class _Array:
             )
         )
 
+    def torch(self, *, env: dict[Variable, numpy.ndarray | _TorchTensor] | None = None):
+        return self.numpy(env=env, backend="torch")
+
     def numpy(
         self,
         *,
@@ -107,12 +122,6 @@ class _Array:
                 f"Cannot evaluate array, as it depends on free variables: {self.expr.free_symbols}"
             )
         return BACKENDS[backend](self.expr, env)
-
-    def __bool__(self):
-        raise TypeError(
-            "Ein arrays don't have a boolean value and cannot be used in conditions - "
-            "did you accidentally include it in an if or while statement?"
-        )
 
 
 class Vec(_Array, Generic[T]):
@@ -321,17 +330,7 @@ def ext(
     return extrinsic
 
 
-@overload
-def wrap(array_like: ScalarLike) -> Scalar:
-    ...
-
-
-@overload
 def wrap(array_like: ArrayLike) -> Array:
-    ...
-
-
-def wrap(array_like):
     if isinstance(array_like, (Scalar, Vec)):
         return cast(Array, array_like)
     if not isinstance(array_like, (int, float, bool, numpy.ndarray, _TorchTensor)):

@@ -218,10 +218,15 @@ def stage(
 
 
 def interpret(
-    program: calculus.Expr, env: dict[Variable, numpy.ndarray]
+    program: calculus.Expr, env: dict[Variable, numpy.ndarray | torch.Tensor]
 ) -> torch.Tensor:
     return stage(program)(
-        {var: torch.from_numpy(numpy.asarray(arr)) for var, arr in env.items()}
+        {
+            var: torch.from_numpy(numpy.asarray(arr))
+            if not isinstance(arr, torch.Tensor)
+            else arr
+            for var, arr in env.items()
+        }
     )
 
 
