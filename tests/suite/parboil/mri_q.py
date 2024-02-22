@@ -76,7 +76,9 @@ class MriQ(Case):
         )
 
     @staticmethod
-    def sample(k: int = 5, x: int = 10) -> tuple[numpy.ndarray, ...]:
-        kx, ky, kz, phi_r, phi_i = (numpy.random.randn(k) for _ in range(5))
-        x, y, z = (numpy.random.randn(x) for _ in range(3))
+    def sample(k: int = 5, n: int = 10) -> tuple[numpy.ndarray, ...]:
+        kx, ky, kz, phi_r, phi_i = numpy.array(
+            [numpy.random.randn(k) for _ in range(5)]
+        )
+        x, y, z = numpy.array([numpy.random.randn(n) for _ in range(3)])
         return kx, ky, kz, x, y, z, phi_r, phi_i

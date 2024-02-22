@@ -60,10 +60,10 @@ class KMeans(Case):
 
     @staticmethod
     def in_python(*args: numpy.ndarray) -> numpy.ndarray:
-        points_, k, it = args
+        points_, k_, it_ = args
         points: list[list[float]] = [[x for x in p] for p in points_]
         n, d = len(points), len(points[0])
-        k, it = int(k), int(it)
+        k, it = int(k_), int(it_)
         centres = points[:k]
 
         def dist(p1: list[float], p2: list[float]) -> float:

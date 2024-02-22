@@ -56,8 +56,8 @@ class Hotspot(Case):
 
     @staticmethod
     def in_numpy(*args: numpy.ndarray) -> numpy.ndarray:
-        it, ts, p = args
-        it = int(it)
+        it_, ts, p = args
+        it = int(it_)
         assert ts.shape == p.shape
         r, c = ts.shape
         Rx, Ry, Rz, step, cap = params(r, c)
@@ -79,8 +79,8 @@ class Hotspot(Case):
 
     @staticmethod
     def in_python(*args: numpy.ndarray) -> numpy.ndarray:
-        it, ts, p = args
-        it = int(it)
+        it_, ts, p = args
+        it = int(it_)
         assert ts.shape == p.shape
         r, c = ts.shape
         Rx, Ry, Rz, step, cap = params(r, c)

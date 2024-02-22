@@ -213,13 +213,13 @@ def stage_in_array(
 
 def stage(
     program: calculus.Expr,
-) -> Callable[[dict[Variable, torch.Tensor]], torch.Tensor]:
+) -> Callable[[dict[Variable, torch.Tensor]], torch.Tensor | tuple[torch.Tensor, ...]]:
     return stage_in_array(to_array.transform(program))
 
 
 def interpret(
     program: calculus.Expr, env: dict[Variable, numpy.ndarray | torch.Tensor]
-) -> torch.Tensor:
+) -> torch.Tensor | tuple[torch.Tensor, ...]:
     return stage(program)(
         {
             var: torch.from_numpy(numpy.asarray(arr))

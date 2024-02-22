@@ -1,5 +1,5 @@
 from functools import cache
-from typing import Callable, TypeAlias, TypeVar, assert_never, cast
+from typing import Any, Callable, TypeAlias, TypeVar, assert_never, cast
 
 import numpy
 
@@ -10,7 +10,7 @@ from ein.symbols import Variable
 
 from . import array_calculus, to_array
 
-Env: TypeAlias = dict[Variable, numpy.ndarray]
+Env: TypeAlias = dict[Variable, numpy.ndarray | tuple[numpy.ndarray, ...]]
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -73,7 +73,7 @@ def stage_in_array(
             case array_calculus.Var(var, _var_rank):
                 return lambda env: env[var]
             case array_calculus.Let(var, bind_, body_):
-                bind, body = go(bind_), go(body_)
+                bind, body = go(bind_), go_either(body_)
 
                 def with_let(env: Env):
                     bound = bind(env)
@@ -116,7 +116,7 @@ def stage_in_array(
 
                 def apply_take(env: Env) -> numpy.ndarray:
                     arr = target(env)
-                    it = (
+                    it: Any = (
                         numpy.clip(item(env), 0, dim - 1)
                         if item is not None
                         else slice(None)
@@ -147,7 +147,7 @@ def stage_in_array(
                 rights = [maybe(go)(right_) for right_ in rights_]
 
                 def apply_pad(env: Env) -> numpy.ndarray:
-                    pads = tuple(
+                    pads: Any = tuple(
                         (
                             left(env) if left is not None else 0,
                             right(env) if right is not None else 0,
@@ -197,8 +197,7 @@ def stage_in_array(
                 init, size, body = go_either(init_), go(size_), go_either(body_)
 
                 def fold(env: Env) -> numpy.ndarray | tuple[numpy.ndarray, ...]:
-                    acc, n = init(env), size(env)
-                    n = max(int(n), 0)
+                    acc, n = init(env), max(int(size(env)), 0)
                     for i in range(n):
                         env[acc_var] = acc
                         env[index_var] = numpy.array(i)
@@ -212,8 +211,8 @@ def stage_in_array(
                 operands = tuple(go(op) for op in operands_)
                 return lambda env: tuple(op(env) for op in operands)
             case array_calculus.Untuple(at, _arity, target_):
-                target = go_either(target_)
-                return lambda env: target(env)[at]
+                tup = go_either(target_)
+                return lambda env: tup(env)[at]
             case array_calculus.Einsum(subs, operands_):
                 operands = tuple(go(op) for op in operands_)
                 op_subs, res_subs = subs.split("->")
@@ -245,7 +244,7 @@ def prepare(program: calculus.Expr) -> array_calculus.Expr:
 def stage(
     program: calculus.Expr,
 ) -> Callable[[dict[Variable, numpy.ndarray]], numpy.ndarray]:
-    return stage_in_array(prepare(program))
+    return stage_in_array(prepare(program))  # type: ignore
 
 
 def interpret(

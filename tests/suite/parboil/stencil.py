@@ -43,8 +43,8 @@ class Stencil(Case):
 
     @staticmethod
     def in_numpy(*args: numpy.ndarray) -> numpy.ndarray:
-        it, A = args
-        it = int(it)
+        it_, A = args
+        it = int(it_)
 
         for _ in range(it):
             edge = A.copy()
@@ -65,8 +65,8 @@ class Stencil(Case):
 
     @staticmethod
     def in_python(*args: numpy.ndarray) -> numpy.ndarray:
-        it, A = args
-        it = int(it)
+        it_, A = args
+        it = int(it_)
         nx, ny, nz = A.shape
 
         for _ in range(it):

@@ -42,7 +42,7 @@ class Scalar(AbstractType):
 
     @staticmethod
     def from_dtype(dtype: numpy.dtype) -> "Scalar":
-        t = _TORCH_DTYPE_MAP[dtype] if dtype in _TORCH_DTYPE_MAP else dtype.type
+        t: Any = _TORCH_DTYPE_MAP[dtype] if dtype in _TORCH_DTYPE_MAP else dtype.type
         if issubclass(t, numpy.bool_):
             return scalar_type(bool)
         elif issubclass(t, numpy.integer):

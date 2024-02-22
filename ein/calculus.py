@@ -385,8 +385,8 @@ class Fold(AbstractExpr):
 
 @dataclass(frozen=True, eq=False)
 class AbstractScalarOperator(AbstractExpr, abc.ABC):
-    ufunc: ClassVar[numpy.ufunc]
     operands: tuple[Expr, ...]
+    ufunc: ClassVar[Callable]
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -413,7 +413,6 @@ class AbstractScalarOperator(AbstractExpr, abc.ABC):
 @dataclass(frozen=True, eq=False)
 class AbstractUnaryScalarOperator(AbstractScalarOperator, abc.ABC):
     operands: tuple[Expr]
-    ufunc: ClassVar[Callable]
 
 
 @dataclass(frozen=True, eq=False)

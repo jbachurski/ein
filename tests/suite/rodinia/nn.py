@@ -44,8 +44,8 @@ class NN(Case):
 
     @staticmethod
     def in_numpy(*args: numpy.ndarray) -> numpy.ndarray:
-        k, x, y, xs, ys = args
-        k = int(k)
+        k_, x, y, xs, ys = args
+        k = int(k_)
         distances = numpy.sqrt((x - xs) ** 2 + (y - ys) ** 2)
         results = []
         for _ in range(k):
@@ -56,8 +56,8 @@ class NN(Case):
 
     @staticmethod
     def in_python(*args: numpy.ndarray) -> numpy.ndarray:
-        k, x, y, xs, ys = args
-        k = int(k)
+        k_, x, y, xs, ys = args
+        k = int(k_)
 
         assert len(xs) == len(ys)
         distances = [hypot(x - x1, y - y1) for x1, y1 in zip(xs, ys)]
@@ -73,4 +73,4 @@ class NN(Case):
         assert k < n
         x, y = numpy.random.randn(), numpy.random.randn()
         xs, ys = numpy.random.randn(n), numpy.random.randn(n)
-        return numpy.array(k), x, y, xs, ys
+        return numpy.array(k), numpy.array(x), numpy.array(y), xs, ys
