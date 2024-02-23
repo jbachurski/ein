@@ -72,12 +72,9 @@ class NumpyBackend(AbstractArrayBackend[numpy.ndarray]):
 
     @classmethod
     def pad(
-        cls, target: numpy.ndarray, pads: Sequence[tuple[int | None, int | None]]
+        cls, target: numpy.ndarray, pads: Sequence[tuple[int, int]]
     ) -> numpy.ndarray:
-        pads_full = tuple(
-            (x if x is not None else 0, y if y is not None else 0) for x, y in pads
-        )
-        return fast_edge_pad(target, pads_full)
+        return fast_edge_pad(target, tuple(pads))
 
     @classmethod
     def repeat(

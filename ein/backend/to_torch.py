@@ -1,12 +1,21 @@
 import itertools
 from functools import cache
-from typing import Any, Callable, TypeAlias, assert_never, cast
+from typing import Any, Callable, Sequence, TypeAlias, cast
 
 import numpy
 
 from ein import calculus
+from ein.backend import array_calculus, to_array
+from ein.backend.array_backend import AbstractArrayBackend
+from ein.backend.array_calculus import (
+    BinaryElementwise,
+    Reduce,
+    TernaryElementwise,
+    UnaryElementwise,
+)
 from ein.midend.lining import outline
 from ein.symbols import Variable
+from ein.value import Value
 
 try:
     import torch
@@ -19,16 +28,91 @@ except ImportError:
     torch = MagicGetter  # type: ignore
 
 
-from . import array_calculus, to_array
-from .array_backend import maybe
-from .array_calculus import (
-    BinaryElementwise,
-    Reduce,
-    TernaryElementwise,
-    UnaryElementwise,
-)
-
 Env: TypeAlias = dict[Variable, torch.Tensor | tuple[torch.Tensor, ...]]
+
+
+class TorchBackend(AbstractArrayBackend[torch.Tensor]):
+    @classmethod
+    def constant(cls, value: Value) -> torch.Tensor:
+        if isinstance(value.value, torch.Tensor):
+            return value.value
+        array = value.array
+        array.flags.writeable = True
+        ret = torch.from_numpy(array)
+        array.flags.writeable = False
+        return ret
+
+    @classmethod
+    def preprocess_bound(cls, target: torch.Tensor) -> torch.Tensor:
+        return target
+
+    @classmethod
+    def dim(cls, target: torch.Tensor, axis: int) -> torch.Tensor:
+        return torch.scalar_tensor(target.shape[axis], dtype=torch.int64)
+
+    @classmethod
+    def range(cls, size: torch.Tensor) -> torch.Tensor:
+        return torch.arange(int(size))
+
+    @classmethod
+    def transpose(
+        cls, target: torch.Tensor, permutation: tuple[int, ...]
+    ) -> torch.Tensor:
+        return target.permute(*permutation)
+
+    @classmethod
+    def squeeze(cls, target: torch.Tensor, axes: tuple[int, ...]) -> torch.Tensor:
+        return squeeze_axes(target, axes)
+
+    @classmethod
+    def unsqueeze(cls, target: torch.Tensor, axes: tuple[int, ...]) -> torch.Tensor:
+        return unsqueeze_axes(target, axes)
+
+    @classmethod
+    def gather(
+        cls, target: torch.Tensor, item: torch.Tensor, axis: int
+    ) -> torch.Tensor:
+        return torch.gather(target, axis, torch.clip(item, 0, target.shape[axis] - 1))
+
+    @classmethod
+    def take(
+        cls, target: torch.Tensor, items: Sequence[torch.Tensor | None]
+    ) -> torch.Tensor:
+        SLICE_NONE = slice(None)
+        it = (
+            torch.clip(item, 0, dim - 1) if item is not None else SLICE_NONE
+            for dim, item in zip(target.shape, items)
+        )
+        return target[*it]
+
+    @classmethod
+    def slice(cls, target: torch.Tensor, slices: Sequence[slice]) -> torch.Tensor:
+        return target[*slices]
+
+    @classmethod
+    def pad(cls, target: torch.Tensor, pads: Sequence[tuple[int, int]]) -> torch.Tensor:
+        return (
+            torch.nn.functional.pad(
+                target.unsqueeze(0).unsqueeze(0),
+                tuple(itertools.chain(*pads)),
+                mode="replicate",
+            )
+            .squeeze(0)
+            .squeeze(0)
+        )
+
+    @classmethod
+    def repeat(
+        cls, target: torch.Tensor, count: torch.Tensor, axis: int
+    ) -> torch.Tensor:
+        return torch.repeat_interleave(target, int(count), axis)
+
+    @classmethod
+    def prepare_einsum(cls, subs: str) -> Callable[..., torch.Tensor]:
+        return lambda *args: torch.einsum(subs, *args)
+
+
+INSTANCE = TorchBackend()
 
 
 def squeeze_axes(tensor, axes):
@@ -55,115 +139,6 @@ def stage_in_array(
     ) -> Callable[[Env], torch.Tensor | tuple[torch.Tensor, ...]]:
         expr = cast(array_calculus.Expr, expr)
         match expr:
-            case array_calculus.Const(array):
-                # Do this to avoid torch complaining about lack of support
-                # - we ought to never modify constants anyway
-                array.array.flags.writeable = True
-                arr = torch.from_numpy(array.array)
-                array.array.flags.writeable = False
-                return lambda env: arr
-            case array_calculus.Var(var, _var_rank):
-                return lambda env: env[var]
-            case array_calculus.Let(var, bind_, body_):
-                bind, body = go_either(bind_), go_either(body_)
-
-                def with_let(env: Env):
-                    env[var] = bind(env)
-                    ret = body(env)
-                    del env[var]
-                    return ret
-
-                return with_let
-            case array_calculus.Dim(axis, target_):
-                target = go(target_)
-                return lambda env: torch.scalar_tensor(
-                    target(env).shape[axis], dtype=torch.int64
-                )
-            case array_calculus.Range(size_):
-                size = go(size_)
-                return lambda env: torch.arange(int(size(env)))
-            case array_calculus.Transpose(permutation, target_):
-                target = go(target_)
-                return lambda env: target(env).permute(*permutation)
-            case array_calculus.Squeeze(axes, target_):
-                target = go(target_)
-                return lambda env: squeeze_axes(target(env), axes)
-            case array_calculus.Unsqueeze(axes, target_):
-                target = go(target_)
-                return lambda env: unsqueeze_axes(target(env), axes)
-            case array_calculus.Gather(axis, target_, item_):
-                target, item = go(target_), go(item_)
-
-                def apply_gather(env: Env) -> torch.Tensor:
-                    arr = target(env)
-                    return torch.gather(
-                        arr, axis, torch.clip(item(env), 0, arr.shape[axis] - 1)
-                    )
-
-                return apply_gather
-            case array_calculus.Take(target_, items_):
-                target = go(target_)
-                items = [maybe(go, item_) for item_ in items_]
-
-                def apply_take(env: Env) -> torch.Tensor:
-                    arr = target(env)
-                    it = (
-                        torch.clip(item(env), 0, dim - 1)
-                        if item is not None
-                        else slice(None)
-                        for dim, item in zip(arr.shape, items)
-                    )
-                    return arr[*it]
-
-                return apply_take
-            case array_calculus.Slice(target_, starts_, stops_):
-                target = go(target_)
-                starts = [maybe(go, start_) for start_ in starts_]
-                stops = [maybe(go, stop_) for stop_ in stops_]
-
-                def apply_slice(env: Env) -> torch.Tensor:
-                    slices = [
-                        slice(
-                            start(env) if start is not None else None,
-                            stop(env) if stop is not None else None,
-                        )
-                        for start, stop in zip(starts, stops)
-                    ]
-                    return target(env)[*slices]
-
-                return apply_slice
-            case array_calculus.Pad(target_, lefts_, rights_):
-                target = go(target_)
-                lefts = [maybe(go, left_) for left_ in lefts_]
-                rights = [maybe(go, right_) for right_ in rights_]
-                its = tuple(zip(lefts, rights))[::-1]
-
-                def apply_pad(env: Env) -> torch.Tensor:
-                    pads = tuple(
-                        itertools.chain.from_iterable(
-                            (
-                                int(left(env)) if left is not None else 0,
-                                int(right(env)) if right is not None else 0,
-                            )
-                            for left, right in its
-                        )
-                    )
-                    return (
-                        torch.nn.functional.pad(
-                            target(env).unsqueeze(0).unsqueeze(0),
-                            pads,
-                            mode="replicate",
-                        )
-                        .squeeze(0)
-                        .squeeze(0)
-                    )
-
-                return apply_pad
-            case array_calculus.Repeat(axis, count_, target_):
-                count, target = go(count_), go(target_)
-                return lambda env: torch.repeat_interleave(
-                    target(env), count(env), axis
-                )
             case array_calculus.Reduce(kind, axis, target_):
                 target = go(target_)
                 call = REDUCE[kind]
@@ -183,35 +158,10 @@ def stage_in_array(
                 first, second, third = go(first_), go(second_), go(third_)
                 call = ELEMENTWISE[kind]
                 return lambda env: call(first(env), second(env), third(env))
-            case array_calculus.Fold(index_var, size_, acc_var, init_, body_):
-                init, size, body = go_either(init_), go(size_), go_either(body_)
-
-                def fold(env: Env) -> torch.Tensor | tuple[torch.Tensor, ...]:
-                    acc, n = init(env), size(env)
-                    n = max(int(n), 0)
-                    for i in range(n):
-                        env[acc_var] = acc
-                        env[index_var] = torch.scalar_tensor(i, dtype=torch.int64)
-                        acc = body(env)
-                    if n:
-                        del env[acc_var], env[index_var]
-                    return acc
-
-                return fold
-            case array_calculus.Tuple(operands_):
-                operands = tuple(go(op) for op in operands_)
-                return lambda env: tuple(op(env) for op in operands)
-            case array_calculus.Untuple(at, _arity, target_):
-                target = go_either(target_)
-                return lambda env: target(env)[at]
-            case array_calculus.Einsum(subs, operands_):
-                operands = tuple(go(op) for op in operands_)
-                return lambda env: torch.einsum(subs, *[op(env) for op in operands])
-            case array_calculus.Extrinsic(_, fun, operands_):
-                operands = tuple(go(op) for op in operands_)
-                return lambda env: fun(*(op(env) for op in operands))
             case _:
-                assert_never(expr)
+                from_default = INSTANCE.stage(expr, go)
+                assert from_default is not None
+                return from_default
 
     program = cast(array_calculus.Expr, outline(program))
     return go(program)
