@@ -110,7 +110,7 @@ class _Array:
     def eval(
         self,
         *,
-        env: dict[Variable, numpy.ndarray] | None = None,
+        env: dict[Variable, numpy.ndarray | _TorchTensor] | None = None,
         backend: Backend | str = DEFAULT_BACKEND,
     ) -> numpy.ndarray:
         env = env if env is not None else {}
@@ -123,7 +123,7 @@ class _Array:
     def torch(self, *, env: dict[Variable, numpy.ndarray | _TorchTensor] | None = None):
         return self.eval(env=env, backend="torch")
 
-    def numpy(self, *, env: dict[Variable, numpy.ndarray | _TorchTensor] | None = None):
+    def numpy(self, *, env: dict[Variable, numpy.ndarray] | None = None):
         return self.eval(env=env, backend="numpy")
 
 
