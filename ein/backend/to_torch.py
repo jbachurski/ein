@@ -11,17 +11,22 @@ from ein.symbols import Variable
 try:
     import torch
 except ImportError:
-    torch = None  # type: ignore
+
+    class MagicGetter:
+        def __getattr__(self, item) -> Any:
+            return None
+
+    torch = MagicGetter  # type: ignore
 
 
 from . import array_calculus, to_array
+from .array_backend import maybe
 from .array_calculus import (
     BinaryElementwise,
     Reduce,
     TernaryElementwise,
     UnaryElementwise,
 )
-from .to_numpy import maybe
 
 Env: TypeAlias = dict[Variable, torch.Tensor | tuple[torch.Tensor, ...]]
 
@@ -41,13 +46,14 @@ def unsqueeze_axes(tensor, axes):
 def stage_in_array(
     program: array_calculus.Expr,
 ) -> Callable[[Env], torch.Tensor | tuple[torch.Tensor, ...]]:
-    def go(expr: array_calculus.Expr) -> Callable[[Env], torch.Tensor]:
+    def go(expr: array_calculus.AbstractExpr) -> Callable[[Env], torch.Tensor]:
         return cast(Callable[[Env], torch.Tensor], go_either(expr))
 
     @cache
     def go_either(
-        expr: array_calculus.Expr,
+        expr: array_calculus.AbstractExpr,
     ) -> Callable[[Env], torch.Tensor | tuple[torch.Tensor, ...]]:
+        expr = cast(array_calculus.Expr, expr)
         match expr:
             case array_calculus.Const(array):
                 # Do this to avoid torch complaining about lack of support
@@ -97,7 +103,7 @@ def stage_in_array(
                 return apply_gather
             case array_calculus.Take(target_, items_):
                 target = go(target_)
-                items = [maybe(go)(item_) for item_ in items_]
+                items = [maybe(go, item_) for item_ in items_]
 
                 def apply_take(env: Env) -> torch.Tensor:
                     arr = target(env)
@@ -112,8 +118,8 @@ def stage_in_array(
                 return apply_take
             case array_calculus.Slice(target_, starts_, stops_):
                 target = go(target_)
-                starts = [maybe(go)(start_) for start_ in starts_]
-                stops = [maybe(go)(stop_) for stop_ in stops_]
+                starts = [maybe(go, start_) for start_ in starts_]
+                stops = [maybe(go, stop_) for stop_ in stops_]
 
                 def apply_slice(env: Env) -> torch.Tensor:
                     slices = [
@@ -128,8 +134,8 @@ def stage_in_array(
                 return apply_slice
             case array_calculus.Pad(target_, lefts_, rights_):
                 target = go(target_)
-                lefts = [maybe(go)(left_) for left_ in lefts_]
-                rights = [maybe(go)(right_) for right_ in rights_]
+                lefts = [maybe(go, left_) for left_ in lefts_]
+                rights = [maybe(go, right_) for right_ in rights_]
                 its = tuple(zip(lefts, rights))[::-1]
 
                 def apply_pad(env: Env) -> torch.Tensor:
@@ -208,7 +214,6 @@ def stage_in_array(
                 assert_never(expr)
 
     program = cast(array_calculus.Expr, outline(program))
-    program = to_array.apply_inplace_on_temporaries(program)
     return go(program)
 
 

@@ -1,23 +1,100 @@
 from functools import cache
-from typing import Any, Callable, TypeAlias, TypeVar, assert_never, cast
+from typing import Any, Callable, Sequence, TypeAlias, cast
 
 import numpy
 
 from ein import calculus
+from ein.backend.array_backend import AbstractArrayBackend
 from ein.midend.lining import outline
 from ein.midend.structs import struct_of_arrays_transform
 from ein.symbols import Variable
+from ein.value import Value
 
 from . import array_calculus, to_array
 
 Env: TypeAlias = dict[Variable, numpy.ndarray | tuple[numpy.ndarray, ...]]
 
-T = TypeVar("T")
-S = TypeVar("S")
+
+class NumpyBackend(AbstractArrayBackend[numpy.ndarray]):
+    @classmethod
+    def constant(cls, value: Value) -> numpy.ndarray:
+        assert isinstance(value.array, numpy.ndarray)
+        return value.array
+
+    @classmethod
+    def preprocess_bound(cls, target: numpy.ndarray) -> numpy.ndarray:
+        return target.copy() if target.base is not None else target
+
+    @classmethod
+    def dim(cls, target: numpy.ndarray, axis: int) -> numpy.ndarray:
+        return numpy.array(target.shape[axis])
+
+    @classmethod
+    def range(cls, size: numpy.ndarray) -> numpy.ndarray:
+        return numpy.arange(int(size))
+
+    @classmethod
+    def transpose(
+        cls, target: numpy.ndarray, permutation: tuple[int, ...]
+    ) -> numpy.ndarray:
+        return numpy.transpose(target, permutation)
+
+    @classmethod
+    def squeeze(cls, target: numpy.ndarray, axes: tuple[int, ...]) -> numpy.ndarray:
+        return numpy.squeeze(target, axes)
+
+    @classmethod
+    def unsqueeze(cls, target: numpy.ndarray, axes: tuple[int, ...]) -> numpy.ndarray:
+        return numpy.expand_dims(target, axes)
+
+    @classmethod
+    def gather(
+        cls, target: numpy.ndarray, item: numpy.ndarray, axis: int
+    ) -> numpy.ndarray:
+        return numpy.take_along_axis(
+            target, numpy.clip(item, 0, target.shape[axis] - 1), axis
+        )
+
+    @classmethod
+    def take(
+        cls, target: numpy.ndarray, items: Sequence[numpy.ndarray | None]
+    ) -> numpy.ndarray:
+        SLICE_NONE = slice(None)
+        it: Any = (
+            numpy.clip(item, 0, dim - 1) if item is not None else SLICE_NONE
+            for dim, item in zip(target.shape, items)
+        )
+        return target[*it]
+
+    @classmethod
+    def slice(cls, target: numpy.ndarray, slices: Sequence[slice]) -> numpy.ndarray:
+        return target[*slices]
+
+    @classmethod
+    def pad(
+        cls, target: numpy.ndarray, pads: Sequence[tuple[int | None, int | None]]
+    ) -> numpy.ndarray:
+        pads_full = tuple(
+            (x if x is not None else 0, y if y is not None else 0) for x, y in pads
+        )
+        return fast_edge_pad(target, pads_full)
+
+    @classmethod
+    def repeat(
+        cls, target: numpy.ndarray, count: numpy.ndarray, axis: int
+    ) -> numpy.ndarray:
+        return numpy.repeat(target, int(count), axis=axis)
+
+    @classmethod
+    def prepare_einsum(cls, subs: str) -> Callable[..., numpy.ndarray]:
+        op_subs, res_subs = subs.split("->")
+        ops_subs = op_subs.split(",")
+        dummy_ops = [numpy.empty((4,) * len(curr_subs)) for curr_subs in ops_subs]
+        path = numpy.einsum_path(subs, *dummy_ops, optimize="optimal")[0]
+        return lambda *args: numpy.einsum(subs, *args, optimize=path)
 
 
-def maybe(f: Callable[[T], S]) -> Callable[[T | None], S | None]:
-    return lambda x: f(x) if x is not None else None
+INSTANCE = NumpyBackend()
 
 
 def fast_edge_pad(
@@ -67,99 +144,6 @@ def stage_in_array(
         expr: array_calculus.Expr,
     ) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
         match expr:
-            case array_calculus.Const(array):
-                arr = array.array
-                return lambda env: arr
-            case array_calculus.Var(var, _var_rank):
-                return lambda env: env[var]
-            case array_calculus.Let(var, bind_, body_):
-                bind, body = go(bind_), go_either(body_)
-
-                def with_let(env: Env):
-                    bound = bind(env)
-                    if isinstance(bound, numpy.ndarray) and bound.base is not None:
-                        bound = bound.copy()
-                    env[var] = bound
-                    ret = body(env)
-                    del env[var]
-                    return ret
-
-                return with_let
-            case array_calculus.Dim(axis, target_):
-                target = go(target_)
-                return lambda env: numpy.array(target(env).shape[axis])
-            case array_calculus.Range(size_):
-                size = go(size_)
-                return lambda env: numpy.arange(int(size(env)))
-            case array_calculus.Transpose(permutation, target_):
-                target = go(target_)
-                return lambda env: numpy.transpose(target(env), permutation)
-            case array_calculus.Squeeze(axes, target_):
-                target = go(target_)
-                return lambda env: numpy.squeeze(target(env), axes)
-            case array_calculus.Unsqueeze(axes, target_):
-                target = go(target_)
-                return lambda env: numpy.expand_dims(target(env), axes)
-            case array_calculus.Gather(axis, target_, item_):
-                target, item = go(target_), go(item_)
-
-                def apply_gather(env: Env) -> numpy.ndarray:
-                    arr = target(env)
-                    return numpy.take_along_axis(
-                        arr, numpy.clip(item(env), 0, arr.shape[axis] - 1), axis
-                    )
-
-                return apply_gather
-            case array_calculus.Take(target_, items_):
-                target = go(target_)
-                items = [maybe(go)(item_) for item_ in items_]
-
-                def apply_take(env: Env) -> numpy.ndarray:
-                    arr = target(env)
-                    it: Any = (
-                        numpy.clip(item(env), 0, dim - 1)
-                        if item is not None
-                        else slice(None)
-                        for dim, item in zip(arr.shape, items)
-                    )
-                    return arr[*it]
-
-                return apply_take
-            case array_calculus.Slice(target_, starts_, stops_):
-                target = go(target_)
-                starts = [maybe(go)(start_) for start_ in starts_]
-                stops = [maybe(go)(stop_) for stop_ in stops_]
-
-                def apply_slice(env: Env) -> numpy.ndarray:
-                    slices = [
-                        slice(
-                            start(env) if start is not None else None,
-                            stop(env) if stop is not None else None,
-                        )
-                        for start, stop in zip(starts, stops)
-                    ]
-                    return target(env)[*slices]
-
-                return apply_slice
-            case array_calculus.Pad(target_, lefts_, rights_):
-                target = go(target_)
-                lefts = [maybe(go)(left_) for left_ in lefts_]
-                rights = [maybe(go)(right_) for right_ in rights_]
-
-                def apply_pad(env: Env) -> numpy.ndarray:
-                    pads: Any = tuple(
-                        (
-                            left(env) if left is not None else 0,
-                            right(env) if right is not None else 0,
-                        )
-                        for left, right in zip(lefts, rights)
-                    )
-                    return fast_edge_pad(target(env), pads)
-
-                return apply_pad
-            case array_calculus.Repeat(axis, count_, target_):
-                count, target = go(count_), go(target_)
-                return lambda env: numpy.repeat(target(env), count(env), axis=axis)
             case array_calculus.Reduce(kind, axis, target_):
                 target = go(target_)
                 call = array_calculus.REDUCE_KINDS[kind].reduce
@@ -193,42 +177,10 @@ def stage_in_array(
                 first, second, third = go(first_), go(second_), go(third_)
                 call = array_calculus.ELEMENTWISE_KINDS[kind]
                 return lambda env: call(first(env), second(env), third(env))
-            case array_calculus.Fold(index_var, size_, acc_var, init_, body_):
-                init, size, body = go_either(init_), go(size_), go_either(body_)
-
-                def fold(env: Env) -> numpy.ndarray | tuple[numpy.ndarray, ...]:
-                    acc, n = init(env), max(int(size(env)), 0)
-                    for i in range(n):
-                        env[acc_var] = acc
-                        env[index_var] = numpy.array(i)
-                        acc = body(env)
-                    if n:
-                        del env[acc_var], env[index_var]
-                    return acc
-
-                return fold
-            case array_calculus.Tuple(operands_):
-                operands = tuple(go(op) for op in operands_)
-                return lambda env: tuple(op(env) for op in operands)
-            case array_calculus.Untuple(at, _arity, target_):
-                tup = go_either(target_)
-                return lambda env: tup(env)[at]
-            case array_calculus.Einsum(subs, operands_):
-                operands = tuple(go(op) for op in operands_)
-                op_subs, res_subs = subs.split("->")
-                ops_subs = op_subs.split(",")
-                dummy_ops = [
-                    numpy.empty((4,) * len(curr_subs)) for curr_subs in ops_subs
-                ]
-                path = numpy.einsum_path(subs, *dummy_ops, optimize="optimal")[0]
-                return lambda env: numpy.einsum(
-                    subs, *(op(env) for op in operands), optimize=path
-                )
-            case array_calculus.Extrinsic(_, fun, operands_):
-                operands = tuple(go(op) for op in operands_)
-                return lambda env: fun(*(op(env) for op in operands))
             case _:
-                assert_never(expr)
+                from_default = INSTANCE.stage(expr, go)
+                assert from_default is not None
+                return from_default
 
     program = cast(array_calculus.Expr, outline(program))
     program = to_array.apply_inplace_on_temporaries(program)
