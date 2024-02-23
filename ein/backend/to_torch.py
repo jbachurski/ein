@@ -208,6 +208,7 @@ def stage_in_array(
                 assert_never(expr)
 
     program = cast(array_calculus.Expr, outline(program))
+    program = to_array.apply_inplace_on_temporaries(program)
     return go(program)
 
 

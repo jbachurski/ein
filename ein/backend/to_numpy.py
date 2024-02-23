@@ -57,7 +57,7 @@ def fast_edge_pad(
 
 
 def stage_in_array(
-    program: array_calculus.Expr, *, use_inplace: bool = True
+    program: array_calculus.Expr,
 ) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
     def go(expr: array_calculus.Expr) -> Callable[[Env], numpy.ndarray]:
         return cast(Callable[[Env], numpy.ndarray], go_either(expr))
@@ -231,8 +231,7 @@ def stage_in_array(
                 assert_never(expr)
 
     program = cast(array_calculus.Expr, outline(program))
-    if use_inplace:
-        program = apply_inplace_on_temporaries(program)
+    program = to_array.apply_inplace_on_temporaries(program)
 
     return go(program)
 
@@ -251,41 +250,3 @@ def interpret(
     program: calculus.Expr, env: dict[Variable, numpy.ndarray]
 ) -> numpy.ndarray:
     return stage(program)(env)
-
-
-def apply_inplace_on_temporaries(program: array_calculus.Expr) -> array_calculus.Expr:
-    # Assumes that an elementwise operation used as an operand to another one
-    # will not be broadcast (already has the same shape as the result).
-    # Additionally, we assume that the result will not be reused anywhere else (needs to be let-bound).
-    # This will also interact with any implicit-promotion optimisations, as here we assume dtypes are consistent.
-    # This is why we only do this for BinaryElementwise and assume we have already done an explicit Cast.
-    TEMPORARIES = (
-        array_calculus.UnaryElementwise,
-        array_calculus.BinaryElementwise,
-        array_calculus.TernaryElementwise,
-        array_calculus.Range,
-        array_calculus.Cast,
-        array_calculus.Pad,
-        array_calculus.Repeat,
-        array_calculus.Reduce,
-    )
-
-    @cache
-    def go(expr: array_calculus.Expr) -> array_calculus.Expr:
-        first: array_calculus.Expr
-        second: array_calculus.Expr
-        expr = expr.map(go)
-        match expr:
-            case array_calculus.BinaryElementwise(kind, first, second, None):
-                # This logic is really shaky and interacts with optimisations to the number of axis manipulation calls.
-                # Should have more in-depth analysis on what broadcasting might occur
-                rank = expr.type.single.rank
-                rank1, rank2 = first.type.single.rank, second.type.single.rank
-                if rank:
-                    if rank == rank1 and isinstance(first, TEMPORARIES):
-                        return array_calculus.BinaryElementwise(kind, first, second, 0)
-                    if rank == rank2 and isinstance(second, TEMPORARIES):
-                        return array_calculus.BinaryElementwise(kind, first, second, 1)
-        return expr
-
-    return go(program)
