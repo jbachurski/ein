@@ -129,7 +129,7 @@ def test_uv_loss(backend, with_bounds_inference):
     )
 
     numpy.testing.assert_allclose(
-        loss.numpy(backend=backend), ((x_values - u_values @ v_values.T) ** 2).sum()
+        loss.eval(backend=backend), ((x_values - u_values @ v_values.T) ** 2).sum()
     )
 
 
@@ -201,8 +201,8 @@ def test_inline_interpret(backend):
     a = wrap(numpy.random.randn(20, 30))
     b = wrap(numpy.random.randn(30))
     numpy.testing.assert_allclose(
-        array(lambda i: reduce_sum(lambda j: a[i, j] * b[j])).numpy(backend=backend),
-        a.numpy(backend=backend) @ b.numpy(backend=backend),
+        array(lambda i: reduce_sum(lambda j: a[i, j] * b[j])).eval(backend=backend),
+        a.eval(backend=backend) @ b.eval(backend=backend),
     )
 
 
@@ -371,7 +371,7 @@ def test_clipped_shift(backend):
                     y = array(
                         lambda i: a[std.min(std.max(i + shift, low), high)], size=n + d
                     )
-                    assert list(y.numpy(backend=backend)) == y0
+                    assert list(y.eval(backend=backend)) == y0
 
 
 @with_backend
@@ -381,15 +381,15 @@ def test_summation(backend):
     a = wrap(a0)
 
     numpy.testing.assert_allclose(
-        array(lambda i: reduce_sum(lambda j: a[i, j])).numpy(backend=backend),
+        array(lambda i: reduce_sum(lambda j: a[i, j])).eval(backend=backend),
         a0.sum(axis=1),
     )
     numpy.testing.assert_allclose(
-        array(lambda j: reduce_sum(lambda i: a[i, j])).numpy(backend=backend),
+        array(lambda j: reduce_sum(lambda i: a[i, j])).eval(backend=backend),
         a0.sum(axis=0),
     )
     numpy.testing.assert_allclose(
-        reduce_sum(lambda i: reduce_sum(lambda j: a[i, j])).numpy(backend=backend),
+        reduce_sum(lambda i: reduce_sum(lambda j: a[i, j])).eval(backend=backend),
         a0.sum(axis=(0, 1)),
     )
 
@@ -404,8 +404,8 @@ def test_big_permutation(backend):
     # - A NumPy broadcast error indicates some axial permutation code is off.
 
     c = array(lambda p, q, r, s, t, u: a[q, s, r, p, u, t] + b[t, s, u, r, p, q])  # type: ignore
-    c.numpy(backend=backend)
+    c.eval(backend=backend)
     d = array(lambda p, q, r, s, t, u: c[u, t, s, r, q, p])  # type: ignore
-    d.numpy(backend=backend)
+    d.eval(backend=backend)
     e = array(lambda p, q, r, s, t, u: c[u, t, s, r, q, p] + d[p, q, r, s, t, u])  # type: ignore
-    e.numpy(backend=backend)
+    e.eval(backend=backend)

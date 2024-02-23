@@ -12,7 +12,7 @@ def test_adhoc_structs(backend):
     s = array(lambda i: (i, i**2, {"+": i**3, "-": -(i**3)}), size=10)
     a = array(lambda j: s[j][2]["-"])
     numpy.testing.assert_allclose(
-        a.numpy(backend=backend), [-(i**3) for i in range(10)]
+        a.eval(backend=backend), [-(i**3) for i in range(10)]
     )
 
 
@@ -46,7 +46,7 @@ def test_complex_scalars(backend):
 
     c1 = cis(numpy.linspace(0, 3.14, 11))
     cc1 = numpy.real(c1 * (c1 + 1))
-    numpy.testing.assert_allclose(cc.numpy(backend=backend), cc1)
+    numpy.testing.assert_allclose(cc.eval(backend=backend), cc1)
 
 
 @dataclass
@@ -94,6 +94,6 @@ def test_matrix_batches(backend):
     )
     matrices = array(lambda a: scales[a] @ Matrix.of(base))
 
-    got = array(lambda i: matrices[i].elem).numpy(backend=backend)
+    got = array(lambda i: matrices[i].elem).eval(backend=backend)
     exp = numpy.arange(4)[:, None, None] * numpy.array(base)
     numpy.testing.assert_allclose(got, exp)

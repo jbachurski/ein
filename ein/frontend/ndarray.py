@@ -107,10 +107,7 @@ class _Array:
             )
         )
 
-    def torch(self, *, env: dict[Variable, numpy.ndarray | _TorchTensor] | None = None):
-        return self.numpy(env=env, backend="torch")
-
-    def numpy(
+    def eval(
         self,
         *,
         env: dict[Variable, numpy.ndarray] | None = None,
@@ -122,6 +119,12 @@ class _Array:
                 f"Cannot evaluate array, as it depends on free variables: {self.expr.free_symbols}"
             )
         return BACKENDS[backend](self.expr, env)
+
+    def torch(self, *, env: dict[Variable, numpy.ndarray | _TorchTensor] | None = None):
+        return self.eval(env=env, backend="torch")
+
+    def numpy(self, *, env: dict[Variable, numpy.ndarray | _TorchTensor] | None = None):
+        return self.eval(env=env, backend="numpy")
 
 
 class Vec(_Array, Generic[T]):

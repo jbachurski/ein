@@ -13,7 +13,7 @@ def test_basic_extrinsic(backend):
     def vsum(x) -> Array:
         return ext(partial(numpy.sum, axis=-1), vector_type(float))(x)
 
-    b = vsum(a).numpy(backend=backend)
+    b = vsum(a).eval(backend=backend)
     numpy.testing.assert_allclose(b, 6)
 
 
@@ -25,7 +25,7 @@ def test_extrinsic_broadcast(backend):
     a = numpy.array([1, 2, 3])
     b = numpy.array([1, 1 / 2, 1 / 3])
 
-    c = array(lambda i, j: logaddexp(wrap(a)[i], wrap(b)[j])).numpy(backend=backend)
+    c = array(lambda i, j: logaddexp(wrap(a)[i], wrap(b)[j])).eval(backend=backend)
     exp = numpy.logaddexp(a[:, None], b[None, :])
     numpy.testing.assert_allclose(c, exp)
 
@@ -37,10 +37,10 @@ def test_extrinsic_batched_reduction(backend):
 
     a = numpy.arange(9).reshape(3, 3)
     numpy.testing.assert_allclose(
-        array(lambda i: argmin(array(lambda j: wrap(a)[i, j]))).numpy(backend=backend),
+        array(lambda i: argmin(array(lambda j: wrap(a)[i, j]))).eval(backend=backend),
         numpy.argmin(a, axis=0),
     )
     numpy.testing.assert_allclose(
-        array(lambda i: argmin(array(lambda j: wrap(a)[j, i]))).numpy(backend=backend),
+        array(lambda i: argmin(array(lambda j: wrap(a)[j, i]))).eval(backend=backend),
         numpy.argmin(a, axis=1),
     )
