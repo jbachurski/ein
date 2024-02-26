@@ -92,7 +92,11 @@ def build_layout(obj, f) -> Layout:
 def fold_layout(layout, args, atom, vec, merge):
     def get(name):
         def do(x):
-            return getattr(x, name) if hasattr(x, name) else x[name]
+            return (
+                getattr(x, name)
+                if isinstance(name, str) and hasattr(x, name)
+                else x[name]
+            )
 
         return do
 
