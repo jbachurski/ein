@@ -1,4 +1,4 @@
-from typing import cast
+from typing import TypeAlias, cast
 
 import numpy
 
@@ -12,15 +12,15 @@ except ImportError:
     _TorchTensor = type("_TorchTensor", (object,), {})  # noqa
 
 
-ArrayType = numpy.ndarray | _TorchTensor
+_ArrayType: TypeAlias = numpy.ndarray | _TorchTensor
 
 
 class Value:
-    value: numpy.ndarray | tuple["Value", "Value"]
+    value: _ArrayType | tuple["Value", "Value"]
 
     def __init__(
         self,
-        value: "Value | tuple[Value, Value] | numpy.typing.ArrayLike",
+        value: "Value | tuple[Value, Value] | _ArrayType | int | float | bool",
     ):
         if isinstance(value, Value):
             self.value = value.value
@@ -29,7 +29,6 @@ class Value:
             self.value = (Value(first), Value(second))
         elif isinstance(value, numpy.ndarray):
             self.value = value
-            self.value.flags.writeable = False
         elif numpy.isscalar(value):
             self.value = numpy.array(value)
             self.value.flags.writeable = False
@@ -58,6 +57,8 @@ class Value:
             if len(self.value.data) < BIG_DATA_SIZE:
                 return hash((self.value.dtype, self.value.data.tobytes()))
             return hash(id(self.value))
+        elif isinstance(self.value, _TorchTensor):
+            return hash(id(self.value))
         return hash(self.value)
 
     def __repr__(self) -> str:
@@ -66,6 +67,14 @@ class Value:
     @property
     def array(self) -> numpy.ndarray:
         if not isinstance(self.value, numpy.ndarray):
+            raise TypeError(
+                f"Value is not a NumPy array but one was expected: {self.value}"
+            )
+        return self.value
+
+    @property
+    def any_array(self) -> _ArrayType:
+        if not isinstance(self.value, (numpy.ndarray, _TorchTensor)):
             raise TypeError(f"Value is not an array but one was expected: {self.value}")
         return self.value
 
@@ -78,8 +87,8 @@ class Value:
 
     @property
     def type(self) -> Type:
-        if isinstance(self.value, numpy.ndarray):
-            return type_from_ndarray(self.array)
+        if isinstance(self.value, (numpy.ndarray, _TorchTensor)):
+            return type_from_ndarray(self.any_array)
         elif isinstance(self.value, tuple):
             first, second = self.value
             return Pair(first.type, second.type)

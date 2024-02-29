@@ -338,6 +338,5 @@ def wrap(array_like: ArrayLike) -> Array:
         return cast(Array, array_like)
     if not isinstance(array_like, (int, float, bool, numpy.ndarray, _TorchTensor)):
         raise TypeError(f"Invalid type for an ein Array: {type(array_like).__name__}")
-    array = numpy.array(array_like)
-    expr = calculus.Const(Value(array))
+    expr = calculus.Const(Value(array_like))
     return _to_array(expr)

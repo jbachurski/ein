@@ -37,9 +37,7 @@ class TorchBackend(AbstractArrayBackend[torch.Tensor]):
         if isinstance(value.value, torch.Tensor):
             return value.value
         array = value.array
-        array.flags.writeable = True
         ret = torch.from_numpy(array)
-        array.flags.writeable = False
         return ret
 
     @classmethod

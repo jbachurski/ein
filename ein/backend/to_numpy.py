@@ -18,7 +18,6 @@ Env: TypeAlias = dict[Variable, numpy.ndarray | tuple[numpy.ndarray, ...]]
 class NumpyBackend(AbstractArrayBackend[numpy.ndarray]):
     @classmethod
     def constant(cls, value: Value) -> numpy.ndarray:
-        assert isinstance(value.array, numpy.ndarray)
         return value.array
 
     @classmethod

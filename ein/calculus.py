@@ -88,7 +88,7 @@ class Const(AbstractExpr):
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
-        return {"value": self.value.array}, set()
+        return {"value": repr(self.value)}, set()
 
     @cached_property
     def type(self) -> Type:

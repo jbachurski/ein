@@ -2,6 +2,7 @@ import numpy
 import torch
 
 from ein import Scalar, Vec, array, ext, function, scalar_type, wrap
+from ein.frontend.std import reduce_sum
 
 
 def test_backend_call():
@@ -40,3 +41,20 @@ def test_function():
     torch.testing.assert_allclose(outer(a, b), outer.torch(a, b))
     torch.testing.assert_allclose(outer(a, b), a[:, None] * b[None, :])
     torch.testing.assert_allclose(outer(a, b), outer(a, b.numpy()))
+
+
+def test_wrap():
+    a, b = torch.randn(3), torch.randn(3)
+    c = array(lambda i: wrap(a)[i] * wrap(b)[i]).torch()
+    torch.testing.assert_allclose(c, a * b)
+
+
+def test_grad():
+    a, b = torch.randn(3).requires_grad_(True), torch.randn(3).requires_grad_(True)
+    c: torch.Tensor = reduce_sum(
+        lambda j: array(lambda i: wrap(a)[i] * wrap(b)[i])[j]
+    ).torch()
+    torch.testing.assert_allclose(c, torch.dot(a, b))
+    c.backward()
+    torch.testing.assert_allclose(a.grad, b)
+    torch.testing.assert_allclose(b.grad, a)
