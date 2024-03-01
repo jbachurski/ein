@@ -30,18 +30,25 @@ class Function:
         self.types = tuple(types) if types is not None else None
         self._staged = {}
 
-    def _interpret(self, args, backend: Backend):
+    def _types_from_args(self, *args) -> tuple[Type, ...]:
         types = tuple(type_from_ndarray(arg) for arg in args)
         if self.types is not None and types != self.types:
             raise TypeError(
                 f"Mismatched type signature in call: got {types}, expected {self.types}."
             )
+        return types
+
+    def _interpret(self, args, backend: Backend):
+        types = self._types_from_args(*args)
         key = (types, backend)
         if key not in self._staged:
-            varargs, expr = with_varargs(types, self.fun)
+            varargs, expr = self.phi(*types)
             self._staged[key] = (varargs, STAGE_BACKENDS[backend](expr))
         varargs, call = self._staged[key]
         return call({var: arg for var, arg in zip(varargs, args)})
+
+    def phi(self, *types: Type) -> tuple[tuple[Variable, ...], Expr]:
+        return with_varargs(types, self.fun)
 
     def numpy(self, *args: ndarray) -> ndarray:
         return self._interpret(args, backend="numpy")
