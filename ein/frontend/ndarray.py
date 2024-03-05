@@ -148,17 +148,9 @@ class Vec(_Array, Generic[T]):
         return self._layout
 
     @overload
-    def __getitem__(self, item_like: ScalarLike) -> T:
-        ...
-
-    @overload
-    def __getitem__(self: "Vec[Vec[S]]", item_like: tuple[ScalarLike, ScalarLike]) -> S:
-        ...
-
-    @overload
     def __getitem__(
-        self: "Vec[Vec[Vec[S]]]", item_like: tuple[ScalarLike, ScalarLike, ScalarLike]
-    ) -> S:
+        self: "Vec[Vec[Vec[Vec[Vec[S]]]]]", item_like: tuple[ScalarLike, ...]
+    ) -> Array:
         ...
 
     @overload
@@ -170,8 +162,16 @@ class Vec(_Array, Generic[T]):
 
     @overload
     def __getitem__(
-        self: "Vec[Vec[Vec[Vec[Vec[S]]]]]", item_like: tuple[ScalarLike, ...]
-    ) -> Array:
+        self: "Vec[Vec[Vec[S]]]", item_like: tuple[ScalarLike, ScalarLike, ScalarLike]
+    ) -> S:
+        ...
+
+    @overload
+    def __getitem__(self: "Vec[Vec[S]]", item_like: tuple[ScalarLike, ScalarLike]) -> S:
+        ...
+
+    @overload
+    def __getitem__(self, item_like: ScalarLike) -> T:
         ...
 
     def __getitem__(self, item_like):
