@@ -6,6 +6,8 @@ from .frontend.functions import function, with_varargs
 from .frontend.ndarray import Array, Scalar, Vec, ext, wrap
 from .type_system import matrix_type, ndarray_type, scalar_type, vector_type
 
+Bool = Int = Float = Scalar
+
 __all__ = [
     "array",
     "fold",
@@ -15,6 +17,9 @@ __all__ = [
     "with_varargs",
     "Array",
     "Scalar",
+    "Bool",
+    "Int",
+    "Float",
     "Vec",
     "scalar_type",
     "vector_type",
