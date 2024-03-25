@@ -29,7 +29,9 @@ from ein.frontend.layout import (
     unambiguous_layout,
 )
 from ein.symbols import Variable
-from ein.type_system import AbstractType, Type
+from ein.type_system import AbstractType
+from ein.type_system import Scalar as ScalarType
+from ein.type_system import Type
 from ein.value import Value, _TorchTensor
 
 T = TypeVar("T")
@@ -291,6 +293,12 @@ class Scalar(_Array):
 
     def max(self, other: ScalarLike) -> "Scalar":
         return Scalar(calculus.Max((self.expr, wrap(other).expr)))
+
+    def abs(self) -> "Scalar":
+        zero = 0 if self.expr.type == ScalarType(int) else 0.0
+        return (self > zero).where(self, -self)
+
+    __abs__ = abs
 
     def exp(self) -> "Scalar":
         return Scalar(calculus.Exp((self.expr,)))
