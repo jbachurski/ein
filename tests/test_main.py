@@ -279,7 +279,7 @@ def test_argmin(interpret):
     def argmin_trig(n: Array, a: Array) -> Array:
         def step(i: Array, j: Array, acc: tuple[Array, Array]) -> tuple[Array, Array]:
             v = (a[i] + j.to_float()).sin()
-            return where(v > acc[0], v, acc[0]), where(v > acc[0], i, acc[1])
+            return where(v > acc[0], (v, i), acc)
 
         return array(
             lambda j: fold((-float("inf"), 0), lambda i, acc: step(i, j, acc))[1],
