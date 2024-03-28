@@ -199,7 +199,7 @@ def perform(
         result[name] = {}
         for n, ts in ((n, benchmark(fun, get_sample(n))) for n in params if pred(n)):
             print(
-                f"k = x = {n} -> {min(ts)}  ({statistics.mean(ts)} ± {mean_stdev(ts)} across {len(ts)} runs)"
+                f"n = {n} -> {min(ts)}  ({statistics.mean(ts)} ± {mean_stdev(ts)} across {len(ts)} runs)"
             )
             result[name][n] = ts
 
