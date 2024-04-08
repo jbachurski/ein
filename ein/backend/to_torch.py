@@ -198,6 +198,7 @@ ELEMENTWISE: Any = {
     UnaryElementwise.Kind.reciprocal: torch.reciprocal,
     UnaryElementwise.Kind.exp: torch.exp,
     UnaryElementwise.Kind.sin: torch.sin,
+    UnaryElementwise.Kind.cos: torch.cos,
     UnaryElementwise.Kind.logical_not: torch.logical_not,
     BinaryElementwise.Kind.add: torch.add,
     BinaryElementwise.Kind.subtract: torch.subtract,
