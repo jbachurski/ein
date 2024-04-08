@@ -21,7 +21,12 @@ class NumpyBackend(AbstractArrayBackend[numpy.ndarray]):
 
     @classmethod
     def preprocess_bound(cls, target: numpy.ndarray) -> numpy.ndarray:
-        return target.copy() if target.base is not None else target
+        if target.base is not None:
+            base = target.base.strides
+            # Memory order non-monotonic
+            if any(x < y for x, y in zip(base, base[1:])):
+                return target.copy()
+        return target
 
     @classmethod
     def dim(cls, target: numpy.ndarray, axis: int) -> numpy.ndarray:

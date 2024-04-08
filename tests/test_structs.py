@@ -119,7 +119,26 @@ def test_fold_over_record_array(backend):
 
 @with_backend
 def test_reduce_argmin(backend):
-    a0 = numpy.random.randn(5)
+    # This should be equivalent to the code run by Ein
+    def argmax(xs):
+        acc, ret = float("-inf"), 0
+        js = numpy.arange(len(xs))
+        while len(xs) > 1:
+            if len(xs) % 2:
+                if xs[-1] > acc:
+                    acc = xs[-1]
+                    ret = js[-1]
+            xs1 = numpy.maximum(xs[:-1:2], xs[1::2])
+            js = numpy.where(xs[:-1:2] > xs[1::2], js[:-1:2], js[1::2])
+            xs = xs1
+        if len(xs):
+            if xs[0] > acc:
+                acc = xs[0]
+                ret = js[0]
+        return ret
+
+    a0 = numpy.random.randn(11)
+    assert a0.argmax() == argmax(a0)
     a = wrap(a0)
     p = array(lambda i: {"value": a[i], "index": i}).reduce(
         {"value": float("-inf"), "index": 0},

@@ -223,7 +223,7 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
                     while n > 1:
                         if n % 2:
                             acc = get(idx(-1), acc)
-                        vals = get(idx(slice(0, -1, 2)), idx(slice(1, None, 2)))
+                        vals = get(idx(slice(None, -1, 2)), idx(slice(1, None, 2)))
                         n //= 2
                     if n:
                         acc = get(idx(0), acc)
