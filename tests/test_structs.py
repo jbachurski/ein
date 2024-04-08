@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any, cast
 
 import numpy.testing
 import pytest
@@ -143,4 +144,19 @@ def test_reduce_argmin(backend):
     numpy.testing.assert_allclose(
         p.eval(backend=backend),
         a0.argmax(),
+    )
+
+
+@with_backend
+def test_reduce_weird_layout(backend):
+    p = array(lambda i: ((i, 2 * i), (-i, -2 * i)), size=5).reduce(
+        cast(Any, ((1, 2), (3, 4))),
+        lambda x, y: (
+            (x[0][0] + y[0][0], x[0][1] + y[0][1]),
+            (x[1][0] + y[1][0], x[1][1] + y[1][1]),
+        ),
+    )[1][0]
+    numpy.testing.assert_allclose(
+        p.eval(backend=backend),
+        3 - 0 - 1 - 2 - 3 - 4,
     )

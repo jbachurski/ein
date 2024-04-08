@@ -12,8 +12,10 @@ from ein.calculus import (
     Reduce,
     Second,
     Store,
+    Variable,
     Vec,
     at,
+    variable,
 )
 from ein.midend.substitution import substitute
 from ein.symbols import Index
@@ -109,6 +111,7 @@ def struct_of_arrays_transform(program: Expr):
             case Reduce(init, x, y, xy, vecs):
                 init, xy = go(init), go(xy)
                 vecs = tuple(go(vec) for vec in vecs)
+                pre_type = xy.type
 
                 def in_tuple(sub: calculus.Expr) -> tuple[calculus.Expr, ...]:
                     match sub.type:
@@ -119,12 +122,34 @@ def struct_of_arrays_transform(program: Expr):
                 def into_tuple(*args: calculus.Expr) -> calculus.Expr:
                     return functools.reduce(Cons, args)
 
-                prim_vecs = sum((in_tuple(vec) for vec in vecs), ())
+                def into_tuple_like(typ0: Type, *args: calculus.Expr) -> calculus.Expr:
+                    i = 0
+
+                    def rec(typ: Type):
+                        nonlocal i
+                        match typ:
+                            case Pair(fst, snd):
+                                return Cons(rec(fst), rec(snd))
+                        i += 1
+                        return args[i - 1]
+
+                    return rec(typ0)
+
+                init = into_tuple(*in_tuple(init))
                 xy = into_tuple(*in_tuple(xy))
-                # FIXME: The encoding for x and y might also change, inverse to xy.
-                #  A substitution may be necessary.
-                #  This only works now because usually the encoding is the trivial list.
-                return Reduce(init, x, y, xy, prim_vecs)
+                assert init.type == xy.type
+
+                prim_vecs = sum((in_tuple(vec) for vec in vecs), ())
+                assert init.type == functools.reduce(
+                    Pair, (cast(Vector, vec.type).elem for vec in prim_vecs)
+                )
+
+                x1, y1 = variable(Variable(), xy.type), variable(Variable(), xy.type)
+                xx1, yy1 = (into_tuple_like(pre_type, *in_tuple(v1)) for v1 in (x1, y1))
+                xy = cast(Expr, substitute(xy, {x: xx1, y: yy1}))
+
+                expr = Reduce(init, x1.var, y1.var, xy, prim_vecs)
+                return into_tuple_like(pre_type, *in_tuple(expr))
 
         return expr.map(go)
 

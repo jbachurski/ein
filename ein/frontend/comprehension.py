@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, NewType, Protocol, TypeAlias, TypeVar, overload
+from typing import Any, Callable, Protocol, TypeAlias, TypeVar, cast, overload
 
 from ein import calculus
 from ein.calculus import Expr
@@ -19,7 +19,7 @@ from .ndarray import (
 )
 
 T = TypeVar("T")
-Idx = NewType("Idx", Scalar)
+Idx: TypeAlias = Scalar
 Size: TypeAlias = int | Scalar
 
 
@@ -137,7 +137,7 @@ def array(constructor, *, size=None):
         size = (size,)
     n = len(inspect.signature(constructor).parameters) if size is None else len(size)
     indices = [Index() for _ in range(n)]
-    wrapped_indices = [Idx(_to_array(calculus.at(index))) for index in indices]
+    wrapped_indices = [cast(Idx, _to_array(calculus.at(index))) for index in indices]
     cons = constructor(*wrapped_indices)
     layout = build_layout(cons, lambda a: wrap(a).layout)
     body: Expr = _layout_struct_to_expr(layout, cons)
