@@ -1,3 +1,4 @@
+import functools
 from typing import assert_never, cast
 
 import numpy
@@ -23,16 +24,28 @@ def _interpret(expr: Expr, env: dict[Symbol, Value]) -> Value:
                     ]
                 )
             )
-        case calculus.Fold(counter, size, acc, init, body):
+        case calculus.Fold(counter, size, acc_v, init, body):
             n = int(_interpret(size, env).array)
-            env = env.copy()
-            env[acc] = _interpret(init, env)
+            env[acc_v] = _interpret(init, env)
             for i in range(n):
                 env[counter] = Value(numpy.array(i))
-                env[acc] = _interpret(body, env)
+                env[acc_v] = _interpret(body, env)
             if n:
                 del env[counter]
-            return env.pop(acc)
+            return env.pop(acc_v)
+        case calculus.Reduce(init, x, y, xy, vecs_):
+            vecs = [_interpret(vec_, env).array for vec_ in vecs_]
+            (n,) = {int(vec.shape[0]) for vec in vecs}
+            acc = _interpret(init, env)
+            for i in range(n):
+                env[x] = acc
+                env[y] = functools.reduce(
+                    lambda a, b: Value((a, b)), [Value(vec[i]) for vec in vecs]
+                )
+                acc = _interpret(xy, env)
+            if n:
+                del env[x], env[y]
+            return acc
         case calculus.Get(target, item):
             return Value(
                 numpy.take(

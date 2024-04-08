@@ -115,3 +115,17 @@ def test_fold_over_record_array(backend):
     )
     xx = array(lambda i: pp[i]["x"])
     numpy.testing.assert_allclose(xx.eval(backend=backend), -y0)
+
+
+@with_backend
+def test_reduce_argmin(backend):
+    a0 = numpy.random.randn(5)
+    a = wrap(a0)
+    p = array(lambda i: {"value": a[i], "index": i}).reduce(
+        {"value": float("-inf"), "index": 0},
+        lambda x, y: where(x["value"] > y["value"], x, y),
+    )["index"]
+    numpy.testing.assert_allclose(
+        p.eval(backend=backend),
+        a0.argmax(),
+    )

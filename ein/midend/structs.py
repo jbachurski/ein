@@ -2,7 +2,19 @@ import functools
 from typing import TypeVar, assert_never, cast
 
 from ein import calculus
-from ein.calculus import Concat, Cons, Dim, Expr, First, Get, Second, Store, Vec, at
+from ein.calculus import (
+    Concat,
+    Cons,
+    Dim,
+    Expr,
+    First,
+    Get,
+    Reduce,
+    Second,
+    Store,
+    Vec,
+    at,
+)
 from ein.midend.substitution import substitute
 from ein.symbols import Index
 from ein.type_system import Pair, Scalar, Type, Vector
@@ -45,6 +57,7 @@ def struct_of_arrays_transform(program: Expr):
         match expr:
             case Store(symbol, type_):
                 return Store(symbol, _soa_transform_type(type_))
+
             case Dim(arr, axis):
                 arr = go(arr)
 
@@ -69,6 +82,7 @@ def struct_of_arrays_transform(program: Expr):
                     return Get(sub, it)
 
                 return tuple_get(arr)
+
             case Concat(first, second):
                 first, second = go(first), go(second)
 
@@ -91,6 +105,26 @@ def struct_of_arrays_transform(program: Expr):
                     body1 = cast(Expr, substitute(First(body), {index: at(i)}))
                     body2 = cast(Expr, substitute(Second(body), {index: at(j)}))
                     return Cons(go(Vec(i, size, body1)), go(Vec(j, size, body2)))
+
+            case Reduce(init, x, y, xy, vecs):
+                init, xy = go(init), go(xy)
+                vecs = tuple(go(vec) for vec in vecs)
+
+                def in_tuple(sub: calculus.Expr) -> tuple[calculus.Expr, ...]:
+                    match sub.type:
+                        case Pair():
+                            return in_tuple(First(sub)) + in_tuple(Second(sub))
+                    return (sub,)
+
+                def into_tuple(*args: calculus.Expr) -> calculus.Expr:
+                    return functools.reduce(Cons, args)
+
+                prim_vecs = sum((in_tuple(vec) for vec in vecs), ())
+                xy = into_tuple(*in_tuple(xy))
+                # FIXME: The encoding for x and y might also change, inverse to xy.
+                #  A substitution may be necessary.
+                #  This only works now because usually the encoding is the trivial list.
+                return Reduce(init, x, y, xy, prim_vecs)
 
         return expr.map(go)
 

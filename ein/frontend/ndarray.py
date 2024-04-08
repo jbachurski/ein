@@ -18,7 +18,6 @@ from ein import calculus
 from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
 from ein.calculus import AbstractExpr, Expr
 from ein.frontend.layout import (
-    AbstractLayout,
     AtomLayout,
     LabelledLayout,
     Layout,
@@ -32,6 +31,7 @@ from ein.symbols import Variable
 from ein.type_system import AbstractType
 from ein.type_system import Scalar as ScalarType
 from ein.type_system import Type
+from ein.type_system import Vector as VectorType
 from ein.value import Value, _TorchTensor
 
 T = TypeVar("T")
@@ -131,16 +131,14 @@ class _Array:
 
 class Vec(_Array, Generic[T]):
     expr: Expr
-    _layout: Layout
+    _layout: VecLayout
 
     def __init__(self, expr: Expr, layout: "Layout | None" = None):
         assert isinstance(expr, AbstractExpr)
         self.expr = cast(Expr, expr)
-        self._layout = unambiguous_layout(self.expr.type) if layout is None else layout
-        assert isinstance(self._layout, AbstractLayout)
-        assert (
-            getattr(self._layout, "tag", None) is None
-        ), "Unexpected tagged layout in this context"
+        layout = unambiguous_layout(self.expr.type) if layout is None else layout
+        assert isinstance(layout, VecLayout)
+        self._layout = layout
 
     def assume(self, other) -> Self:
         return type(self)(self._assume_expr(other), self.layout)
@@ -197,6 +195,30 @@ class Vec(_Array, Generic[T]):
 
     def size(self, axis: int) -> "Scalar":
         return Scalar(calculus.Dim(self.expr, axis))
+
+    def reduce(self, init: T, f: Callable[[T, T], T]) -> T:
+        x, y = Variable(), Variable()
+        type_ = self.expr.type
+        assert isinstance(type_, VectorType)
+        x_, y_ = (
+            _to_array(calculus.variable(v, type_.elem), self.layout.sub) for v in (x, y)
+        )
+        xy_ = f(x_, y_)
+        layout = build_layout(xy_, lambda a: wrap(a).layout)
+        if self.layout.sub != layout:
+            raise TypeError(
+                f"Monoid must preserve the same structure, but reduces {self.layout.sub} into {layout}"
+            )
+        layout_init = build_layout(init, lambda a: wrap(a).layout)
+        if layout_init != layout:
+            raise TypeError(
+                f"Monoid identity must have the same structure as its reductions, "
+                f"but is {layout_init} != {layout}"
+            )
+        init_expr = _layout_struct_to_expr(layout, init)
+        xy = _layout_struct_to_expr(layout, xy_)
+        expr = calculus.Reduce(init_expr, x, y, xy, (self.expr,))
+        return _to_array(expr, self.layout.sub)
 
 
 class Scalar(_Array):

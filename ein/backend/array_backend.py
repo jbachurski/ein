@@ -188,6 +188,50 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
                     return acc
 
                 return fold
+            case array_calculus.Reduce(init_, x, y, xy_, vecs_, axis):
+                init, xy, vecs = go(init_), go(xy_), go(vecs_)
+
+                def reduce(env):
+                    acc = init(env)
+                    vals = vecs(env)
+                    singleton = False
+                    if not isinstance(vals, tuple):
+                        vals = (vals,)
+                        acc = (acc,)
+                        singleton = True
+
+                    def wrap(o):
+                        return (o,) if singleton else o
+
+                    def unwrap(o):
+                        if singleton:
+                            (o,) = o
+                        return o
+
+                    (n,) = {val.shape[axis] for val in vals}
+                    pivot = (slice(None),) * axis
+
+                    def idx(s):
+                        nonlocal vals
+                        return tuple(val[*pivot, s] for val in vals)
+
+                    def get(x0, y0):
+                        env[x] = unwrap(x0)
+                        env[y] = unwrap(y0)
+                        return wrap(xy(env))
+
+                    while n > 1:
+                        if n % 2:
+                            acc = get(idx(-1), acc)
+                        vals = get(idx(slice(0, -1, 2)), idx(slice(1, None, 2)))
+                        n //= 2
+                    if n:
+                        acc = get(idx(0), acc)
+                        del env[x], env[y]
+
+                    return unwrap(acc)
+
+                return reduce
             case array_calculus.Tuple(operands_):
                 operands = tuple(go(op) for op in operands_)
                 return lambda env: tuple(op(env) for op in operands)

@@ -21,7 +21,8 @@ from ein.value import Value
 Expr: TypeAlias = (
     "Const | Var | Let | Dim | Range | Concat | "
     "Transpose | Squeeze | Unsqueeze | Gather | Take | Slice | Pad | Repeat | "
-    "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold | "
+    "ReduceAxis | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | "
+    "Fold | Reduce | "
     "Tuple | Untuple | Einsum | Extrinsic"
 )
 
@@ -432,7 +433,7 @@ class Repeat(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
-class Reduce(AbstractExpr):
+class ReduceAxis(AbstractExpr):
     class Kind(enum.Enum):
         add = enum.auto()
         minimum = enum.auto()
@@ -446,8 +447,8 @@ class Reduce(AbstractExpr):
     def subterms(self) -> tuple[Expr, ...]:
         return (self.target,)
 
-    def map(self, f: Callable[[Expr], Expr]) -> "Reduce":
-        return Reduce(self.kind, self.axis, f(self.target))
+    def map(self, f: Callable[[Expr], Expr]) -> "ReduceAxis":
+        return ReduceAxis(self.kind, self.axis, f(self.target))
 
     @property
     def debug(self) -> tuple[dict[str, Any], set[Expr]]:
@@ -622,6 +623,41 @@ class Fold(AbstractExpr):
 
 
 @dataclass(frozen=True, eq=False)
+class Reduce(AbstractExpr):
+    init: Expr
+    x: Variable
+    y: Variable
+    xy: Expr
+    vecs: Expr
+    axis: int
+
+    @property
+    def subterms(self) -> tuple[Expr, ...]:
+        return self.init, self.xy, self.vecs
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Reduce":
+        return Reduce(f(self.init), self.x, self.y, f(self.xy), f(self.vecs), self.axis)
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"x": self.x, "y": self.y}, set(self.subterms)
+
+    @cached_property
+    def type(self) -> PrimitiveType:
+        assert self.init.type == self.xy.type
+        assert all(0 <= self.axis < sub.rank for sub in self.vecs.type.elems)
+        return self.init.type
+
+    @property
+    def captured_symbols(self) -> set[Symbol]:
+        return {self.x, self.y}
+
+    @property
+    def is_loop(self) -> bool:
+        return True
+
+
+@dataclass(frozen=True, eq=False)
 class Tuple(AbstractExpr):
     operands: tuple[Expr, ...]
 
@@ -714,14 +750,14 @@ class Extrinsic(AbstractExpr):
 
 
 REDUCE_KINDS: dict[Any, Any] = {
-    Reduce.Kind.add: numpy.add,
-    Reduce.Kind.minimum: numpy.minimum,
-    Reduce.Kind.maximum: numpy.maximum,
+    ReduceAxis.Kind.add: numpy.add,
+    ReduceAxis.Kind.minimum: numpy.minimum,
+    ReduceAxis.Kind.maximum: numpy.maximum,
 }
 REDUCE_UNDERLYING: dict[Any, Any] = {
-    Reduce.Kind.add: BinaryElementwise.Kind.add,
-    Reduce.Kind.minimum: BinaryElementwise.Kind.minimum,
-    Reduce.Kind.maximum: BinaryElementwise.Kind.maximum,
+    ReduceAxis.Kind.add: BinaryElementwise.Kind.add,
+    ReduceAxis.Kind.minimum: BinaryElementwise.Kind.minimum,
+    ReduceAxis.Kind.maximum: BinaryElementwise.Kind.maximum,
 }
 
 ELEMENTWISE_UFUNCS: dict[Any, Any] = {

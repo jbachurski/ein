@@ -1,4 +1,5 @@
 import abc
+import functools
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, Callable, ClassVar, TypeAlias, Union, cast
@@ -20,7 +21,7 @@ from ein.type_system import (
 from ein.value import Value
 
 Expr: TypeAlias = Union[
-    "Vec | Fold |"
+    "Vec | Fold | Reduce |"
     "Dim | Get | Concat |"
     "Const | Store | Let | AssertEq |"
     "Cons | First | Second |"
@@ -379,6 +380,54 @@ class Fold(AbstractExpr):
 
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return Fold(self.counter, f(self.size), self.acc, f(self.init), f(self.body))
+
+    @property
+    def is_loop(self) -> bool:
+        return True
+
+
+@dataclass(frozen=True, eq=False)
+class Reduce(AbstractExpr):
+    init: Expr
+    x: Variable
+    y: Variable
+    xy: Expr
+    vecs: tuple[Expr, ...]
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"xs": self.x, "ys": self.y}, set(self.subterms)
+
+    @property
+    def subterms(self) -> tuple[Expr, ...]:
+        return self.init, *self.vecs, self.xy
+
+    @cached_property
+    def type(self) -> Type:
+        if self.init.type != self.xy.type:
+            raise TypeError(
+                f"Reduction identity type mismatched: id {self.init.type} != {self.xy.type}."
+            )
+        for vec in self.vecs:
+            if not isinstance(vec.type, Vector):
+                raise TypeError(f"Must reduce over a vector, not {vec.type}.")
+        elems_type = functools.reduce(
+            Pair, (cast(Vector, vec.type).elem for vec in self.vecs)
+        )
+        if elems_type != self.xy.type:
+            raise TypeError(
+                f"Reduction must preserve type, but {self.xy.type} != elements {elems_type}."
+            )
+        return self.xy.type
+
+    @property
+    def captured_symbols(self) -> set[Symbol]:
+        return {self.x, self.y}
+
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return Reduce(
+            f(self.init), self.x, self.y, f(self.xy), tuple(f(vec) for vec in self.vecs)
+        )
 
     @property
     def is_loop(self) -> bool:

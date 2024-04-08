@@ -189,6 +189,36 @@ def transform(
                         body.aligned(acc_axes),
                     ),
                 )
+            case calculus.Reduce(init_, x, y, xy_, vecs_):
+                init = go(init_, index_sizes, var_axes)
+                vecs = [go(vec_, index_sizes, var_axes) for vec_ in vecs_]
+
+                # FIXME: Like for Fold, we trace the body twice to get a deterministic choice of axes.
+                some_axes = axial._alignment(init._axes, *(vec._axes for vec in vecs))
+                pre_transformed = transformed.copy()
+                axes = go(
+                    xy_, index_sizes, var_axes | {x: some_axes, y: some_axes}
+                )._axes
+                transformed.clear()
+                transformed.update(pre_transformed)
+                xy = go(xy_, index_sizes, var_axes | {x: axes, y: axes})
+
+                # FIXME: There's probably something wrong here.
+                init_expr = init.aligned(axes, repeats=index_sizes)
+                vecs_expr = (
+                    array_calculus.Tuple(
+                        tuple(vec.aligned(axes, repeats=index_sizes) for vec in vecs)
+                    )
+                    if len(vecs) > 1
+                    else vecs[0].aligned(axes, repeats=index_sizes)
+                )
+                return Axial(
+                    axes,
+                    array_calculus.Reduce(
+                        init_expr, x, y, xy.expr, vecs_expr, len(axes)
+                    ),
+                )
+
             case calculus.Get(target_, item_):
                 return array_indexing.transform_get(
                     target_,
@@ -349,11 +379,11 @@ def would_be_memory_considerate_axis(
 
 def match_reduction_by_body(
     body: calculus.Expr, acc: Variable
-) -> tuple[calculus.Expr, array_calculus.Reduce.Kind] | None:
+) -> tuple[calculus.Expr, array_calculus.ReduceAxis.Kind] | None:
     red = {
-        calculus.Add: array_calculus.Reduce.Kind.add,
-        calculus.Min: array_calculus.Reduce.Kind.minimum,
-        calculus.Max: array_calculus.Reduce.Kind.maximum,
+        calculus.Add: array_calculus.ReduceAxis.Kind.add,
+        calculus.Min: array_calculus.ReduceAxis.Kind.minimum,
+        calculus.Max: array_calculus.ReduceAxis.Kind.maximum,
     }
     for typ, kind in red.items():
         if isinstance(body, typ):
@@ -392,7 +422,7 @@ def match_reduction(
         size_class,
     )
     vec = go(vec_expr)
-    reduced = array_calculus.Reduce(kind, vec.positional_axis(0), vec.expr)
+    reduced = array_calculus.ReduceAxis(kind, vec.positional_axis(0), vec.expr)
     reduced_with_init = array_calculus.BinaryElementwise(
         array_calculus.REDUCE_UNDERLYING[kind], go(init).normal, reduced
     )
@@ -406,7 +436,7 @@ def match_summation(expr: calculus.Fold) -> tuple[Variable, calculus.Expr] | Non
     if red is None:
         return None
     body, kind = red
-    if kind != array_calculus.Reduce.Kind.add:
+    if kind != array_calculus.ReduceAxis.Kind.add:
         return None
     if expr.init != calculus.Const(calculus.Value(0.0)):
         return None
@@ -505,7 +535,7 @@ def apply_inplace_on_temporaries(program: array_calculus.Expr) -> array_calculus
         array_calculus.Cast,
         array_calculus.Pad,
         array_calculus.Repeat,
-        array_calculus.Reduce,
+        array_calculus.ReduceAxis,
     )
 
     @cache

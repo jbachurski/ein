@@ -9,7 +9,7 @@ from ein.backend import array_calculus, to_array
 from ein.backend.array_backend import AbstractArrayBackend
 from ein.backend.array_calculus import (
     BinaryElementwise,
-    Reduce,
+    ReduceAxis,
     TernaryElementwise,
     UnaryElementwise,
 )
@@ -141,7 +141,7 @@ def stage_in_array(
     ) -> Callable[[Env], torch.Tensor | tuple[torch.Tensor, ...]]:
         expr = cast(array_calculus.Expr, expr)
         match expr:
-            case array_calculus.Reduce(kind, axis, target_):
+            case array_calculus.ReduceAxis(kind, axis, target_):
                 target = go(target_)
                 call = REDUCE[kind]
                 return lambda env: call(target(env), axis=axis)
@@ -189,9 +189,9 @@ def interpret(
 
 
 REDUCE: Any = {
-    Reduce.Kind.add: torch.sum,
-    Reduce.Kind.minimum: torch.amin,
-    Reduce.Kind.maximum: torch.amax,
+    ReduceAxis.Kind.add: torch.sum,
+    ReduceAxis.Kind.minimum: torch.amin,
+    ReduceAxis.Kind.maximum: torch.amax,
 }
 ELEMENTWISE: Any = {
     UnaryElementwise.Kind.negative: torch.negative,

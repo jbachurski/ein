@@ -453,3 +453,21 @@ def test_record_concat(backend):
     numpy.testing.assert_allclose(
         c.eval(backend=backend), [i**2 for i in range(5)] + [i**2 for i in range(7)]
     )
+
+
+@with_backend
+def test_reduce_sum(backend):
+    a0 = numpy.random.randn(15)
+    a = wrap(a0)
+    numpy.testing.assert_allclose(
+        a.reduce(0.0, lambda x, y: x + y).eval(backend=backend), a0.sum()
+    )
+
+
+@with_backend
+def test_reduce_abs_sum(backend):
+    a0 = numpy.random.randn(12)
+    numpy.testing.assert_allclose(
+        wrap(a0).reduce(0.0, lambda x, y: abs(x) + abs(y)).eval(backend=backend),
+        numpy.abs(a0).sum(),
+    )

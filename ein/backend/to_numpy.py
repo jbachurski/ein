@@ -143,7 +143,7 @@ def stage_in_array(
         expr: array_calculus.Expr,
     ) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
         match expr:
-            case array_calculus.Reduce(kind, axis, target_):
+            case array_calculus.ReduceAxis(kind, axis, target_):
                 target = go(target_)
                 call = array_calculus.REDUCE_KINDS[kind].reduce
                 return lambda env: call(target(env), axis=axis)

@@ -3,7 +3,7 @@ import os.path
 from typing import Any, Iterable, assert_never, cast
 
 from ein import calculus
-from ein.backend import array_calculus, to_numpy
+from ein.backend import array_calculus, to_array
 from ein.midend import lining
 
 try:
@@ -64,7 +64,7 @@ def graph(program):
 
 
 def array_from_phi_program(program: calculus.Expr) -> array_calculus.Expr:
-    return to_numpy.prepare(program)
+    return to_array.transform(program)
 
 
 def plot_graph(dot: pydot.Dot) -> None:
@@ -116,11 +116,23 @@ def pretty_print(program: calculus.Expr) -> str:
                 yield from ("  " + line for line in go(init))
                 yield "by"
                 yield from ("  " + line for line in go(body))
+            case calculus.Reduce(init, x, y, xy, vecs):
+                yield "reduce"
+                for vec in vecs:
+                    yield from ("  " + line for line in go(vec))
+                yield "from"
+                yield from ("  " + line for line in go(init))
+                yield f"where {x} * {y} = "
+                yield from ("  " + line for line in go(xy))
             case calculus.Get(target, item):
                 yield "get"
                 yield from ("  " + line for line in go(target))
                 yield "at"
                 yield from ("  " + line for line in go(item))
+            case calculus.Concat(first, second):
+                yield "concat"
+                yield from ("  " + line for line in go(first))
+                yield from ("  " + line for line in go(second))
             case calculus.Vec(index, size, target):
                 yield f"array {index} size"
                 yield from ("  " + line for line in go(size))
