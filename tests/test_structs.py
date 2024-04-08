@@ -6,8 +6,10 @@ import pytest
 from ein import Array, Scalar, array, fold, wrap
 from ein.frontend.std import reduce_sum, where
 
+with_backend = pytest.mark.parametrize("backend", ["naive", "numpy", "torch"])
 
-@pytest.mark.parametrize("backend", ["naive", "numpy"])
+
+@with_backend
 def test_adhoc_structs(backend):
     s = array(lambda i: (i, i**2, {"+": i**3, "-": -(i**3)}), size=10)
     a = array(lambda j: s[j][2]["-"])
@@ -31,7 +33,7 @@ class C:
         )
 
 
-@pytest.mark.parametrize("backend", ["naive", "numpy"])
+@with_backend
 def test_complex_scalars(backend):
     def linspace(a, b, n):
         n = wrap(n)
@@ -85,7 +87,7 @@ def test_matrix_sanity():
     numpy.testing.assert_allclose((a + a).elem.numpy(), numpy.array([[0, 2], [4, 6]]))
 
 
-@pytest.mark.parametrize("backend", ["naive", "numpy"])
+@with_backend
 def test_matrix_batches(backend):
     base = numpy.array([[1, 2], [3, 4]], dtype=float)
     scales = array(
@@ -99,7 +101,7 @@ def test_matrix_batches(backend):
     numpy.testing.assert_allclose(got, exp)
 
 
-@pytest.mark.parametrize("backend", ["naive", "numpy"])
+@with_backend
 def test_fold_over_record_array(backend):
     x0, y0 = numpy.random.randn(5), numpy.random.randn(5)
     x, y = wrap(x0), wrap(y0)
