@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy.testing
 import pytest
 
-from ein import Array, Scalar, array, wrap
+from ein import Array, Scalar, array, fold, wrap
 from ein.frontend.std import reduce_sum, where
 
 
@@ -97,3 +97,19 @@ def test_matrix_batches(backend):
     got = array(lambda i: matrices[i].elem).eval(backend=backend)
     exp = numpy.arange(4)[:, None, None] * numpy.array(base)
     numpy.testing.assert_allclose(got, exp)
+
+
+@pytest.mark.parametrize("backend", ["naive", "numpy"])
+def test_fold_over_record_array(backend):
+    x0, y0 = numpy.random.randn(5), numpy.random.randn(5)
+    x, y = wrap(x0), wrap(y0)
+    p = array(lambda i: {"x": x[i], "y": y[i]})
+    pp = fold(
+        p,
+        lambda j, q: array(
+            lambda i: where(i == j, {"x": -q[i]["y"], "y": q[i]["x"]}, q[i])
+        ),
+        count=p.size(0),
+    )
+    xx = array(lambda i: pp[i]["x"])
+    numpy.testing.assert_allclose(xx.eval(backend=backend), -y0)

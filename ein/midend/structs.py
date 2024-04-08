@@ -1,7 +1,8 @@
 import functools
 from typing import TypeVar, assert_never, cast
 
-from ein.calculus import AssertEq, Concat, Cons, Dim, Expr, First, Get, Second, Vec, at
+from ein import calculus
+from ein.calculus import Concat, Cons, Dim, Expr, First, Get, Second, Store, Vec, at
 from ein.midend.substitution import substitute
 from ein.symbols import Index
 from ein.type_system import Pair, Scalar, Type, Vector
@@ -42,6 +43,8 @@ def struct_of_arrays_transform(program: Expr):
     @functools.cache
     def go(expr: Expr) -> Expr:
         match expr:
+            case Store(symbol, type_):
+                return Store(symbol, _soa_transform_type(type_))
             case Dim(arr, axis):
                 arr = go(arr)
 
@@ -52,7 +55,9 @@ def struct_of_arrays_transform(program: Expr):
                     return (Dim(sub, axis),)
 
                 dims = tuple_dim(arr)
-                return AssertEq(dims[0], dims[1:]) if len(dims) > 1 else dims[0]
+                return (
+                    calculus.AssertEq(dims[0], dims[1:]) if len(dims) > 1 else dims[0]
+                )
 
             case Get(arr, it):
                 arr, it = go(arr), go(it)
@@ -86,6 +91,7 @@ def struct_of_arrays_transform(program: Expr):
                     body1 = cast(Expr, substitute(First(body), {index: at(i)}))
                     body2 = cast(Expr, substitute(Second(body), {index: at(j)}))
                     return Cons(go(Vec(i, size, body1)), go(Vec(j, size, body2)))
+
         return expr.map(go)
 
     @functools.cache
