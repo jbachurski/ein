@@ -191,6 +191,10 @@ class Vec(_Array, Generic[T]):
                     assert False, f"Unexpected layout in indexing: {layout}"
         return _to_array(expr, layout)
 
+    def concat(self, other: "Vec[T]") -> "Vec[T]":
+        assert self.layout == other.layout
+        return _to_array(calculus.Concat(self.expr, other.expr), self.layout)
+
     def size(self, axis: int) -> "Scalar":
         return Scalar(calculus.Dim(self.expr, axis))
 

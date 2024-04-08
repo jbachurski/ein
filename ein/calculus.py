@@ -20,7 +20,9 @@ from ein.type_system import (
 from ein.value import Value
 
 Expr: TypeAlias = Union[
-    "Const | Store | Let | AssertEq | Dim | Get | Vec | Fold |"
+    "Vec | Fold |"
+    "Dim | Get | Concat |"
+    "Const | Store | Let | AssertEq |"
     "Cons | First | Second |"
     "Negate | Reciprocal | Exp | Sin | Cos | LogicalNot | CastToFloat | "
     "Add | Subtract | Multiply | Modulo | Power | Min | Max | "
@@ -528,6 +530,35 @@ class AbstractTernaryScalarOperator(AbstractScalarOperator):
 @dataclass(frozen=True, eq=False)
 class Where(AbstractTernaryScalarOperator):
     ufunc = staticmethod(numpy.where)  # type: ignore
+
+
+@dataclass(frozen=True, eq=False)
+class Concat(AbstractExpr):
+    first: Expr
+    second: Expr
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {}, {self.first, self.second}
+
+    @cached_property
+    def type(self) -> Type:
+        if not isinstance(self.first.type, Vector):
+            raise TypeError(
+                f"Concatenated values must be vectors, not {self.first.type}"
+            )
+        if self.first.type != self.second.type:
+            raise TypeError(
+                f"Concatenated values must be of the same (vector) type, got {self.first.type} != {self.second.type}"
+            )
+        return self.first.type
+
+    @property
+    def subterms(self) -> tuple[Expr, ...]:
+        return self.first, self.second
+
+    def map(self, f: Callable[[Expr], Expr]) -> Expr:
+        return Concat(f(self.first), f(self.second))
 
 
 @dataclass(frozen=True, eq=False)

@@ -42,6 +42,12 @@ def _interpret(expr: Expr, env: dict[Symbol, Value]) -> Value:
                     mode="clip",
                 )
             )
+        case calculus.Concat(first, second):
+            return Value(
+                numpy.concatenate(
+                    (_interpret(first, env).array, _interpret(second, env).array)
+                )
+            )
         case calculus.AssertEq(target, operands):
             assert len({int(_interpret(op, env).array) for op in operands}) == 1
             return _interpret(target, env)

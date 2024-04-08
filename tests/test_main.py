@@ -21,7 +21,7 @@ from ein import (
     wrap,
 )
 from ein.frontend import std
-from ein.frontend.std import reduce_max, reduce_min, reduce_sum, where
+from ein.frontend.std import concat, reduce_max, reduce_min, reduce_sum, where
 
 with_backend = pytest.mark.parametrize("backend", ["naive", "numpy", "torch"])
 with_interpret = pytest.mark.parametrize(
@@ -409,3 +409,47 @@ def test_big_permutation(backend):
     d.eval(backend=backend)
     e = array(lambda p, q, r, s, t, u: c[u, t, s, r, q, p] + d[p, q, r, s, t, u])  # type: ignore
     e.eval(backend=backend)
+
+
+@with_backend
+def test_concat(backend):
+    a0, b0 = numpy.random.randn(5), numpy.random.randn(7)
+    a, b = wrap(a0), wrap(b0)
+    numpy.testing.assert_allclose(
+        concat(a, b).eval(backend=backend), list(a0) + list(b0)
+    )
+
+
+@with_backend
+def test_aligned_concat(backend):
+    def single(x):
+        return array(lambda _: x, size=1)
+
+    test = array(
+        lambda i: array(
+            lambda j: array(
+                lambda k: concat(single(i + j), single(k + j)),
+                size=4,
+            ),
+            size=3,
+        ),
+        size=2,
+    )
+
+    numpy.testing.assert_allclose(
+        test.eval(backend=backend),
+        numpy.array(
+            [[[[i + j, k + j] for k in range(4)] for j in range(3)] for i in range(2)]
+        ),
+    )
+
+
+@with_backend
+def test_record_concat(backend):
+    a = array(lambda i: (i, i**2), size=5)
+    b = array(lambda i: (i, i**2), size=7)
+    c = array(lambda i: concat(a, b)[i][1])
+
+    numpy.testing.assert_allclose(
+        c.eval(backend=backend), [i**2 for i in range(5)] + [i**2 for i in range(7)]
+    )

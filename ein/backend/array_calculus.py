@@ -19,7 +19,7 @@ from ein.type_system import (
 from ein.value import Value
 
 Expr: TypeAlias = (
-    "Const | Var | Let | Dim | Range | "
+    "Const | Var | Let | Dim | Range | Concat | "
     "Transpose | Squeeze | Unsqueeze | Gather | Take | Slice | Pad | Repeat | "
     "Reduce | Cast | UnaryElementwise | BinaryElementwise | TernaryElementwise | Fold | "
     "Tuple | Untuple | Einsum | Extrinsic"
@@ -193,6 +193,30 @@ class Range(AbstractExpr):
     def type(self) -> PrimitiveType:
         assert not self.size.type.single.rank
         return PrimitiveType.of_array(1, int)
+
+
+@dataclass(frozen=True, eq=False)
+class Concat(AbstractExpr):
+    operands: tuple[Expr, ...]
+    axis: int
+
+    @property
+    def subterms(self) -> tuple[Expr, ...]:
+        return self.operands
+
+    def map(self, f: Callable[[Expr], Expr]) -> "Concat":
+        return Concat(tuple(f(op) for op in self.operands), self.axis)
+
+    @property
+    def debug(self) -> tuple[dict[str, Any], set[Expr]]:
+        return {"axis": self.axis}, {*self.operands}
+
+    @cached_property
+    def type(self) -> PrimitiveType:
+        assert all(
+            self.operands[0].type.single == op.type.single for op in self.operands
+        )
+        return self.operands[0].type
 
 
 @dataclass(frozen=True, eq=False)

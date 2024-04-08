@@ -13,6 +13,7 @@ from ein.midend.size_classes import (
     find_size_classes,
     update_size_classes,
 )
+from ein.midend.structs import struct_of_arrays_transform
 from ein.midend.substitution import substitute
 from ein.symbols import Index, Symbol, Variable
 from ein.type_system import Pair, Scalar, to_float
@@ -34,6 +35,7 @@ def transform(
 ) -> array_calculus.Expr:
     transformed: dict[calculus.Expr, Axial] = {}
 
+    program = struct_of_arrays_transform(program)
     size_class = find_size_classes(program)
 
     def _go(
@@ -197,6 +199,20 @@ def transform(
                     use_takes=use_takes,
                     use_slice_pads=use_slice_pads,
                     use_slice_elision=use_slice_elision,
+                )
+            case calculus.Concat(first_, second_):
+                first = go(first_, index_sizes, var_axes)
+                second = go(second_, index_sizes, var_axes)
+                used_axes = axial._alignment(first._axes, second._axes)
+                return Axial(
+                    used_axes,
+                    array_calculus.Concat(
+                        tuple(
+                            op.aligned(used_axes, repeats=index_sizes)
+                            for op in (first, second)
+                        ),
+                        len(used_axes),
+                    ),
                 )
             case calculus.Vec(index, size_, target_):
                 size = go(size_, index_sizes, var_axes)

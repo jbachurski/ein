@@ -108,11 +108,23 @@ class Axial:
             ),
         )
 
-    def aligned(self, into_axes: Axes, *, leftpad: bool = True) -> array_calculus.Expr:
+    def aligned(
+        self,
+        into_axes: Axes,
+        *,
+        leftpad: bool = True,
+        repeats: dict[Axis, array_calculus.Expr] | None = None,
+    ) -> array_calculus.Expr:
         k = len(self.expr.type.elems)
 
         def local_align(e: array_calculus.Expr):
-            return _align(e, self._axes, into_axes, leftpad=leftpad)
+            return _align(
+                e,
+                self._axes,
+                into_axes,
+                leftpad=leftpad,
+                repeats=repeats if repeats is not None else {},
+            )
 
         if k != 1:
             expr = array_calculus.Tuple(
@@ -138,15 +150,24 @@ def _alignment(*args: Axes) -> Axes:
 
 
 def _align(
-    expr: array_calculus.Expr, axes: Axes, into_axes: Axes, *, leftpad: bool
+    expr: array_calculus.Expr,
+    axes: Axes,
+    into_axes: Axes,
+    *,
+    leftpad: bool,
+    repeats: dict[Axis, array_calculus.Expr],
 ) -> array_calculus.Expr:
     assert len(axes) <= len(into_axes)
     free_pi = [axes.index(axis) for axis in sorted(axes, key=into_axes.index)]
     pos_id = list(range(len(axes), expr.type.single.rank))
     expr = array_calculus.Transpose(tuple(free_pi + pos_id), expr)
-    expands = tuple(i for i, axis in enumerate(into_axes) if axis not in axes)
+    expands = [(i, axis) for i, axis in enumerate(into_axes) if axis not in axes]
     if not leftpad:
-        while expands and not expands[0]:
-            expands = tuple(x - 1 for x in expands[1:])
-    expr = array_calculus.Unsqueeze(expands, expr)
+        while expands and not expands[0][0]:
+            expands = [(x - 1, axis) for x, axis in expands[1:]]
+    expanded_axes = tuple(i for i, _ in expands)
+    expr = array_calculus.Unsqueeze(expanded_axes, expr)
+    for i, axis in expands:
+        if axis in repeats:
+            expr = array_calculus.Repeat(i, repeats[axis], expr)
     return expr

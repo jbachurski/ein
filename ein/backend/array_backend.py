@@ -46,6 +46,11 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
 
     @classmethod
     @abc.abstractmethod
+    def concat(cls, *args: T, axis: int) -> T:
+        ...
+
+    @classmethod
+    @abc.abstractmethod
     def transpose(cls, target: T, permutation: tuple[int, ...]) -> T:
         ...
 
@@ -123,6 +128,9 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
             case array_calculus.Range(size_):
                 size = go(size_)
                 return lambda env: cls.range(size(env))
+            case array_calculus.Concat(operands_, axis):
+                ops = [go(op_) for op_ in operands_]
+                return lambda env: cls.concat(*(op(env) for op in ops), axis=axis)
             case array_calculus.Transpose(permutation, target_):
                 target = go(target_)
                 return lambda env: cls.transpose(target(env), permutation)

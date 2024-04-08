@@ -6,7 +6,6 @@ import numpy
 from ein import calculus
 from ein.backend.array_backend import AbstractArrayBackend
 from ein.midend.lining import outline
-from ein.midend.structs import struct_of_arrays_transform
 from ein.symbols import Variable
 from ein.value import Value
 
@@ -31,6 +30,10 @@ class NumpyBackend(AbstractArrayBackend[numpy.ndarray]):
     @classmethod
     def range(cls, size: numpy.ndarray) -> numpy.ndarray:
         return numpy.arange(int(size))
+
+    @classmethod
+    def concat(cls, *args: numpy.ndarray, axis: int) -> numpy.ndarray:
+        return numpy.concatenate(args, axis=axis)
 
     @classmethod
     def transpose(
@@ -184,14 +187,11 @@ def stage_in_array(
     return go(program)
 
 
-def prepare(program: calculus.Expr) -> array_calculus.Expr:
-    return to_array.transform(struct_of_arrays_transform(program))
-
-
 def stage(
     program: calculus.Expr,
 ) -> Callable[[dict[Variable, numpy.ndarray]], numpy.ndarray]:
-    return stage_in_array(prepare(program))  # type: ignore
+    array_program = to_array.transform(program)
+    return stage_in_array(array_program)  # type: ignore
 
 
 def interpret(

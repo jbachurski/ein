@@ -4,7 +4,7 @@ from typing import Callable, Generic, TypeVar
 
 from .comprehension import Idx, Size, _FromIndex, array, fold
 from .layout import build_layout, map_layout
-from .ndarray import Array, ArrayLike, Scalar, wrap
+from .ndarray import Array, ArrayLike, Scalar, Vec, wrap
 
 T = TypeVar("T", Array, tuple[Array, Array], tuple[Array, Array, Array])
 
@@ -20,6 +20,10 @@ def where(cond: bool | Scalar, true: T, false: T) -> T:
         lambda t, f: c.where(t, f),
         lambda ts, fs: array(lambda i: where(cond, ts[i], fs[i])),
     )
+
+
+def concat(arg: Vec[T], *args: Vec[T]) -> Vec[T]:
+    return arg.concat(concat(*args)) if args else arg
 
 
 @dataclass

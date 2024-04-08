@@ -53,6 +53,10 @@ class TorchBackend(AbstractArrayBackend[torch.Tensor]):
         return torch.arange(int(size))
 
     @classmethod
+    def concat(cls, *args: torch.Tensor, axis: int) -> torch.Tensor:
+        return torch.concat(args, dim=axis)
+
+    @classmethod
     def transpose(
         cls, target: torch.Tensor, permutation: tuple[int, ...]
     ) -> torch.Tensor:
