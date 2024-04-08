@@ -123,7 +123,7 @@ def test_reduce_argmin(backend):
     def argmax(xs):
         acc, ret = float("-inf"), 0
         js = numpy.arange(len(xs))
-        while len(xs) > 1:
+        while len(xs):
             if len(xs) % 2:
                 if xs[-1] > acc:
                     acc = xs[-1]
@@ -131,10 +131,6 @@ def test_reduce_argmin(backend):
             xs1 = numpy.maximum(xs[:-1:2], xs[1::2])
             js = numpy.where(xs[:-1:2] > xs[1::2], js[:-1:2], js[1::2])
             xs = xs1
-        if len(xs):
-            if xs[0] > acc:
-                acc = xs[0]
-                ret = js[0]
         return ret
 
     a0 = numpy.random.randn(11)
