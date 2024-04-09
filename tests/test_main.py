@@ -484,3 +484,45 @@ def test_reduce_concat(backend):
         aa.eval(backend=backend),
         a0,
     )
+
+
+@with_backend
+def test_reduce_harmonic_mean(backend):
+    a0 = 1 + numpy.random.randn(12) ** 2
+    a = wrap(a0)
+    numpy.testing.assert_allclose(
+        array(lambda i: {"mean": a[i], "count": 1.0})
+        .reduce(
+            {"mean": float("inf"), "count": 0.0},
+            lambda x, y: {
+                "mean": (
+                    (x["count"] + y["count"])
+                    / (x["count"] / x["mean"] + y["count"] / y["mean"])
+                ),
+                "count": x["count"] + y["count"],
+            },
+        )["mean"]
+        .eval(backend=backend),
+        len(a0) / numpy.sum(1 / a0),
+    )
+
+
+@with_backend
+def test_reduce_for_scan_sum(backend):
+    def scan(xs, init, f):
+        return array(lambda i: array(lambda _: xs[i], size=1)).reduce(
+            array(lambda _: init, size=0),
+            lambda x, y: concat(
+                x,
+                array(lambda i: f(where(x.size(0) > 0, x[x.size(0) - 1], init), y[i])),
+            ),
+        )
+
+    a0 = numpy.random.randn(12)
+    a = wrap(a0)
+    aa = scan(a, 0.0, lambda x, y: x + y)
+
+    numpy.testing.assert_allclose(
+        aa.eval(backend=backend),
+        numpy.cumsum(a0),
+    )
