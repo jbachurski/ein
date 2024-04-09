@@ -201,6 +201,10 @@ def transform(
                 )._axes
                 transformed.clear()
                 transformed.update(pre_transformed)
+
+                # Insert the batch axis to be the first one before ones reduced
+                #   this is a convenient choice, as [vecs] also follow it
+                #   (their outermost axis is reduced, so this inserted axis corresponds to it)
                 xy_axes = (*axes, Index())
                 xy = go(xy_, index_sizes, var_axes | {x: xy_axes, y: xy_axes})
 
