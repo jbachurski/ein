@@ -471,3 +471,19 @@ def test_reduce_abs_sum(backend):
         wrap(a0).reduce(0.0, lambda x, y: abs(x) + abs(y)).eval(backend=backend),
         numpy.abs(a0).sum(),
     )
+
+
+@with_backend
+def test_reduce_concat(backend):
+    a0 = numpy.random.randn(12)
+    a = wrap(a0)
+    aa = array(lambda i: array(lambda _: a[i], size=1)).reduce(
+        array(lambda _: 0.0, size=0), lambda x, y: concat(x, y)
+    )
+    from ein.debug import plot_array_graph
+
+    plot_array_graph(aa.expr)
+    numpy.testing.assert_allclose(
+        aa.eval(backend=backend),
+        a0,
+    )

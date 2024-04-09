@@ -644,7 +644,7 @@ class Reduce(AbstractExpr):
 
     @cached_property
     def type(self) -> PrimitiveType:
-        assert self.init.type == self.xy.type
+        assert self.init.type == self.xy.type.with_rank_delta(-1)
         assert all(0 <= self.axis < sub.rank for sub in self.vecs.type.elems)
         return self.init.type
 

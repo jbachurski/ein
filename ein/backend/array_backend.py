@@ -210,6 +210,8 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
 
                     (n,) = {val.shape[axis] for val in vals}
                     pivot = (slice(None),) * axis
+                    # The accumulator is unsqueezed to align the batch axis
+                    acc = tuple(cls.unsqueeze(ac, (0,)) for ac in acc)
 
                     def idx(s):
                         nonlocal vals
@@ -222,14 +224,14 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
 
                     while n > 1:
                         if n % 2:
-                            acc = get(idx(-1), acc)
+                            acc = get(idx([-1]), acc)
                         vals = get(idx(slice(None, -1, 2)), idx(slice(1, None, 2)))
                         n //= 2
                     if n:
-                        acc = get(idx(0), acc)
+                        acc = get(idx([0]), acc)
                         del env[x], env[y]
 
-                    return unwrap(acc)
+                    return unwrap(tuple(cls.squeeze(ac, (0,)) for ac in acc))
 
                 return reduce
             case array_calculus.Tuple(operands_):

@@ -201,7 +201,8 @@ def transform(
                 )._axes
                 transformed.clear()
                 transformed.update(pre_transformed)
-                xy = go(xy_, index_sizes, var_axes | {x: axes, y: axes})
+                xy_axes = (*axes, Index())
+                xy = go(xy_, index_sizes, var_axes | {x: xy_axes, y: xy_axes})
 
                 # FIXME: There's probably something wrong here.
                 init_expr = init.aligned(axes, repeats=index_sizes)
