@@ -540,3 +540,22 @@ def test_reduce_sum_matrix_axes(backend):
         array(lambda i: a[:, i].reduce(0.0, lambda x, y: x + y)).eval(backend=backend),
         a0.sum(axis=0),
     )
+
+
+@with_backend
+def test_reduce_works_with_axials(backend):
+    a0 = numpy.random.randn(15, 17)
+    a = wrap(a0)
+    numpy.testing.assert_allclose(
+        array(lambda i: a[:, i].reduce(i.to_float(), lambda x, y: x + y)).eval(
+            backend=backend
+        ),
+        numpy.arange(a0.shape[1]) + a0.sum(axis=0),
+    )
+    numpy.testing.assert_allclose(
+        array(
+            lambda k: array(lambda i: a[:, i].reduce(k.to_float(), lambda x, y: x + y)),
+            size=5,
+        ).eval(backend=backend),
+        numpy.arange(5)[:, None] + a0.sum(axis=0),
+    )
