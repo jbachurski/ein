@@ -175,19 +175,32 @@ class Vec(_Array, Generic[T]):
         ...
 
     def __getitem__(self, item_like):
-        item = (item_like,) if not isinstance(item_like, tuple) else item_like
-        expr = self.expr
-        layout = self.layout
-        for axis_item in item:
-            match layout:
-                case VecLayout(sub):
-                    expr = calculus.Get(expr, wrap(axis_item).expr)
-                    layout = sub
-                case AtomLayout():
-                    raise ValueError("Cannot index into a scalar array")
-                case _:
-                    assert False, f"Unexpected layout in indexing: {layout}"
-        return _to_array(expr, layout)
+        item: tuple = (item_like,) if not isinstance(item_like, tuple) else item_like
+        if not item:
+            return self
+        curr, *rest = item
+
+        def maybe_rest(x):
+            return x[tuple(rest)] if rest else x
+
+        sub_expr: calculus.Expr
+        sub_layout: Layout
+        match curr:
+            case slice(start=start, stop=stop, step=step):
+                # FIXME: Handle other slices for indexing into Ein arrays.
+                if {start, stop, step} != {None}:
+                    raise ValueError(
+                        f"Unhandled slice for Ein indexing: {curr}, only empty slices are allowed."
+                    )
+                from .comprehension import array
+
+                # This is not an infinite recursion, as [i] is not a slice
+                return array(lambda i: maybe_rest(self[i]))
+            case _:
+                sub_expr = calculus.Get(self.expr, wrap(curr).expr)
+                sub_layout = self.layout.sub
+                sub = _to_array(sub_expr, sub_layout)
+        return maybe_rest(sub)
 
     def concat(self, other: "Vec[T]") -> "Vec[T]":
         assert self.layout == other.layout
