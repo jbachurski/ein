@@ -526,3 +526,17 @@ def test_reduce_for_scan_sum(backend):
         aa.eval(backend=backend),
         numpy.cumsum(a0),
     )
+
+
+@with_backend
+def test_reduce_sum_matrix_axes(backend):
+    a0 = numpy.random.randn(15, 17)
+    a = wrap(a0)
+    numpy.testing.assert_allclose(
+        array(lambda i: a[i, :].reduce(0.0, lambda x, y: x + y)).eval(backend=backend),
+        a0.sum(axis=1),
+    )
+    numpy.testing.assert_allclose(
+        array(lambda i: a[:, i].reduce(0.0, lambda x, y: x + y)).eval(backend=backend),
+        a0.sum(axis=0),
+    )
