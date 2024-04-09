@@ -47,14 +47,11 @@ def _interpret(expr: Expr, env: dict[Symbol, Value]) -> Value:
                 del env[x], env[y]
             return acc
         case calculus.Get(target, item):
-            return Value(
-                numpy.take(
-                    _interpret(target, env).array,
-                    _interpret(item, env).array,
-                    axis=0,
-                    mode="clip",
-                )
-            )
+            tt = _interpret(target, env).array
+            it = _interpret(item, env).array
+            if not tt.size:
+                return Value(numpy.empty(tt.shape[1:], tt.dtype))
+            return Value(numpy.take(tt, it, axis=0, mode="clip"))
         case calculus.Concat(first, second):
             return Value(
                 numpy.concatenate(
