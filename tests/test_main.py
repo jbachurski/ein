@@ -514,7 +514,7 @@ def test_reduce_for_scan_sum(backend):
             array(lambda _: init, size=0),
             lambda x, y: concat(
                 x,
-                array(lambda i: f(where(x.size(0) > 0, x[x.size(0) - 1], init), y[i])),
+                array(lambda i: f(x.or_empty(x.size(0) - 1, init), y[i])),
             ),
         )
 

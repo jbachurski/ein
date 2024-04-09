@@ -209,6 +209,11 @@ class Vec(_Array, Generic[T]):
     def size(self, axis: int) -> "Scalar":
         return Scalar(calculus.Dim(self.expr, axis))
 
+    def or_empty(self, item, empty: T) -> T:
+        from ein.frontend.std import where
+
+        return where(self.size(0) > 0, self[item], empty)
+
     def reduce(self, init: T, f: Callable[[T, T], T]) -> T:
         x, y = Variable(), Variable()
         type_ = self.expr.type
