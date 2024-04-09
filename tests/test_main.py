@@ -480,9 +480,6 @@ def test_reduce_concat(backend):
     aa = array(lambda i: array(lambda _: a[i], size=1)).reduce(
         array(lambda _: 0.0, size=0), lambda x, y: concat(x, y)
     )
-    from ein.debug import plot_array_graph
-
-    plot_array_graph(aa.expr)
     numpy.testing.assert_allclose(
         aa.eval(backend=backend),
         a0,
