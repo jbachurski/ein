@@ -253,7 +253,7 @@ class Scalar(_Array):
     def assume(self, other) -> Self:
         return type(self)(self._assume_expr(other))
 
-    def to_float(self) -> "Scalar":
+    def float(self) -> "Scalar":
         return Scalar(calculus.CastToFloat((self.expr,)))
 
     def __add__(self, other: ScalarLike) -> "Scalar":

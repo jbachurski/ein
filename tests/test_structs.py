@@ -38,7 +38,7 @@ class C:
 def test_complex_scalars(backend):
     def linspace(a, b, n):
         n = wrap(n)
-        return array(lambda i: i.to_float() * (b - a) / (n - 1).to_float() + a, size=n)
+        return array(lambda i: i.float() * (b - a) / (n - 1).float() + a, size=n)
 
     p = linspace(0.0, 3.14, 11)
     c = array(lambda i: C(p[i].cos(), p[i].sin()))
@@ -92,7 +92,7 @@ def test_matrix_sanity():
 def test_matrix_batches(backend):
     base = numpy.array([[1, 2], [3, 4]], dtype=float)
     scales = array(
-        lambda a: Matrix.eye(2).scale(a.to_float()),
+        lambda a: Matrix.eye(2).scale(a.float()),
         size=4,
     )
     matrices = array(lambda a: scales[a] @ Matrix.of(base))

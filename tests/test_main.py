@@ -52,7 +52,7 @@ def test_mul_grid(interpret):
     (n0,), grid_expr = with_varargs(
         [scalar_type(int)],
         lambda n: array(
-            lambda i, j: (i.to_float() + 1.0) / (j.to_float() + 1.0), size=(n, n)
+            lambda i, j: (i.float() + 1.0) / (j.float() + 1.0), size=(n, n)
         ),
     )
 
@@ -278,7 +278,7 @@ def test_symmetric_sum(interpret):
 def test_argmin(interpret):
     def argmin_trig(n: Array, a: Array) -> Array:
         def step(i: Array, j: Array, acc: tuple[Array, Array]) -> tuple[Array, Array]:
-            v = (a[i] + j.to_float()).sin()
+            v = (a[i] + j.float()).sin()
             return where(v > acc[0], (v, i), acc)
 
         return array(
@@ -547,14 +547,14 @@ def test_reduce_works_with_axials(backend):
     a0 = numpy.random.randn(15, 17)
     a = wrap(a0)
     numpy.testing.assert_allclose(
-        array(lambda i: a[:, i].reduce(i.to_float(), lambda x, y: x + y)).eval(
+        array(lambda i: a[:, i].reduce(i.float(), lambda x, y: x + y)).eval(
             backend=backend
         ),
         numpy.arange(a0.shape[1]) + a0.sum(axis=0),
     )
     numpy.testing.assert_allclose(
         array(
-            lambda k: array(lambda i: a[:, i].reduce(k.to_float(), lambda x, y: x + y)),
+            lambda k: array(lambda i: a[:, i].reduce(k.float(), lambda x, y: x + y)),
             size=5,
         ).eval(backend=backend),
         numpy.arange(5)[:, None] + a0.sum(axis=0),

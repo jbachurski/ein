@@ -40,7 +40,7 @@ class Hotspot(Case):
     def in_ein(*args: Array) -> Array:
         it, init_ts, p = args
         r, c = init_ts.size(0), init_ts.size(1)
-        Rx, Ry, Rz, step, cap = params(r.to_float(), c.to_float())
+        Rx, Ry, Rz, step, cap = params(r.float(), c.float())
         min: Any = min_monoid.concat
         max: Any = max_monoid.concat
 
