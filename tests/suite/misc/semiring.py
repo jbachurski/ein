@@ -80,7 +80,7 @@ class SemiringMatrix(Generic[T], Semiring):
             array2(
                 lambda i, j: fold(
                     self._any.zero,
-                    lambda k, acc: acc + self.elem[i, j] * other.elem[i, j],
+                    lambda k, acc: acc + self.elem[i, k] * other.elem[k, j],
                 )
             )
         )

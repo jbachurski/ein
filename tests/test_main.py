@@ -559,3 +559,23 @@ def test_reduce_works_with_axials(backend):
         ).eval(backend=backend),
         numpy.arange(5)[:, None] + a0.sum(axis=0),
     )
+
+
+@with_backend
+def test_min_plus_matrix_multiplication(backend):
+    from ein.frontend.std import min as minimum
+
+    a0, b0 = numpy.random.randn(9, 10), numpy.random.randn(10, 11)
+
+    a, b = wrap(a0), wrap(b0)
+    d = array(
+        lambda i, j: fold(float("+inf"), lambda k, acc: minimum(acc, a[i, k] + b[k, j]))
+    )
+
+    n, m = a0.shape
+    m, k = b0.shape
+    d0 = numpy.full((n, k), float("+inf"))
+    for t in range(m):
+        d0 = numpy.minimum(d0, numpy.expand_dims(a0[:, t], axis=1) + b0[t, :])
+
+    numpy.testing.assert_allclose(d.eval(backend=backend), d0)
