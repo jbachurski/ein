@@ -3,13 +3,12 @@ from typing import Any, Callable, Sequence, TypeAlias, cast
 
 import numpy
 
-from ein import calculus
 from ein.backend.array_backend import AbstractArrayBackend
+from ein.codegen import phi_to_yarr, yarr
 from ein.midend.lining import outline
+from ein.phi import calculus
 from ein.symbols import Variable
 from ein.value import Value
-
-from . import array_calculus, to_array
 
 Env: TypeAlias = dict[Variable, numpy.ndarray | tuple[numpy.ndarray, ...]]
 
@@ -138,30 +137,30 @@ def fast_edge_pad(
 
 
 def stage_in_array(
-    program: array_calculus.Expr,
+    program: yarr.Expr,
 ) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
-    def go(expr: array_calculus.Expr) -> Callable[[Env], numpy.ndarray]:
+    def go(expr: yarr.Expr) -> Callable[[Env], numpy.ndarray]:
         return cast(Callable[[Env], numpy.ndarray], go_either(expr))
 
     @cache
     def go_either(
-        expr: array_calculus.Expr,
+        expr: yarr.Expr,
     ) -> Callable[[Env], numpy.ndarray | tuple[numpy.ndarray, ...]]:
         match expr:
-            case array_calculus.ReduceAxis(kind, axis, target_):
+            case yarr.ReduceAxis(kind, axis, target_):
                 target = go(target_)
-                call = array_calculus.REDUCE_KINDS[kind].reduce
+                call = yarr.REDUCE_KINDS[kind].reduce
                 return lambda env: call(target(env), axis=axis)
-            case array_calculus.Cast(dtype, target_):
+            case yarr.Cast(dtype, target_):
                 target = go(target_)
                 return lambda env: target(env).astype(dtype)
-            case array_calculus.UnaryElementwise(kind, target_):
+            case yarr.UnaryElementwise(kind, target_):
                 target = go(target_)
-                call = array_calculus.ELEMENTWISE_KINDS[kind]
+                call = yarr.ELEMENTWISE_KINDS[kind]
                 return lambda env: call(target(env))
-            case array_calculus.BinaryElementwise(kind, first_, second_, inplace):
+            case yarr.BinaryElementwise(kind, first_, second_, inplace):
                 first, second = go(first_), go(second_)
-                call = array_calculus.ELEMENTWISE_KINDS[kind]
+                call = yarr.ELEMENTWISE_KINDS[kind]
                 if inplace == 0:
 
                     def call_to_first(env: Env) -> numpy.ndarray:
@@ -177,17 +176,17 @@ def stage_in_array(
 
                     return call_to_second
                 return lambda env: call(first(env), second(env))
-            case array_calculus.TernaryElementwise(kind, first_, second_, third_):
+            case yarr.TernaryElementwise(kind, first_, second_, third_):
                 first, second, third = go(first_), go(second_), go(third_)
-                call = array_calculus.ELEMENTWISE_KINDS[kind]
+                call = yarr.ELEMENTWISE_KINDS[kind]
                 return lambda env: call(first(env), second(env), third(env))
             case _:
                 from_default = INSTANCE.stage(expr, go)
                 assert from_default is not None
                 return from_default
 
-    program = cast(array_calculus.Expr, outline(program))
-    program = to_array.apply_inplace_on_temporaries(program)
+    program = cast(yarr.Expr, outline(program))
+    program = phi_to_yarr.apply_inplace_on_temporaries(program)
 
     return go(program)
 
@@ -195,7 +194,7 @@ def stage_in_array(
 def stage(
     program: calculus.Expr,
 ) -> Callable[[dict[Variable, numpy.ndarray]], numpy.ndarray]:
-    array_program = to_array.transform(program)
+    array_program = phi_to_yarr.transform(program)
     return stage_in_array(array_program)  # type: ignore
 
 

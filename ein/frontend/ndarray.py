@@ -14,9 +14,7 @@ from typing import (
 
 import numpy
 
-from ein import calculus
 from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
-from ein.calculus import AbstractExpr, Expr
 from ein.frontend.layout import (
     AtomLayout,
     LabelledLayout,
@@ -27,11 +25,13 @@ from ein.frontend.layout import (
     fold_layout,
     unambiguous_layout,
 )
+from ein.phi import calculus
+from ein.phi.calculus import AbstractExpr, Expr
+from ein.phi.type_system import AbstractType
+from ein.phi.type_system import Scalar as ScalarType
+from ein.phi.type_system import Type
+from ein.phi.type_system import Vector as VectorType
 from ein.symbols import Variable
-from ein.type_system import AbstractType
-from ein.type_system import Scalar as ScalarType
-from ein.type_system import Type
-from ein.type_system import Vector as VectorType
 from ein.value import Value, _TorchTensor
 
 T = TypeVar("T")
@@ -57,7 +57,7 @@ def _layout_struct_to_expr(layout: Layout, struct) -> Expr:
     )
 
 
-def _to_array(expr: Expr, layout: Layout | None = None):
+def _phi_to_yarr(expr: Expr, layout: Layout | None = None):
     if layout is None:
         layout = unambiguous_layout(expr.type)
     match layout:
@@ -67,13 +67,13 @@ def _to_array(expr: Expr, layout: Layout | None = None):
             return Vec(expr, layout)
         case PositionalLayout(subs, tag):
             args = tuple(
-                _to_array(_project_tuple(expr, i, len(subs)), sub)
+                _phi_to_yarr(_project_tuple(expr, i, len(subs)), sub)
                 for i, sub in enumerate(subs)
             )
             return tag(*args) if tag is not None else args
         case LabelledLayout(subs, tag):
             kwargs = {
-                name: _to_array(_project_tuple(expr, i, len(subs)), sub)
+                name: _phi_to_yarr(_project_tuple(expr, i, len(subs)), sub)
                 for i, (name, sub) in enumerate(subs)
             }
             return tag(**kwargs) if tag is not None else kwargs
@@ -199,12 +199,12 @@ class Vec(_Array, Generic[T]):
             case _:
                 sub_expr = calculus.Get(self.expr, wrap(curr).expr)
                 sub_layout = self.layout.sub
-                sub = _to_array(sub_expr, sub_layout)
+                sub = _phi_to_yarr(sub_expr, sub_layout)
         return maybe_rest(sub)
 
     def concat(self, other: "Vec[T]") -> "Vec[T]":
         assert self.layout == other.layout
-        return _to_array(calculus.Concat(self.expr, other.expr), self.layout)
+        return _phi_to_yarr(calculus.Concat(self.expr, other.expr), self.layout)
 
     def size(self, axis: int) -> "Scalar":
         return Scalar(calculus.Dim(self.expr, axis))
@@ -219,7 +219,8 @@ class Vec(_Array, Generic[T]):
         type_ = self.expr.type
         assert isinstance(type_, VectorType)
         x_, y_ = (
-            _to_array(calculus.variable(v, type_.elem), self.layout.sub) for v in (x, y)
+            _phi_to_yarr(calculus.variable(v, type_.elem), self.layout.sub)
+            for v in (x, y)
         )
         xy_ = f(x_, y_)
         layout = build_layout(xy_, lambda a: wrap(a).layout)
@@ -236,7 +237,7 @@ class Vec(_Array, Generic[T]):
         init_expr = _layout_struct_to_expr(layout, init)
         xy = _layout_struct_to_expr(layout, xy_)
         expr = calculus.Reduce(init_expr, x, y, xy, (self.expr,))
-        return _to_array(expr, self.layout.sub)
+        return _phi_to_yarr(expr, self.layout.sub)
 
 
 class Scalar(_Array):
@@ -378,7 +379,7 @@ def ext(
                     raise TypeError(
                         f"Expected {exp} in argument {i} of {extrinsic.__name__}, got {op.type}"
                     )
-        return _to_array(calculus.Extrinsic(output_signature, fun, operands))
+        return _phi_to_yarr(calculus.Extrinsic(output_signature, fun, operands))
 
     if hasattr(fun, "__name__"):
         extrinsic.__name__ = f"{extrinsic}_{fun.__name__}"
@@ -391,4 +392,4 @@ def wrap(array_like: ArrayLike) -> Array:
     if not isinstance(array_like, (int, float, bool, numpy.ndarray, _TorchTensor)):
         raise TypeError(f"Invalid type for an ein Array: {type(array_like).__name__}")
     expr = calculus.Const(Value(array_like))
-    return _to_array(expr)
+    return _phi_to_yarr(expr)

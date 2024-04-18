@@ -2,9 +2,9 @@ import html
 import os.path
 from typing import Any, Iterable, assert_never, cast
 
-from ein import calculus
-from ein.backend import array_calculus, to_array
+from ein.codegen import phi_to_yarr, yarr
 from ein.midend import lining
+from ein.phi import calculus
 
 try:
     import pydot
@@ -63,8 +63,8 @@ def graph(program):
     return dot
 
 
-def array_from_phi_program(program: calculus.Expr) -> array_calculus.Expr:
-    return to_array.transform(program)
+def array_from_phi_program(program: calculus.Expr) -> yarr.Expr:
+    return phi_to_yarr.transform(program)
 
 
 def plot_graph(dot: pydot.Dot) -> None:

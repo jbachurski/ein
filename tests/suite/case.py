@@ -3,9 +3,10 @@ from typing import Callable, ClassVar, Sequence
 
 import numpy
 
-from ein import Array, calculus, with_varargs
-from ein.calculus import Expr, Variable
-from ein.type_system import Type
+from ein import Array, with_varargs
+from ein.phi import calculus
+from ein.phi.calculus import Expr, Variable
+from ein.phi.type_system import Type
 
 
 class Case(abc.ABC):

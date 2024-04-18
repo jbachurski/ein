@@ -6,9 +6,7 @@ from typing import Any, Callable, Optional, TypeAlias, cast
 
 import numpy
 
-from ein.symbols import Symbol, Variable
-from ein.term import Term
-from ein.type_system import (
+from ein.phi.type_system import (
     UFUNC_SIGNATURES,
     PrimitiveArrayType,
     PrimitiveType,
@@ -16,6 +14,8 @@ from ein.type_system import (
     resolve_scalar_signature,
     scalar_type,
 )
+from ein.symbols import Symbol, Variable
+from ein.term import Term
 from ein.value import Value
 
 Expr: TypeAlias = (

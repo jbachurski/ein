@@ -2,7 +2,7 @@ from typing import Callable, TypeVar, Union, cast
 
 import numpy
 
-from ein import calculus
+from ein.phi import calculus
 from ein.symbols import Index, Symbol
 
 from .equiv import Equivalence

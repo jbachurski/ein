@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from typing import Iterable, ParamSpec, TypeAlias
 
+from ein.codegen import yarr
+from ein.phi.type_system import PrimitiveType
 from ein.symbols import Index, Variable
-from ein.type_system import PrimitiveType
-
-from . import array_calculus
 
 P = ParamSpec("P")
 Axis: TypeAlias = Index
@@ -24,22 +23,20 @@ class AxialType:
         return f"{{{free}}}:{self.type.pretty}"
 
 
-def tuple_maybe_singleton(*args: array_calculus.Expr) -> array_calculus.Expr:
-    return array_calculus.Tuple(args) if len(args) != 1 else args[0]
+def tuple_maybe_singleton(*args: yarr.Expr) -> yarr.Expr:
+    return yarr.Tuple(args) if len(args) != 1 else args[0]
 
 
-def untuple_maybe_singleton(
-    target: array_calculus.Expr, at: int
-) -> array_calculus.Expr:
+def untuple_maybe_singleton(target: yarr.Expr, at: int) -> yarr.Expr:
     k = len(target.type.elems)
-    return array_calculus.Untuple(at, k, target) if k != 1 else target
+    return yarr.Untuple(at, k, target) if k != 1 else target
 
 
 class Axial:
     _axes: Axes
-    expr: array_calculus.Expr
+    expr: yarr.Expr
 
-    def __init__(self, axes: Iterable[Axis], array: array_calculus.Expr):
+    def __init__(self, axes: Iterable[Axis], array: yarr.Expr):
         self._axes = tuple(axes)
         self.expr = array
         assert len(self._axes) == len(set(self._axes))
@@ -58,11 +55,11 @@ class Axial:
         return AxialType(self.expr.type.with_rank_delta(-len(axes)), axes)
 
     @property
-    def normal(self) -> array_calculus.Expr:
+    def normal(self) -> yarr.Expr:
         assert not self._axes
         return self.expr
 
-    def along(self, index: Index, size: array_calculus.Expr) -> "Axial":
+    def along(self, index: Index, size: yarr.Expr) -> "Axial":
         j = self.expr.type.single.rank - self.type.type.single.rank
         i = self.free_axis(index)
         if i is not None:
@@ -71,21 +68,19 @@ class Axial:
             pi[i], pi[j] = pi[j], pi[i]
             return Axial(
                 tuple(self._axes[pi[i]] for i in range(len(self._axes) - 1)),
-                array_calculus.Transpose(tuple(pi), self.expr),
+                yarr.Transpose(tuple(pi), self.expr),
             )
         else:
             return Axial(
                 self._axes,
-                array_calculus.Repeat(
-                    j, size, array_calculus.Unsqueeze((j,), self.expr)
-                ),
+                yarr.Repeat(j, size, yarr.Unsqueeze((j,), self.expr)),
             )
 
-    def within(self, *args: tuple[Variable, array_calculus.Expr]) -> "Axial":
+    def within(self, *args: tuple[Variable, yarr.Expr]) -> "Axial":
         if not args:
             return self
         *rest, (var, bind) = args
-        return Axial(self._axes, array_calculus.Let(var, bind, self.expr)).within(*rest)
+        return Axial(self._axes, yarr.Let(var, bind, self.expr)).within(*rest)
 
     def cons(self, other: "Axial") -> "Axial":
         n = len(self.expr.type.elems)
@@ -113,11 +108,11 @@ class Axial:
         into_axes: Axes,
         *,
         leftpad: bool = True,
-        repeats: dict[Axis, array_calculus.Expr] | None = None,
-    ) -> array_calculus.Expr:
+        repeats: dict[Axis, yarr.Expr] | None = None,
+    ) -> yarr.Expr:
         k = len(self.expr.type.elems)
 
-        def local_align(e: array_calculus.Expr):
+        def local_align(e: yarr.Expr):
             return _align(
                 e,
                 self._axes,
@@ -127,11 +122,8 @@ class Axial:
             )
 
         if k != 1:
-            expr = array_calculus.Tuple(
-                tuple(
-                    local_align(array_calculus.Untuple(i, k, self.expr))
-                    for i in range(k)
-                )
+            expr = yarr.Tuple(
+                tuple(local_align(yarr.Untuple(i, k, self.expr)) for i in range(k))
             )
         else:
             expr = local_align(self.expr)
@@ -150,24 +142,24 @@ def _alignment(*args: Axes) -> Axes:
 
 
 def _align(
-    expr: array_calculus.Expr,
+    expr: yarr.Expr,
     axes: Axes,
     into_axes: Axes,
     *,
     leftpad: bool,
-    repeats: dict[Axis, array_calculus.Expr],
-) -> array_calculus.Expr:
+    repeats: dict[Axis, yarr.Expr],
+) -> yarr.Expr:
     assert len(axes) <= len(into_axes)
     free_pi = [axes.index(axis) for axis in sorted(axes, key=into_axes.index)]
     pos_id = list(range(len(axes), expr.type.single.rank))
-    expr = array_calculus.Transpose(tuple(free_pi + pos_id), expr)
+    expr = yarr.Transpose(tuple(free_pi + pos_id), expr)
     expands = [(i, axis) for i, axis in enumerate(into_axes) if axis not in axes]
     if not leftpad:
         while expands and not expands[0][0]:
             expands = [(x - 1, axis) for x, axis in expands[1:]]
     expanded_axes = tuple(i for i, _ in expands)
-    expr = array_calculus.Unsqueeze(expanded_axes, expr)
+    expr = yarr.Unsqueeze(expanded_axes, expr)
     for i, axis in expands:
         if axis in repeats:
-            expr = array_calculus.Repeat(i, repeats[axis], expr)
+            expr = yarr.Repeat(i, repeats[axis], expr)
     return expr

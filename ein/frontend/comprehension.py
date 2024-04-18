@@ -1,12 +1,12 @@
 import inspect
 from typing import Any, Callable, Protocol, TypeAlias, TypeVar, cast, overload
 
-from ein import calculus
-from ein.calculus import Expr
 from ein.frontend.layout import VecLayout, build_layout
 from ein.midend.size_classes import _dim_of, _with_indices_at_zero
+from ein.phi import calculus
+from ein.phi.calculus import Expr
+from ein.phi.type_system import scalar_type
 from ein.symbols import Index, Symbol, Variable
-from ein.type_system import scalar_type
 
 from .ndarray import (
     Array,
@@ -14,7 +14,7 @@ from .ndarray import (
     Scalar,
     Vec,
     _layout_struct_to_expr,
-    _to_array,
+    _phi_to_yarr,
     wrap,
 )
 
@@ -137,7 +137,7 @@ def array(constructor, *, size=None):
         size = (size,)
     n = len(inspect.signature(constructor).parameters) if size is None else len(size)
     indices = [Index() for _ in range(n)]
-    wrapped_indices = [cast(Idx, _to_array(calculus.at(index))) for index in indices]
+    wrapped_indices = [cast(Idx, _phi_to_yarr(calculus.at(index))) for index in indices]
     cons = constructor(*wrapped_indices)
     layout = build_layout(cons, lambda a: wrap(a).layout)
     body: Expr = _layout_struct_to_expr(layout, cons)
@@ -145,16 +145,16 @@ def array(constructor, *, size=None):
     for index in reversed(indices):
         body = calculus.Vec(index, size_of[index], body)
         layout = VecLayout(layout)
-    return _to_array(body, layout)
+    return _phi_to_yarr(body, layout)
 
 
 def fold(init: T, step: _WithIndex[T], count: Size | None = None) -> T:
     layout = build_layout(init, lambda a: wrap(a).layout)
     init_expr: Expr = _layout_struct_to_expr(layout, init)
     counter = calculus.variable(Variable(), scalar_type(int))
-    arg_index = _to_array(counter)
+    arg_index = _phi_to_yarr(counter)
     acc = calculus.variable(Variable(), init_expr.type)
-    arg_acc = _to_array(acc, layout)
+    arg_acc = _phi_to_yarr(acc, layout)
     body = step(arg_index, arg_acc)
     layout_ = build_layout(init, lambda a: wrap(a).layout)
     if layout != layout_:
@@ -169,4 +169,4 @@ def fold(init: T, step: _WithIndex[T], count: Size | None = None) -> T:
     expr = calculus.Fold(
         counter.var, size_of[counter.var], acc.var, init_expr, body_expr
     )
-    return _to_array(expr, layout)
+    return _phi_to_yarr(expr, layout)

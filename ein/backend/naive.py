@@ -3,10 +3,10 @@ from typing import assert_never, cast
 
 import numpy
 
-from ein import calculus
-from ein.calculus import Expr
 from ein.midend.lining import outline
 from ein.midend.structs import struct_of_arrays_transform
+from ein.phi import calculus
+from ein.phi.calculus import Expr
 from ein.symbols import Symbol, Variable
 from ein.value import Value
 

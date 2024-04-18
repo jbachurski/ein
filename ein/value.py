@@ -2,7 +2,7 @@ from typing import TypeAlias, cast
 
 import numpy
 
-from ein.type_system import Pair, Type, type_from_ndarray
+from ein.phi.type_system import Pair, Type, type_from_ndarray
 
 BIG_DATA_SIZE: int = 1024
 

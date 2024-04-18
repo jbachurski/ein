@@ -11,7 +11,7 @@ import pandas
 import seaborn
 
 import ein
-from ein.calculus import Expr
+from ein.phi.calculus import Expr
 from ein.symbols import Variable
 from tests.suite.deep import GAT, Attention
 from tests.suite.misc import FunWithSemirings as Semirings
@@ -50,14 +50,14 @@ def mean_stdev(ts: Sequence[float]) -> float:
 
 
 def precompile(varargs: tuple[Variable, ...], program: Expr) -> Callable:
-    staged = ein.backend.to_numpy.stage(program)
+    staged = ein.backend.numpy_backend.stage(program)
     return lambda *args: staged({var: arg for var, arg in zip(varargs, args)})
 
 
 def precompile_torch(varargs: tuple[Variable, ...], program: Expr) -> Callable:
     import torch
 
-    staged = ein.backend.to_torch.stage(program)
+    staged = ein.backend.torch_backend.stage(program)
     return lambda *args: staged(
         {var: torch.from_numpy(arg) for var, arg in zip(varargs, args)}
     )

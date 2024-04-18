@@ -9,7 +9,7 @@ from ein import (
     scalar_type,
     vector_type,
 )
-from ein.calculus import (
+from ein.phi.calculus import (
     Add,
     CastToFloat,
     Cons,
@@ -36,7 +36,7 @@ from ein.calculus import (
     at,
     variable,
 )
-from ein.type_system import Scalar
+from ein.phi.type_system import Scalar
 from ein.value import Value
 
 with_interpret = pytest.mark.parametrize(

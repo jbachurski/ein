@@ -3,17 +3,17 @@ from typing import Callable, Sequence
 from numpy import ndarray
 
 from ein.backend import STAGE_BACKENDS, Backend
-from ein.calculus import Expr, variable
-from ein.frontend.ndarray import ArrayLike, _to_array, _TorchTensor, wrap
+from ein.frontend.ndarray import ArrayLike, _phi_to_yarr, _TorchTensor, wrap
+from ein.phi.calculus import Expr, variable
+from ein.phi.type_system import Type, type_from_ndarray
 from ein.symbols import Variable
-from ein.type_system import Type, type_from_ndarray
 
 
 def with_varargs(
     types: Sequence[Type], fun: Callable[..., ArrayLike]
 ) -> tuple[tuple[Variable, ...], Expr]:
     arg_vars = [variable(Variable(), type_) for type_ in types]
-    args = [_to_array(var) for var in arg_vars]
+    args = [_phi_to_yarr(var) for var in arg_vars]
     return tuple(var.var for var in arg_vars), wrap(fun(*args)).expr
 
 

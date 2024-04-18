@@ -3,7 +3,7 @@ import scipy
 
 from ein import Array, array, matrix_type, vector_type
 from ein.frontend.std import reduce_sum
-from ein.type_system import Vector as VectorType
+from ein.phi.type_system import Vector as VectorType
 
 from ..case import Case
 

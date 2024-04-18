@@ -4,16 +4,16 @@ from typing import Any, Callable, Sequence, TypeAlias, cast
 
 import numpy
 
-from ein import calculus
-from ein.backend import array_calculus, to_array
 from ein.backend.array_backend import AbstractArrayBackend
-from ein.backend.array_calculus import (
+from ein.codegen import phi_to_yarr, yarr
+from ein.codegen.yarr import (
     BinaryElementwise,
     ReduceAxis,
     TernaryElementwise,
     UnaryElementwise,
 )
 from ein.midend.lining import outline
+from ein.phi import calculus
 from ein.symbols import Variable
 from ein.value import Value
 
@@ -130,33 +130,33 @@ def unsqueeze_axes(tensor, axes):
 
 
 def stage_in_array(
-    program: array_calculus.Expr,
+    program: yarr.Expr,
 ) -> Callable[[Env], torch.Tensor | tuple[torch.Tensor, ...]]:
-    def go(expr: array_calculus.AbstractExpr) -> Callable[[Env], torch.Tensor]:
+    def go(expr: yarr.AbstractExpr) -> Callable[[Env], torch.Tensor]:
         return cast(Callable[[Env], torch.Tensor], go_either(expr))
 
     @cache
     def go_either(
-        expr: array_calculus.AbstractExpr,
+        expr: yarr.AbstractExpr,
     ) -> Callable[[Env], torch.Tensor | tuple[torch.Tensor, ...]]:
-        expr = cast(array_calculus.Expr, expr)
+        expr = cast(yarr.Expr, expr)
         match expr:
-            case array_calculus.ReduceAxis(kind, axis, target_):
+            case yarr.ReduceAxis(kind, axis, target_):
                 target = go(target_)
                 call = REDUCE[kind]
                 return lambda env: call(target(env), axis=axis)
-            case array_calculus.Cast(dtype, target_):
+            case yarr.Cast(dtype, target_):
                 target = go(target_)
                 return lambda env: target(env).to(dtype)
-            case array_calculus.UnaryElementwise(kind, target_):
+            case yarr.UnaryElementwise(kind, target_):
                 target = go(target_)
                 call = ELEMENTWISE[kind]
                 return lambda env: call(target(env))
-            case array_calculus.BinaryElementwise(kind, first_, second_, _inplace):
+            case yarr.BinaryElementwise(kind, first_, second_, _inplace):
                 first, second = go(first_), go(second_)
                 call = ELEMENTWISE[kind]
                 return lambda env: call(first(env), second(env))
-            case array_calculus.TernaryElementwise(kind, first_, second_, third_):
+            case yarr.TernaryElementwise(kind, first_, second_, third_):
                 first, second, third = go(first_), go(second_), go(third_)
                 call = ELEMENTWISE[kind]
                 return lambda env: call(first(env), second(env), third(env))
@@ -165,14 +165,14 @@ def stage_in_array(
                 assert from_default is not None
                 return from_default
 
-    program = cast(array_calculus.Expr, outline(program))
+    program = cast(yarr.Expr, outline(program))
     return go(program)
 
 
 def stage(
     program: calculus.Expr,
 ) -> Callable[[dict[Variable, torch.Tensor]], torch.Tensor | tuple[torch.Tensor, ...]]:
-    return stage_in_array(to_array.transform(program))
+    return stage_in_array(phi_to_yarr.transform(program))
 
 
 def interpret(

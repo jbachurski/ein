@@ -6,9 +6,7 @@ from typing import Any, Callable, ClassVar, TypeAlias, Union, cast
 
 import numpy.typing
 
-from ein.symbols import Index, Symbol, Variable
-from ein.term import Term
-from ein.type_system import (
+from ein.phi.type_system import (
     UFUNC_SIGNATURES,
     Pair,
     Scalar,
@@ -18,6 +16,8 @@ from ein.type_system import (
     scalar_type,
     to_float,
 )
+from ein.symbols import Index, Symbol, Variable
+from ein.term import Term
 from ein.value import Value
 
 Expr: TypeAlias = Union[

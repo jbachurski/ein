@@ -1,8 +1,9 @@
 import functools
 from typing import TypeVar, assert_never, cast
 
-from ein import calculus
-from ein.calculus import (
+from ein.midend.substitution import substitute
+from ein.phi import calculus
+from ein.phi.calculus import (
     Concat,
     Cons,
     Dim,
@@ -17,9 +18,8 @@ from ein.calculus import (
     at,
     variable,
 )
-from ein.midend.substitution import substitute
+from ein.phi.type_system import Pair, Scalar, Type, Vector
 from ein.symbols import Index
-from ein.type_system import Pair, Scalar, Type, Vector
 
 F = TypeVar("F")
 

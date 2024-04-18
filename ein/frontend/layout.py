@@ -2,7 +2,7 @@ import abc
 from dataclasses import dataclass, fields, is_dataclass
 from typing import TypeAlias, Union, assert_never
 
-from ein.type_system import Pair, Scalar, Type, Vector
+from ein.phi.type_system import Pair, Scalar, Type, Vector
 
 Layout: TypeAlias = Union[
     "AtomLayout", "VecLayout", "PositionalLayout", "LabelledLayout"

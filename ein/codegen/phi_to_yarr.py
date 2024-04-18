@@ -7,7 +7,7 @@ from typing import Callable, Iterable, assert_never, cast
 
 from term import Term
 
-from ein import calculus
+from ein.codegen import yarr
 from ein.midend.size_classes import (
     SizeEquivalence,
     find_size_classes,
@@ -15,10 +15,11 @@ from ein.midend.size_classes import (
 )
 from ein.midend.structs import struct_of_arrays_transform
 from ein.midend.substitution import substitute
+from ein.phi import calculus
+from ein.phi.type_system import Pair, Scalar, to_float
 from ein.symbols import Index, Symbol, Variable
-from ein.type_system import Pair, Scalar, to_float
 
-from . import array_calculus, array_indexing, axial
+from . import array_indexing, axial
 from .axial import Axial
 
 
@@ -32,7 +33,7 @@ def transform(
     use_einsum: bool = True,
     do_shape_cancellations: bool = True,
     do_tuple_cancellations: bool = True,
-) -> array_calculus.Expr:
+) -> yarr.Expr:
     transformed: dict[calculus.Expr, Axial] = {}
 
     program = struct_of_arrays_transform(program)
@@ -40,22 +41,22 @@ def transform(
 
     def _go(
         expr: calculus.Expr,
-        index_sizes: dict[Index, array_calculus.Expr],
+        index_sizes: dict[Index, yarr.Expr],
         var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
         match expr:
             case calculus.Const(value):
-                return Axial([], array_calculus.Const(value))
+                return Axial([], yarr.Const(value))
             case calculus.Store(index, _) if isinstance(index, Index):
                 return Axial(
                     [index],
-                    array_calculus.Range(index_sizes[index]),
+                    yarr.Range(index_sizes[index]),
                 )
             case calculus.Store(var, inner_type) if isinstance(var, Variable):
                 axes = var_axes.get(var, ())
                 return Axial(
                     axes,
-                    array_calculus.Var(
+                    yarr.Var(
                         var, inner_type.primitive_type.with_rank_delta(+len(axes))
                     ),
                 )
@@ -74,7 +75,7 @@ def transform(
                 target = go(target_, index_sizes, var_axes)
                 return Axial(
                     [],
-                    array_calculus.Dim(target.positional_axis(pos), target.expr),
+                    yarr.Dim(target.positional_axis(pos), target.expr),
                 )
             case calculus.Fold(counter, size_, acc, init_, body_):
                 if use_einsum:
@@ -125,7 +126,7 @@ def transform(
                             subscripts = to_einsum_subs(operand_axes, result_axes)
                             return Axial(
                                 result_axes,
-                                array_calculus.Einsum(
+                                yarr.Einsum(
                                     subscripts,
                                     tuple(operand.expr for operand in axial_operands),
                                 ),
@@ -142,8 +143,8 @@ def transform(
                             return Axial(
                                 used_axes,
                                 functools.reduce(
-                                    lambda a, b: array_calculus.BinaryElementwise(
-                                        array_calculus.BinaryElementwise.Kind.add, a, b
+                                    lambda a, b: yarr.BinaryElementwise(
+                                        yarr.BinaryElementwise.Kind.add, a, b
                                     ),
                                     (
                                         op.aligned(used_axes, leftpad=False)
@@ -181,7 +182,7 @@ def transform(
                 )
                 return Axial(
                     acc_axes,
-                    array_calculus.Fold(
+                    yarr.Fold(
                         counter,
                         size.normal,
                         acc,
@@ -211,7 +212,7 @@ def transform(
                 # FIXME: There's probably something wrong here.
                 init_expr = init.aligned(axes, repeats=index_sizes)
                 vecs_expr = (
-                    array_calculus.Tuple(
+                    yarr.Tuple(
                         tuple(vec.aligned(axes, repeats=index_sizes) for vec in vecs)
                     )
                     if len(vecs) > 1
@@ -219,9 +220,7 @@ def transform(
                 )
                 return Axial(
                     axes,
-                    array_calculus.Reduce(
-                        init_expr, x, y, xy.expr, vecs_expr, len(axes)
-                    ),
+                    yarr.Reduce(init_expr, x, y, xy.expr, vecs_expr, len(axes)),
                 )
 
             case calculus.Get(target_, item_):
@@ -241,7 +240,7 @@ def transform(
                 used_axes = axial._alignment(first._axes, second._axes)
                 return Axial(
                     used_axes,
-                    array_calculus.Concat(
+                    yarr.Concat(
                         tuple(
                             op.aligned(used_axes, repeats=index_sizes)
                             for op in (first, second)
@@ -263,13 +262,13 @@ def transform(
                     (target,) = ops
                     return Axial(
                         target._axes,
-                        array_calculus.Cast(float, target.expr),
+                        yarr.Cast(float, target.expr),
                     )
                 else:
                     used_axes = axial._alignment(*(op._axes for op in ops))
                     return Axial(
                         used_axes,
-                        array_calculus.ELEMENTWISE_UFUNCS[expr.ufunc](
+                        yarr.ELEMENTWISE_UFUNCS[expr.ufunc](
                             *(op.aligned(used_axes, leftpad=False) for op in ops)
                         ),
                     )
@@ -291,16 +290,14 @@ def transform(
                 used_axes = axial._alignment(*(op._axes for op in ops))
                 ops_expr = tuple(op.aligned(used_axes, leftpad=False) for op in ops)
                 prim_type = _type.primitive_type.with_rank_delta(len(used_axes))
-                return Axial(
-                    used_axes, array_calculus.Extrinsic(prim_type, fun, ops_expr)
-                )
+                return Axial(used_axes, yarr.Extrinsic(prim_type, fun, ops_expr))
             case _:
                 assert_never(expr)
         assert False  # noqa
 
     def go(
         expr: calculus.Expr,
-        index_sizes: dict[Index, array_calculus.Expr],
+        index_sizes: dict[Index, yarr.Expr],
         var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
         if expr not in transformed:
@@ -319,17 +316,17 @@ def transform(
     return array_program
 
 
-def cancel_shape_ops(program: array_calculus.Expr) -> array_calculus.Expr:
+def cancel_shape_ops(program: yarr.Expr) -> yarr.Expr:
     @cache
-    def go(expr: array_calculus.Expr) -> array_calculus.Expr:
+    def go(expr: yarr.Expr) -> yarr.Expr:
         match expr:
-            case array_calculus.Transpose(permutation, target):
+            case yarr.Transpose(permutation, target):
                 if permutation == tuple(range(len(permutation))):
                     return go(target)
-            case array_calculus.Unsqueeze(axes, target):
+            case yarr.Unsqueeze(axes, target):
                 if not axes:
                     return go(target)
-            case array_calculus.Squeeze(axes, target):
+            case yarr.Squeeze(axes, target):
                 if not axes:
                     return go(target)
         return expr.map(go)
@@ -337,11 +334,11 @@ def cancel_shape_ops(program: array_calculus.Expr) -> array_calculus.Expr:
     return go(program)
 
 
-def cancel_tuple_ops(program: array_calculus.Expr) -> array_calculus.Expr:
+def cancel_tuple_ops(program: yarr.Expr) -> yarr.Expr:
     @cache
-    def go(expr: array_calculus.Expr) -> array_calculus.Expr:
+    def go(expr: yarr.Expr) -> yarr.Expr:
         match expr:
-            case array_calculus.Untuple(at, _arity, array_calculus.Tuple(elems)):
+            case yarr.Untuple(at, _arity, yarr.Tuple(elems)):
                 return go(elems[at])
         return expr.map(go)
 
@@ -384,11 +381,11 @@ def would_be_memory_considerate_axis(
 
 def match_reduction_by_body(
     body: calculus.Expr, acc: Variable
-) -> tuple[calculus.Expr, array_calculus.ReduceAxis.Kind] | None:
+) -> tuple[calculus.Expr, yarr.ReduceAxis.Kind] | None:
     red = {
-        calculus.Add: array_calculus.ReduceAxis.Kind.add,
-        calculus.Min: array_calculus.ReduceAxis.Kind.minimum,
-        calculus.Max: array_calculus.ReduceAxis.Kind.maximum,
+        calculus.Add: yarr.ReduceAxis.Kind.add,
+        calculus.Min: yarr.ReduceAxis.Kind.minimum,
+        calculus.Max: yarr.ReduceAxis.Kind.maximum,
     }
     for typ, kind in red.items():
         if isinstance(body, typ):
@@ -427,9 +424,9 @@ def match_reduction(
         size_class,
     )
     vec = go(vec_expr)
-    reduced = array_calculus.ReduceAxis(kind, vec.positional_axis(0), vec.expr)
-    reduced_with_init = array_calculus.BinaryElementwise(
-        array_calculus.REDUCE_UNDERLYING[kind], go(init).normal, reduced
+    reduced = yarr.ReduceAxis(kind, vec.positional_axis(0), vec.expr)
+    reduced_with_init = yarr.BinaryElementwise(
+        yarr.REDUCE_UNDERLYING[kind], go(init).normal, reduced
     )
     return Axial(vec._axes, reduced_with_init)
 
@@ -441,7 +438,7 @@ def match_summation(expr: calculus.Fold) -> tuple[Variable, calculus.Expr] | Non
     if red is None:
         return None
     body, kind = red
-    if kind != array_calculus.ReduceAxis.Kind.add:
+    if kind != yarr.ReduceAxis.Kind.add:
         return None
     if expr.init != calculus.Const(calculus.Value(0.0)):
         return None
@@ -526,39 +523,39 @@ def to_einsum_subs(
     )
 
 
-def apply_inplace_on_temporaries(program: array_calculus.Expr) -> array_calculus.Expr:
+def apply_inplace_on_temporaries(program: yarr.Expr) -> yarr.Expr:
     # Assumes that an elementwise operation used as an operand to another one
     # will not be broadcast (already has the same shape as the result).
     # Additionally, we assume that the result will not be reused anywhere else (needs to be let-bound).
     # This will also interact with any implicit-promotion optimisations, as here we assume dtypes are consistent.
     # This is why we only do this for BinaryElementwise and assume we have already done an explicit Cast.
     TEMPORARIES = (
-        array_calculus.UnaryElementwise,
-        array_calculus.BinaryElementwise,
-        array_calculus.TernaryElementwise,
-        array_calculus.Range,
-        array_calculus.Cast,
-        array_calculus.Pad,
-        array_calculus.Repeat,
-        array_calculus.ReduceAxis,
+        yarr.UnaryElementwise,
+        yarr.BinaryElementwise,
+        yarr.TernaryElementwise,
+        yarr.Range,
+        yarr.Cast,
+        yarr.Pad,
+        yarr.Repeat,
+        yarr.ReduceAxis,
     )
 
     @cache
-    def go(expr: array_calculus.Expr) -> array_calculus.Expr:
-        first: array_calculus.Expr
-        second: array_calculus.Expr
+    def go(expr: yarr.Expr) -> yarr.Expr:
+        first: yarr.Expr
+        second: yarr.Expr
         expr = expr.map(go)
         match expr:
-            case array_calculus.BinaryElementwise(kind, first, second, None):
+            case yarr.BinaryElementwise(kind, first, second, None):
                 # This logic is really shaky and interacts with optimisations to the number of axis manipulation calls.
                 # Should have more in-depth analysis on what broadcasting might occur
                 rank = expr.type.single.rank
                 rank1, rank2 = first.type.single.rank, second.type.single.rank
                 if rank:
                     if rank == rank1 and isinstance(first, TEMPORARIES):
-                        return array_calculus.BinaryElementwise(kind, first, second, 0)
+                        return yarr.BinaryElementwise(kind, first, second, 0)
                     if rank == rank2 and isinstance(second, TEMPORARIES):
-                        return array_calculus.BinaryElementwise(kind, first, second, 1)
+                        return yarr.BinaryElementwise(kind, first, second, 1)
         return expr
 
     return go(program)

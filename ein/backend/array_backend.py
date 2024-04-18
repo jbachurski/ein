@@ -3,7 +3,7 @@ from typing import Any, Callable, Generic, Sequence, TypeVar
 
 import numpy
 
-from ein.backend import array_calculus
+from ein.codegen import yarr
 from ein.value import Value
 
 T = TypeVar("T")
@@ -97,16 +97,16 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
     @classmethod
     def stage(
         cls,
-        expr: array_calculus.Expr,
+        expr: yarr.Expr,
         go: Callable[[Any], Callable[[Any], Any]],
     ) -> Callable[..., Any] | None:
         match expr:
-            case array_calculus.Const(value):
+            case yarr.Const(value):
                 a = cls.constant(value)
                 return lambda env: a
-            case array_calculus.Var(var, _var_rank):
+            case yarr.Var(var, _var_rank):
                 return lambda env: env[var]
-            case array_calculus.Let(var, bind_, body_):
+            case yarr.Let(var, bind_, body_):
                 bind, body = go(bind_), go(body_)
 
                 def with_let(env):
@@ -122,34 +122,34 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
                     return ret
 
                 return with_let
-            case array_calculus.Dim(axis, target_):
+            case yarr.Dim(axis, target_):
                 target = go(target_)
                 return lambda env: cls.dim(target(env), axis)
-            case array_calculus.Range(size_):
+            case yarr.Range(size_):
                 size = go(size_)
                 return lambda env: cls.range(size(env))
-            case array_calculus.Concat(operands_, axis):
+            case yarr.Concat(operands_, axis):
                 ops = [go(op_) for op_ in operands_]
                 return lambda env: cls.concat(*(op(env) for op in ops), axis=axis)
-            case array_calculus.Transpose(permutation, target_):
+            case yarr.Transpose(permutation, target_):
                 target = go(target_)
                 return lambda env: cls.transpose(target(env), permutation)
-            case array_calculus.Squeeze(axes, target_):
+            case yarr.Squeeze(axes, target_):
                 target = go(target_)
                 return lambda env: cls.squeeze(target(env), axes)
-            case array_calculus.Unsqueeze(axes, target_):
+            case yarr.Unsqueeze(axes, target_):
                 target = go(target_)
                 return lambda env: cls.unsqueeze(target(env), axes)
-            case array_calculus.Gather(axis, target_, item_):
+            case yarr.Gather(axis, target_, item_):
                 target, item = go(target_), go(item_)
                 return lambda env: cls.gather(target(env), item(env), axis)
-            case array_calculus.Take(target_, items_):
+            case yarr.Take(target_, items_):
                 target = go(target_)
                 items = tuple(maybe(go, item_) for item_ in items_)
                 return lambda env: cls.take(
                     target(env), [maybe_call(item, env) for item in items]
                 )
-            case array_calculus.Slice(target_, starts_, stops_):
+            case yarr.Slice(target_, starts_, stops_):
                 target = go(target_)
                 starts = tuple(maybe(go, start_) for start_ in starts_)
                 stops = tuple(maybe(go, stop_) for stop_ in stops_)
@@ -160,7 +160,7 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
                         for x, y in zip(starts, stops)
                     ),
                 )
-            case array_calculus.Pad(target_, lefts_, rights_):
+            case yarr.Pad(target_, lefts_, rights_):
                 target = go(target_)
                 lefts = tuple(maybe(go, left_) for left_ in lefts_)
                 rights = tuple(maybe(go, right_) for right_ in rights_)
@@ -171,10 +171,10 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
                         for x, y in zip(lefts, rights)
                     ),
                 )
-            case array_calculus.Repeat(axis, count_, target_):
+            case yarr.Repeat(axis, count_, target_):
                 count, target = go(count_), go(target_)
                 return lambda env: cls.repeat(target(env), count(env), axis)
-            case array_calculus.Fold(index_var, size_, acc_var, init_, body_):
+            case yarr.Fold(index_var, size_, acc_var, init_, body_):
                 init, size, body = go(init_), go(size_), go(body_)
 
                 def fold(env):
@@ -188,7 +188,7 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
                     return acc
 
                 return fold
-            case array_calculus.Reduce(init_, x, y, xy_, vecs_, axis):
+            case yarr.Reduce(init_, x, y, xy_, vecs_, axis):
                 init, xy, vecs = go(init_), go(xy_), go(vecs_)
 
                 def reduce(env):
@@ -234,17 +234,17 @@ class AbstractArrayBackend(abc.ABC, Generic[T]):
                     return unwrap(tuple(cls.squeeze(ac, (axis,)) for ac in acc))
 
                 return reduce
-            case array_calculus.Tuple(operands_):
+            case yarr.Tuple(operands_):
                 operands = tuple(go(op) for op in operands_)
                 return lambda env: tuple(op(env) for op in operands)
-            case array_calculus.Untuple(at, _arity, target_):
+            case yarr.Untuple(at, _arity, target_):
                 tup = go(target_)
                 return lambda env: tup(env)[at]
-            case array_calculus.Einsum(subs, operands_):
+            case yarr.Einsum(subs, operands_):
                 operands = tuple(go(op_) for op_ in operands_)
                 einsum_fun = cls.prepare_einsum(subs=subs)
                 return lambda env: einsum_fun(*(op(env) for op in operands))
-            case array_calculus.Extrinsic(_, fun, operands_):
+            case yarr.Extrinsic(_, fun, operands_):
                 operands = tuple(go(op) for op in operands_)
                 return lambda env: fun(*(op(env) for op in operands))
         return None
