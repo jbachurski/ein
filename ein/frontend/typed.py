@@ -1,7 +1,7 @@
 from typing import Callable, TypeVar
 
-from ein.frontend.comprehension import Idx, array
-from ein.frontend.ndarray import Vec
+from .comprehension import Idx, array
+from .ndarray import Vec
 
 T = TypeVar("T")
 

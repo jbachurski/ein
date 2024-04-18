@@ -1,6 +1,6 @@
 from typing import Callable, Literal, TypeAlias
 
-from ein.backend import naive, numpy_backend, torch_backend
+from . import naive, numpy_backend, torch_backend
 
 Backend: TypeAlias = Literal["naive", "numpy", "torch"]
 BACKENDS: dict[str, Callable] = {

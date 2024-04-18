@@ -1,3 +1,3 @@
-from . import comprehension, ndarray, std
+from . import ndarray, std
 
-__all__ = ["comprehension", "ndarray", "std"]
+__all__ = ["ndarray", "std"]

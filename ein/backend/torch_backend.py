@@ -4,7 +4,6 @@ from typing import Any, Callable, Sequence, TypeAlias, cast
 
 import numpy
 
-from ein.backend.array_backend import AbstractArrayBackend
 from ein.codegen import phi_to_yarr, yarr
 from ein.codegen.yarr import (
     BinaryElementwise,
@@ -16,6 +15,8 @@ from ein.midend.lining import outline
 from ein.phi import calculus
 from ein.symbols import Variable
 from ein.value import Value
+
+from .array_backend import AbstractArrayBackend
 
 try:
     import torch

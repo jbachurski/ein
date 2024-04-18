@@ -1,13 +1,13 @@
 import inspect
 from typing import Any, Callable, Protocol, TypeAlias, TypeVar, cast, overload
 
-from ein.frontend.layout import VecLayout, build_layout
 from ein.midend.size_classes import _dim_of, _with_indices_at_zero
 from ein.phi import calculus
 from ein.phi.calculus import Expr
 from ein.phi.type_system import scalar_type
 from ein.symbols import Index, Symbol, Variable
 
+from .layout import VecLayout, build_layout
 from .ndarray import (
     Array,
     ArrayLike,

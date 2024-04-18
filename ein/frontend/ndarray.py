@@ -15,7 +15,16 @@ from typing import (
 import numpy
 
 from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
-from ein.frontend.layout import (
+from ein.phi import calculus
+from ein.phi.calculus import AbstractExpr, Expr
+from ein.phi.type_system import AbstractType
+from ein.phi.type_system import Scalar as ScalarType
+from ein.phi.type_system import Type
+from ein.phi.type_system import Vector as VectorType
+from ein.symbols import Variable
+from ein.value import Value, _TorchTensor
+
+from .layout import (
     AtomLayout,
     LabelledLayout,
     Layout,
@@ -25,14 +34,6 @@ from ein.frontend.layout import (
     fold_layout,
     unambiguous_layout,
 )
-from ein.phi import calculus
-from ein.phi.calculus import AbstractExpr, Expr
-from ein.phi.type_system import AbstractType
-from ein.phi.type_system import Scalar as ScalarType
-from ein.phi.type_system import Type
-from ein.phi.type_system import Vector as VectorType
-from ein.symbols import Variable
-from ein.value import Value, _TorchTensor
 
 T = TypeVar("T")
 S = TypeVar("S")

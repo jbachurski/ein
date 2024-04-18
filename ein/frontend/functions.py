@@ -3,10 +3,11 @@ from typing import Callable, Sequence
 from numpy import ndarray
 
 from ein.backend import STAGE_BACKENDS, Backend
-from ein.frontend.ndarray import ArrayLike, _phi_to_yarr, _TorchTensor, wrap
 from ein.phi.calculus import Expr, variable
 from ein.phi.type_system import Type, type_from_ndarray
 from ein.symbols import Variable
+
+from .ndarray import ArrayLike, _phi_to_yarr, _TorchTensor, wrap
 
 
 def with_varargs(
