@@ -12,7 +12,7 @@ from ein.codegen.yarr import (
     UnaryElementwise,
 )
 from ein.midend.lining import outline
-from ein.phi import calculus
+from ein.phi import phi
 from ein.symbols import Variable
 from ein.value import Value
 
@@ -171,13 +171,13 @@ def stage_in_array(
 
 
 def stage(
-    program: calculus.Expr,
+    program: phi.Expr,
 ) -> Callable[[dict[Variable, torch.Tensor]], torch.Tensor | tuple[torch.Tensor, ...]]:
     return stage_in_array(phi_to_yarr.transform(program))
 
 
 def interpret(
-    program: calculus.Expr, env: dict[Variable, numpy.ndarray | torch.Tensor]
+    program: phi.Expr, env: dict[Variable, numpy.ndarray | torch.Tensor]
 ) -> torch.Tensor | tuple[torch.Tensor, ...]:
     return stage(program)(
         {

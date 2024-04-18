@@ -15,7 +15,7 @@ from ein.midend.size_classes import (
 )
 from ein.midend.structs import struct_of_arrays_transform
 from ein.midend.substitution import substitute
-from ein.phi import calculus
+from ein.phi import phi
 from ein.phi.type_system import Pair, Scalar, to_float
 from ein.symbols import Index, Symbol, Variable
 
@@ -24,7 +24,7 @@ from .axial import Axial
 
 
 def transform(
-    program: calculus.Expr,
+    program: phi.Expr,
     *,
     use_takes: bool = True,
     use_slice_pads: bool = True,
@@ -34,25 +34,25 @@ def transform(
     do_shape_cancellations: bool = True,
     do_tuple_cancellations: bool = True,
 ) -> yarr.Expr:
-    transformed: dict[calculus.Expr, Axial] = {}
+    transformed: dict[phi.Expr, Axial] = {}
 
     program = struct_of_arrays_transform(program)
     size_class = find_size_classes(program)
 
     def _go(
-        expr: calculus.Expr,
+        expr: phi.Expr,
         index_sizes: dict[Index, yarr.Expr],
         var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
         match expr:
-            case calculus.Const(value):
+            case phi.Const(value):
                 return Axial([], yarr.Const(value))
-            case calculus.Store(index, _) if isinstance(index, Index):
+            case phi.Store(index, _) if isinstance(index, Index):
                 return Axial(
                     [index],
                     yarr.Range(index_sizes[index]),
                 )
-            case calculus.Store(var, inner_type) if isinstance(var, Variable):
+            case phi.Store(var, inner_type) if isinstance(var, Variable):
                 axes = var_axes.get(var, ())
                 return Axial(
                     axes,
@@ -60,24 +60,24 @@ def transform(
                         var, inner_type.primitive_type.with_rank_delta(+len(axes))
                     ),
                 )
-            case calculus.Store(symbol, _inner_type):
+            case phi.Store(symbol, _inner_type):
                 raise NotImplementedError(f"Unhandled symbol of type {type(symbol)}")
-            case calculus.Let(var, bind_, body_):
+            case phi.Let(var, bind_, body_):
                 bind = go(bind_, index_sizes, var_axes)
                 return go(
                     body_,
                     index_sizes,
                     var_axes | {var: bind._axes},
                 ).within((var, bind.expr))
-            case calculus.AssertEq(target_, _):
+            case phi.AssertEq(target_, _):
                 return go(target_, index_sizes, var_axes)
-            case calculus.Dim(target_, pos):
+            case phi.Dim(target_, pos):
                 target = go(target_, index_sizes, var_axes)
                 return Axial(
                     [],
                     yarr.Dim(target.positional_axis(pos), target.expr),
                 )
-            case calculus.Fold(counter, size_, acc, init_, body_):
+            case phi.Fold(counter, size_, acc, init_, body_):
                 if use_einsum:
                     dot = Dot.lift(expr)
                     if dot.contract and any(len(prod) > 1 for prod in dot.products):
@@ -85,7 +85,7 @@ def transform(
                             counter: Index() for counter in dot.contract
                         }
                         subs: dict[Symbol, Term] = {
-                            counter: calculus.at(index)
+                            counter: phi.at(index)
                             for counter, index in realised_counter.items()
                         }
                         sum_axes = {
@@ -95,7 +95,7 @@ def transform(
                             for counter, size in dot.contract.items()
                         }
 
-                        def go_product(*args: calculus.Expr) -> Axial | None:
+                        def go_product(*args: phi.Expr) -> Axial | None:
                             for counter, size in dot.contract.items():
                                 for operand in args:
                                     if not would_be_memory_considerate_axis(
@@ -103,7 +103,7 @@ def transform(
                                     ):
                                         return None
                             with_realised = [
-                                cast(calculus.Expr, substitute(operand, subs))
+                                cast(phi.Expr, substitute(operand, subs))
                                 for operand in args
                             ]
                             for counter, size in dot.contract.items():
@@ -190,7 +190,7 @@ def transform(
                         body.aligned(acc_axes),
                     ),
                 )
-            case calculus.Reduce(init_, x, y, xy_, vecs_):
+            case phi.Reduce(init_, x, y, xy_, vecs_):
                 init = go(init_, index_sizes, var_axes)
                 vecs = [go(vec_, index_sizes, var_axes) for vec_ in vecs_]
 
@@ -223,7 +223,7 @@ def transform(
                     yarr.Reduce(init_expr, x, y, xy.expr, vecs_expr, len(axes)),
                 )
 
-            case calculus.Get(target_, item_):
+            case phi.Get(target_, item_):
                 return array_indexing.transform_get(
                     target_,
                     item_,
@@ -234,7 +234,7 @@ def transform(
                     use_slice_pads=use_slice_pads,
                     use_slice_elision=use_slice_elision,
                 )
-            case calculus.Concat(first_, second_):
+            case phi.Concat(first_, second_):
                 first = go(first_, index_sizes, var_axes)
                 second = go(second_, index_sizes, var_axes)
                 used_axes = axial._alignment(first._axes, second._axes)
@@ -248,7 +248,7 @@ def transform(
                         len(used_axes),
                     ),
                 )
-            case calculus.Vec(index, size_, target_):
+            case phi.Vec(index, size_, target_):
                 size = go(size_, index_sizes, var_axes)
                 assert (
                     not size.type.free_indices
@@ -256,7 +256,7 @@ def transform(
                 return go(target_, index_sizes | {index: size.normal}, var_axes).along(
                     index, size.expr
                 )
-            case calculus.AbstractScalarOperator(operands_):
+            case phi.AbstractScalarOperator(operands_):
                 ops = [go(op, index_sizes, var_axes) for op in operands_]
                 if expr.ufunc == to_float:
                     (target,) = ops
@@ -272,20 +272,20 @@ def transform(
                             *(op.aligned(used_axes, leftpad=False) for op in ops)
                         ),
                     )
-            case calculus.Cons(first_, second_):
+            case phi.Cons(first_, second_):
                 first = go(first_, index_sizes, var_axes)
                 second = go(second_, index_sizes, var_axes)
                 return first.cons(second)
-            case calculus.First(target_):
+            case phi.First(target_):
                 assert isinstance(target_.type, Pair)
                 k = len(target_.type.first.primitive_type.elems)
                 return go(target_, index_sizes, var_axes).slice_tuple(0, k)
-            case calculus.Second(target_):
+            case phi.Second(target_):
                 assert isinstance(target_.type, Pair)
                 k = len(target_.type.first.primitive_type.elems)
                 n = len(target_.type.primitive_type.elems)
                 return go(target_, index_sizes, var_axes).slice_tuple(k, n)
-            case calculus.Extrinsic(_type, fun, operands_):
+            case phi.Extrinsic(_type, fun, operands_):
                 ops = [go(op, index_sizes, var_axes) for op in operands_]
                 used_axes = axial._alignment(*(op._axes for op in ops))
                 ops_expr = tuple(op.aligned(used_axes, leftpad=False) for op in ops)
@@ -296,7 +296,7 @@ def transform(
         assert False  # noqa
 
     def go(
-        expr: calculus.Expr,
+        expr: phi.Expr,
         index_sizes: dict[Index, yarr.Expr],
         var_axes: dict[Variable, axial.Axes],
     ) -> Axial:
@@ -346,23 +346,23 @@ def cancel_tuple_ops(program: yarr.Expr) -> yarr.Expr:
 
 
 def would_be_memory_considerate_axis(
-    body: calculus.Expr,
+    body: phi.Expr,
     counter: Variable,
-    size: calculus.Expr,
+    size: phi.Expr,
     size_class: SizeEquivalence,
 ) -> bool:
     ok: bool = True
 
     @cache
-    def go(expr: calculus.Expr) -> calculus.Expr:
+    def go(expr: phi.Expr) -> phi.Expr:
         nonlocal ok
         if counter not in expr.free_symbols:
             return expr
         if sum(counter in sub.free_symbols for sub in expr.subterms) > 1:
             ok = False
         match expr:
-            case calculus.Get(target, item):
-                size_matches = size_class.equiv(size, calculus.Dim(target, 0))
+            case phi.Get(target, item):
+                size_matches = size_class.equiv(size, phi.Dim(target, 0))
                 if (
                     counter in item.free_symbols
                     and not item.free_indices
@@ -370,7 +370,7 @@ def would_be_memory_considerate_axis(
                 ):
                     go(target)
                     return expr
-            case calculus.Store(symbol, _inner_type):
+            case phi.Store(symbol, _inner_type):
                 if symbol == counter:
                     ok = False
         return expr.map(go)
@@ -380,31 +380,31 @@ def would_be_memory_considerate_axis(
 
 
 def match_reduction_by_body(
-    body: calculus.Expr, acc: Variable
-) -> tuple[calculus.Expr, yarr.ReduceAxis.Kind] | None:
+    body: phi.Expr, acc: Variable
+) -> tuple[phi.Expr, yarr.ReduceAxis.Kind] | None:
     red = {
-        calculus.Add: yarr.ReduceAxis.Kind.add,
-        calculus.Min: yarr.ReduceAxis.Kind.minimum,
-        calculus.Max: yarr.ReduceAxis.Kind.maximum,
+        phi.Add: yarr.ReduceAxis.Kind.add,
+        phi.Min: yarr.ReduceAxis.Kind.minimum,
+        phi.Max: yarr.ReduceAxis.Kind.maximum,
     }
     for typ, kind in red.items():
         if isinstance(body, typ):
             first, second = body.operands
-            if isinstance(first, calculus.Store) and first.symbol == acc:
+            if isinstance(first, phi.Store) and first.symbol == acc:
                 return second, kind
-            elif isinstance(second, calculus.Store) and second.symbol == acc:
+            elif isinstance(second, phi.Store) and second.symbol == acc:
                 return first, kind
     return None
 
 
 def match_reduction(
     counter: Variable,
-    size: calculus.Expr,
+    size: phi.Expr,
     acc: Variable,
-    init: calculus.Expr,
-    body: calculus.Expr,
+    init: phi.Expr,
+    body: phi.Expr,
     size_class: SizeEquivalence,
-    go: Callable[[calculus.Expr], Axial],
+    go: Callable[[phi.Expr], Axial],
 ) -> Axial | None:
     if init.type != Scalar(float) or init.free_indices:
         return None
@@ -415,10 +415,8 @@ def match_reduction(
     if not would_be_memory_considerate_axis(elem, counter, size, size_class):
         return None
     index = Index()
-    with_counter_axis = cast(
-        calculus.Expr, substitute(elem, {counter: calculus.at(index)})
-    )
-    vec_expr = calculus.Vec(index, size, with_counter_axis)
+    with_counter_axis = cast(phi.Expr, substitute(elem, {counter: phi.at(index)}))
+    vec_expr = phi.Vec(index, size, with_counter_axis)
     update_size_classes(
         vec_expr,
         size_class,
@@ -431,8 +429,8 @@ def match_reduction(
     return Axial(vec._axes, reduced_with_init)
 
 
-def match_summation(expr: calculus.Fold) -> tuple[Variable, calculus.Expr] | None:
-    if not isinstance(expr, calculus.Fold):
+def match_summation(expr: phi.Fold) -> tuple[Variable, phi.Expr] | None:
+    if not isinstance(expr, phi.Fold):
         return None
     red = match_reduction_by_body(expr.body, expr.acc)
     if red is None:
@@ -440,15 +438,15 @@ def match_summation(expr: calculus.Fold) -> tuple[Variable, calculus.Expr] | Non
     body, kind = red
     if kind != yarr.ReduceAxis.Kind.add:
         return None
-    if expr.init != calculus.Const(calculus.Value(0.0)):
+    if expr.init != phi.Const(phi.Value(0.0)):
         return None
     return expr.counter, body
 
 
 @dataclass(frozen=True)
 class Dot:
-    contract: dict[Variable, calculus.Expr]
-    products: tuple[tuple[calculus.Expr, ...], ...]
+    contract: dict[Variable, phi.Expr]
+    products: tuple[tuple[phi.Expr, ...], ...]
 
     @staticmethod
     def _values_agree(first: dict, second: dict) -> bool:
@@ -457,10 +455,10 @@ class Dot:
         )
 
     @classmethod
-    def pure(cls, expr: calculus.Expr) -> "Dot":
+    def pure(cls, expr: phi.Expr) -> "Dot":
         return cls({}, ((expr,),))
 
-    def sum(self, counter: Variable, size: calculus.Expr) -> "Dot":
+    def sum(self, counter: Variable, size: phi.Expr) -> "Dot":
         assert counter not in self.contract
         return Dot(self.contract | {counter: size}, self.products)
 
@@ -482,7 +480,7 @@ class Dot:
         return Dot(
             self.contract,
             tuple(
-                tuple(e if i else calculus.Negate((e,)) for i, e in enumerate(p))
+                tuple(e if i else phi.Negate((e,)) for i, e in enumerate(p))
                 for p in self.products
             ),
         )
@@ -491,18 +489,18 @@ class Dot:
         return self + (-other)
 
     @classmethod
-    def lift(cls, expr: calculus.Expr) -> "Dot":
+    def lift(cls, expr: phi.Expr) -> "Dot":
         match expr:
-            case calculus.Fold() if (summation := match_summation(expr)) is not None:
+            case phi.Fold() if (summation := match_summation(expr)) is not None:
                 counter, body = summation
                 return cls.lift(body).sum(counter, expr.size)
-            case calculus.Add((first, second)):
+            case phi.Add((first, second)):
                 return cls.lift(first) + cls.lift(second)
-            case calculus.Negate((target,)):
+            case phi.Negate((target,)):
                 return -cls.lift(target)
-            case calculus.Subtract((first, second)):
+            case phi.Subtract((first, second)):
                 return cls.lift(first) - cls.lift(second)
-            case calculus.Multiply((first, second)):
+            case phi.Multiply((first, second)):
                 fst, snd = cls.lift(first), cls.lift(second)
                 if not (set(fst.contract) & set(snd.contract)):
                     return fst * snd

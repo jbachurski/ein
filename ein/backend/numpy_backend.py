@@ -5,7 +5,7 @@ import numpy
 
 from ein.codegen import phi_to_yarr, yarr
 from ein.midend.lining import outline
-from ein.phi import calculus
+from ein.phi import phi
 from ein.symbols import Variable
 from ein.value import Value
 
@@ -193,13 +193,11 @@ def stage_in_array(
 
 
 def stage(
-    program: calculus.Expr,
+    program: phi.Expr,
 ) -> Callable[[dict[Variable, numpy.ndarray]], numpy.ndarray]:
     array_program = phi_to_yarr.transform(program)
     return stage_in_array(array_program)  # type: ignore
 
 
-def interpret(
-    program: calculus.Expr, env: dict[Variable, numpy.ndarray]
-) -> numpy.ndarray:
+def interpret(program: phi.Expr, env: dict[Variable, numpy.ndarray]) -> numpy.ndarray:
     return stage(program)(env)

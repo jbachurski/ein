@@ -3,7 +3,7 @@ from typing import Callable, Sequence
 from numpy import ndarray
 
 from ein.backend import STAGE_BACKENDS, Backend
-from ein.phi.calculus import Expr, variable
+from ein.phi.phi import Expr, variable
 from ein.phi.type_system import Type, type_from_ndarray
 from ein.symbols import Variable
 

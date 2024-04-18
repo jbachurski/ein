@@ -9,7 +9,7 @@ from ein import (
     scalar_type,
     vector_type,
 )
-from ein.phi.calculus import (
+from ein.phi.phi import (
     Add,
     CastToFloat,
     Cons,

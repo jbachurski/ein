@@ -4,7 +4,7 @@ from typing import Any, Iterable, assert_never, cast
 
 from ein.codegen import phi_to_yarr, yarr
 from ein.midend import lining
-from ein.phi import calculus
+from ein.phi import phi
 
 try:
     import pydot
@@ -63,7 +63,7 @@ def graph(program):
     return dot
 
 
-def array_from_phi_program(program: calculus.Expr) -> yarr.Expr:
+def array_from_phi_program(program: phi.Expr) -> yarr.Expr:
     return phi_to_yarr.transform(program)
 
 
@@ -84,39 +84,39 @@ def plot_graph(dot: pydot.Dot) -> None:
     plt.show()
 
 
-def plot_phi_graph(program: calculus.Expr) -> None:
+def plot_phi_graph(program: phi.Expr) -> None:
     plot_graph(graph(program))
 
 
-def plot_array_graph(program: calculus.Expr) -> None:
+def plot_array_graph(program: phi.Expr) -> None:
     plot_graph(graph(array_from_phi_program(program)))
 
 
-def pretty_print(program: calculus.Expr) -> str:
-    def go(expr: calculus.Expr) -> Iterable[str]:
+def pretty_print(program: phi.Expr) -> str:
+    def go(expr: phi.Expr) -> Iterable[str]:
         match expr:
-            case calculus.Const(value):
+            case phi.Const(value):
                 yield _meta_value_repr(value)
-            case calculus.Store(symbol, _inner_type):
+            case phi.Store(symbol, _inner_type):
                 yield str(symbol)
-            case calculus.Let(var, bind, body):
+            case phi.Let(var, bind, body):
                 yield f"let {var} ="
                 yield from ("  " + line for line in go(bind))
                 yield "in"
                 yield from ("  " + line for line in go(body))
-            case calculus.AssertEq(target, operands):
+            case phi.AssertEq(target, operands):
                 yield f"assert {' = '.join(' '.join(go(op)) for op in operands)} in"
                 yield from ("  " + line for line in go(target))
-            case calculus.Dim(target, pos):
+            case phi.Dim(target, pos):
                 yield f"({' '.join(go(target))}).|{pos}|"
-            case calculus.Fold(counter, size, acc, init, body):
+            case phi.Fold(counter, size, acc, init, body):
                 yield f"fold {counter} count"
                 yield from ("  " + line for line in go(size))
                 yield f"from {acc} = "
                 yield from ("  " + line for line in go(init))
                 yield "by"
                 yield from ("  " + line for line in go(body))
-            case calculus.Reduce(init, x, y, xy, vecs):
+            case phi.Reduce(init, x, y, xy, vecs):
                 yield "reduce"
                 for vec in vecs:
                     yield from ("  " + line for line in go(vec))
@@ -124,21 +124,21 @@ def pretty_print(program: calculus.Expr) -> str:
                 yield from ("  " + line for line in go(init))
                 yield f"where {x} * {y} = "
                 yield from ("  " + line for line in go(xy))
-            case calculus.Get(target, item):
+            case phi.Get(target, item):
                 yield "get"
                 yield from ("  " + line for line in go(target))
                 yield "at"
                 yield from ("  " + line for line in go(item))
-            case calculus.Concat(first, second):
+            case phi.Concat(first, second):
                 yield "concat"
                 yield from ("  " + line for line in go(first))
                 yield from ("  " + line for line in go(second))
-            case calculus.Vec(index, size, target):
+            case phi.Vec(index, size, target):
                 yield f"array {index} size"
                 yield from ("  " + line for line in go(size))
                 yield "of"
                 yield from ("  " + line for line in go(target))
-            case calculus.AbstractScalarOperator(operands):
+            case phi.AbstractScalarOperator(operands):
                 yield getattr(
                     expr.ufunc,
                     "name",
@@ -146,25 +146,25 @@ def pretty_print(program: calculus.Expr) -> str:
                 )
                 for op in operands:
                     yield from ("  " + line for line in go(op))
-            case calculus.Cons(first, second):
+            case phi.Cons(first, second):
                 yield "("
                 yield from ("  " + line for line in go(first))
                 yield from ("  " + line for line in go(second))
                 yield ")"
-            case calculus.First(target):
+            case phi.First(target):
                 yield "fst"
                 yield from ("  " + line for line in go(target))
-            case calculus.Second(target):
+            case phi.Second(target):
                 yield "snd"
                 yield from ("  " + line for line in go(target))
-            case calculus.Extrinsic(_type, fun, operands):
+            case phi.Extrinsic(_type, fun, operands):
                 yield f"extrinsic<{fun.__name__}>"
                 for op in operands:
                     yield from ("  " + line for line in go(op))
             case _:
                 assert_never(expr)
 
-    return "\n".join(go(cast(calculus.Expr, lining.outline(lining.inline(program)))))
+    return "\n".join(go(cast(phi.Expr, lining.outline(lining.inline(program)))))
 
 
 def save_graph(dot: pydot.Dot, path: str, fmt: str | None = None) -> None:

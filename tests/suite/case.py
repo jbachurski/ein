@@ -4,8 +4,8 @@ from typing import Callable, ClassVar, Sequence
 import numpy
 
 from ein import Array, with_varargs
-from ein.phi import calculus
-from ein.phi.calculus import Expr, Variable
+from ein.phi import phi
+from ein.phi.phi import Expr, Variable
 from ein.phi.type_system import Type
 
 
@@ -19,7 +19,7 @@ class Case(abc.ABC):
         ...
 
     @classmethod
-    def ein_function(cls) -> tuple[tuple[Variable, ...], calculus.Expr]:
+    def ein_function(cls) -> tuple[tuple[Variable, ...], phi.Expr]:
         return with_varargs(cls.ein_types, cls.in_ein)
 
     @classmethod

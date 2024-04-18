@@ -4,7 +4,7 @@ from typing import Callable, Self, TypeAlias, TypeVar
 
 from ein.codegen import yarr
 from ein.midend.size_classes import SizeEquivalence, _dim_of
-from ein.phi import calculus
+from ein.phi import phi
 from ein.phi.type_system import PrimitiveArrayType
 from ein.symbols import Index, Symbol
 
@@ -27,7 +27,7 @@ class Builder:
 
     @classmethod
     def const(cls, value) -> Self:
-        return cls(yarr.Const(calculus.Value(value)))
+        return cls(yarr.Const(phi.Value(value)))
 
     def __neg__(self) -> "Builder":
         return Builder(
@@ -64,9 +64,9 @@ class Builder:
 
 
 def transform_get(
-    target_: calculus.Expr,
-    item_: calculus.Expr,
-    go: Callable[[calculus.Expr], Axial],
+    target_: phi.Expr,
+    item_: phi.Expr,
+    go: Callable[[phi.Expr], Axial],
     size_class: SizeEquivalence,
     index_sizes: dict[Index, yarr.Expr],
     *,
@@ -177,13 +177,11 @@ def general_get(target: Axial, item: Axial) -> Axial:
     return Axial(axes, expr)
 
 
-ClippedShift: TypeAlias = tuple[
-    calculus.Expr | None, calculus.Expr | None, calculus.Expr | None
-]
+ClippedShift: TypeAlias = tuple[phi.Expr | None, phi.Expr | None, phi.Expr | None]
 
 
 @cache
-def match_index_clipped_shift(expr: calculus.Expr) -> tuple[Index, ClippedShift] | None:
+def match_index_clipped_shift(expr: phi.Expr) -> tuple[Index, ClippedShift] | None:
     if len(expr.free_indices) == 1:
         (index,) = expr.free_indices
         t = match_clipped_shift(expr, index)
@@ -193,32 +191,32 @@ def match_index_clipped_shift(expr: calculus.Expr) -> tuple[Index, ClippedShift]
 
 
 @cache
-def match_clipped_shift(expr: calculus.Expr, symbol: Symbol) -> ClippedShift | None:
+def match_clipped_shift(expr: phi.Expr, symbol: Symbol) -> ClippedShift | None:
     # expr is equivalent to the form min(max(symbol + shift, low), high)
     # where symbol occurs in no subterm of shift/low/high
     if not expr.free_symbols:
         return None, None, None
     match expr:
-        case calculus.Store(symbol_, _inner_type):
+        case phi.Store(symbol_, _inner_type):
             if symbol == symbol_:
                 return None, None, None
-        case calculus.Add((first, second)):
+        case phi.Add((first, second)):
             return _first_opt(
                 _clip_shift_add(first, second, symbol),
                 _clip_shift_add(second, first, symbol),
             )
-        case calculus.Subtract((first, second)):
-            second = calculus.Negate((second,))
+        case phi.Subtract((first, second)):
+            second = phi.Negate((second,))
             return _first_opt(
                 _clip_shift_add(first, second, symbol),
                 _clip_shift_add(second, first, symbol),
             )
-        case calculus.Min((first, second)):
+        case phi.Min((first, second)):
             return _first_opt(
                 _clip_shift_min(first, second, symbol),
                 _clip_shift_min(second, first, symbol),
             )
-        case calculus.Max((first, second)):
+        case phi.Max((first, second)):
             return _first_opt(
                 _clip_shift_max(first, second, symbol),
                 _clip_shift_max(second, first, symbol),
@@ -227,7 +225,7 @@ def match_clipped_shift(expr: calculus.Expr, symbol: Symbol) -> ClippedShift | N
 
 
 def _clip_shift_add(
-    shifted: calculus.Expr, other: calculus.Expr, symbol: Symbol
+    shifted: phi.Expr, other: phi.Expr, symbol: Symbol
 ) -> ClippedShift | None:
     if other.free_indices:
         return None
@@ -235,36 +233,36 @@ def _clip_shift_add(
     if t is not None:
         d, lo, hi = t
         if lo is None and hi is None:
-            return calculus.Add((d, other)) if d is not None else other, None, None
+            return phi.Add((d, other)) if d is not None else other, None, None
     return None
 
 
 def _clip_shift_min(
-    shifted: calculus.Expr, other: calculus.Expr, symbol: Symbol
+    shifted: phi.Expr, other: phi.Expr, symbol: Symbol
 ) -> ClippedShift | None:
     if other.free_indices:
         return None
     t = match_clipped_shift(shifted, symbol)
     if t is not None:
         d, lo, hi = t
-        hi = calculus.Min((hi, other)) if hi is not None else other
+        hi = phi.Min((hi, other)) if hi is not None else other
         return d, lo, hi
     return None
 
 
-def _clip_shift_max(shifted: calculus.Expr, other: calculus.Expr, symbol: Symbol):
+def _clip_shift_max(shifted: phi.Expr, other: phi.Expr, symbol: Symbol):
     if other.free_indices:
         return None
     t = match_clipped_shift(shifted, symbol)
     if t is not None:
         d, lo, hi = t
-        lo = calculus.Max((lo, other)) if lo is not None else other
-        hi = calculus.Max((hi, other)) if hi is not None else None
+        lo = phi.Max((lo, other)) if lo is not None else other
+        hi = phi.Max((hi, other)) if hi is not None else None
         return d, lo, hi
     return None
 
 
-def match_shift(expr: calculus.Expr, symbol: Symbol) -> calculus.Expr | None:
+def match_shift(expr: phi.Expr, symbol: Symbol) -> phi.Expr | None:
     t = match_clipped_shift(expr, symbol)
     if t is not None:
         d, lo, hi = t

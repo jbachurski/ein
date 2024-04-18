@@ -1,3 +1,3 @@
-from . import calculus, type_system
+from . import phi, type_system
 
-__all__ = ["calculus", "type_system"]
+__all__ = ["phi", "type_system"]

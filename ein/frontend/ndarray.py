@@ -15,8 +15,8 @@ from typing import (
 import numpy
 
 from ein.backend import BACKENDS, DEFAULT_BACKEND, Backend
-from ein.phi import calculus
-from ein.phi.calculus import AbstractExpr, Expr
+from ein.phi import phi
+from ein.phi.phi import AbstractExpr, Expr
 from ein.phi.type_system import AbstractType
 from ein.phi.type_system import Scalar as ScalarType
 from ein.phi.type_system import Type
@@ -42,10 +42,10 @@ ScalarLike = int | float | bool | Union["Scalar"]
 ArrayLike: TypeAlias = ScalarLike | numpy.ndarray | _TorchTensor | Union["Vec"]
 
 
-def _project_tuple(expr: calculus.Expr, i: int, n: int) -> calculus.Expr:
+def _project_tuple(expr: phi.Expr, i: int, n: int) -> phi.Expr:
     for _ in range(i):
-        expr = calculus.Second(expr)
-    return calculus.First(expr) if i + 1 < n else expr
+        expr = phi.Second(expr)
+    return phi.First(expr) if i + 1 < n else expr
 
 
 def _layout_struct_to_expr(layout: Layout, struct) -> Expr:
@@ -54,7 +54,7 @@ def _layout_struct_to_expr(layout: Layout, struct) -> Expr:
         [struct],
         lambda a: wrap(a).expr,
         lambda a: a.expr,
-        lambda a, b: calculus.Cons(a, b),
+        lambda a, b: phi.Cons(a, b),
     )
 
 
@@ -100,9 +100,9 @@ class _Array:
     def assume(self, other) -> Self:
         ...
 
-    def _assume_expr(self, other) -> calculus.Expr:
-        return calculus.First(
-            calculus.Cons(
+    def _assume_expr(self, other) -> phi.Expr:
+        return phi.First(
+            phi.Cons(
                 self.expr,
                 _layout_struct_to_expr(
                     build_layout(other, lambda a: wrap(a).layout), other
@@ -184,7 +184,7 @@ class Vec(_Array, Generic[T]):
         def maybe_rest(x):
             return x[tuple(rest)] if rest else x
 
-        sub_expr: calculus.Expr
+        sub_expr: phi.Expr
         sub_layout: Layout
         match curr:
             case slice(start=start, stop=stop, step=step):
@@ -198,17 +198,17 @@ class Vec(_Array, Generic[T]):
                 # This is not an infinite recursion, as [i] is not a slice
                 return array(lambda i: maybe_rest(self[i]))
             case _:
-                sub_expr = calculus.Get(self.expr, wrap(curr).expr)
+                sub_expr = phi.Get(self.expr, wrap(curr).expr)
                 sub_layout = self.layout.sub
                 sub = _phi_to_yarr(sub_expr, sub_layout)
         return maybe_rest(sub)
 
     def concat(self, other: "Vec[T]") -> "Vec[T]":
         assert self.layout == other.layout
-        return _phi_to_yarr(calculus.Concat(self.expr, other.expr), self.layout)
+        return _phi_to_yarr(phi.Concat(self.expr, other.expr), self.layout)
 
     def size(self, axis: int) -> "Scalar":
-        return Scalar(calculus.Dim(self.expr, axis))
+        return Scalar(phi.Dim(self.expr, axis))
 
     def or_empty(self, item, empty: T) -> T:
         from ein.frontend.std import where
@@ -220,8 +220,7 @@ class Vec(_Array, Generic[T]):
         type_ = self.expr.type
         assert isinstance(type_, VectorType)
         x_, y_ = (
-            _phi_to_yarr(calculus.variable(v, type_.elem), self.layout.sub)
-            for v in (x, y)
+            _phi_to_yarr(phi.variable(v, type_.elem), self.layout.sub) for v in (x, y)
         )
         xy_ = f(x_, y_)
         layout = build_layout(xy_, lambda a: wrap(a).layout)
@@ -237,7 +236,7 @@ class Vec(_Array, Generic[T]):
             )
         init_expr = _layout_struct_to_expr(layout, init)
         xy = _layout_struct_to_expr(layout, xy_)
-        expr = calculus.Reduce(init_expr, x, y, xy, (self.expr,))
+        expr = phi.Reduce(init_expr, x, y, xy, (self.expr,))
         return _phi_to_yarr(expr, self.layout.sub)
 
 
@@ -256,34 +255,34 @@ class Scalar(_Array):
         return type(self)(self._assume_expr(other))
 
     def float(self) -> "Scalar":
-        return Scalar(calculus.CastToFloat((self.expr,)))
+        return Scalar(phi.CastToFloat((self.expr,)))
 
     def __add__(self, other: ScalarLike) -> "Scalar":
-        return Scalar(calculus.Add((self.expr, wrap(other).expr)))
+        return Scalar(phi.Add((self.expr, wrap(other).expr)))
 
     def __sub__(self, other: ScalarLike) -> "Scalar":
-        return Scalar(calculus.Subtract((self.expr, wrap(other).expr)))
+        return Scalar(phi.Subtract((self.expr, wrap(other).expr)))
 
     def __mul__(self, other: ScalarLike) -> "Scalar":
-        return Scalar(calculus.Multiply((self.expr, wrap(other).expr)))
+        return Scalar(phi.Multiply((self.expr, wrap(other).expr)))
 
     __radd__ = __add__
     __rmul__ = __mul__
 
     def __neg__(self) -> "Scalar":
-        return Scalar(calculus.Negate((self.expr,)))
+        return Scalar(phi.Negate((self.expr,)))
 
     def __rsub__(self, other: ScalarLike) -> "Scalar":
         return (-self) + other
 
     def __truediv__(self, other: ScalarLike) -> "Scalar":
-        return self * Scalar(calculus.Reciprocal((wrap(other).expr,)))
+        return self * Scalar(phi.Reciprocal((wrap(other).expr,)))
 
     def __rtruediv__(self, other: ScalarLike) -> "Scalar":
         return cast(Scalar, wrap(other) / self)
 
     def __mod__(self, other: ScalarLike) -> "Scalar":
-        return Scalar(calculus.Modulo((self.expr, wrap(other).expr)))
+        return Scalar(phi.Modulo((self.expr, wrap(other).expr)))
 
     def __pow__(self, power, modulo=None):
         if modulo is not None:
@@ -302,43 +301,43 @@ class Scalar(_Array):
 
             return go(power)
 
-        return Scalar(calculus.Power((self.expr, wrap(power).expr)))
+        return Scalar(phi.Power((self.expr, wrap(power).expr)))
 
     def __invert__(self) -> "Scalar":
-        return Scalar(calculus.LogicalNot((self.expr,)))
+        return Scalar(phi.LogicalNot((self.expr,)))
 
     def __and__(self, other: ScalarLike) -> "Scalar":
-        return Scalar(calculus.LogicalAnd((self.expr, wrap(other).expr)))
+        return Scalar(phi.LogicalAnd((self.expr, wrap(other).expr)))
 
     def __or__(self, other: ScalarLike) -> "Scalar":
-        return Scalar(calculus.LogicalOr((self.expr, wrap(other).expr)))
+        return Scalar(phi.LogicalOr((self.expr, wrap(other).expr)))
 
     def __lt__(self, other: ScalarLike) -> "Scalar":
-        return Scalar(calculus.Less((self.expr, wrap(other).expr)))
+        return Scalar(phi.Less((self.expr, wrap(other).expr)))
 
     def __ne__(self, other: ScalarLike) -> "Scalar":  # type: ignore
-        return Scalar(calculus.NotEqual((self.expr, wrap(other).expr)))
+        return Scalar(phi.NotEqual((self.expr, wrap(other).expr)))
 
     def __eq__(self, other: ScalarLike) -> "Scalar":  # type: ignore
-        return Scalar(calculus.Equal((self.expr, wrap(other).expr)))
+        return Scalar(phi.Equal((self.expr, wrap(other).expr)))
 
     def __gt__(self, other: ScalarLike) -> "Scalar":
         return cast(Scalar, wrap(other).__lt__(self))
 
     def __le__(self, other: ScalarLike) -> "Scalar":
-        return Scalar(calculus.LessEqual((self.expr, wrap(other).expr)))
+        return Scalar(phi.LessEqual((self.expr, wrap(other).expr)))
 
     def __ge__(self, other: ScalarLike) -> "Scalar":
         return cast(Scalar, wrap(other).__le__(self))
 
     def where(self, true: ScalarLike, false: ScalarLike) -> "Scalar":
-        return Scalar(calculus.Where((self.expr, wrap(true).expr, wrap(false).expr)))
+        return Scalar(phi.Where((self.expr, wrap(true).expr, wrap(false).expr)))
 
     def min(self, other: ScalarLike) -> "Scalar":
-        return Scalar(calculus.Min((self.expr, wrap(other).expr)))
+        return Scalar(phi.Min((self.expr, wrap(other).expr)))
 
     def max(self, other: ScalarLike) -> "Scalar":
-        return Scalar(calculus.Max((self.expr, wrap(other).expr)))
+        return Scalar(phi.Max((self.expr, wrap(other).expr)))
 
     def abs(self) -> "Scalar":
         zero = 0 if self.expr.type == ScalarType(int) else 0.0
@@ -347,13 +346,13 @@ class Scalar(_Array):
     __abs__ = abs
 
     def exp(self) -> "Scalar":
-        return Scalar(calculus.Exp((self.expr,)))
+        return Scalar(phi.Exp((self.expr,)))
 
     def sin(self) -> "Scalar":
-        return Scalar(calculus.Sin((self.expr,)))
+        return Scalar(phi.Sin((self.expr,)))
 
     def cos(self) -> "Scalar":
-        return Scalar(calculus.Cos((self.expr,)))
+        return Scalar(phi.Cos((self.expr,)))
 
     def tanh(self) -> "Scalar":
         a, b = self.exp(), (-self).exp()
@@ -380,7 +379,7 @@ def ext(
                     raise TypeError(
                         f"Expected {exp} in argument {i} of {extrinsic.__name__}, got {op.type}"
                     )
-        return _phi_to_yarr(calculus.Extrinsic(output_signature, fun, operands))
+        return _phi_to_yarr(phi.Extrinsic(output_signature, fun, operands))
 
     if hasattr(fun, "__name__"):
         extrinsic.__name__ = f"{extrinsic}_{fun.__name__}"
@@ -392,5 +391,5 @@ def wrap(array_like: ArrayLike) -> Array:
         return cast(Array, array_like)
     if not isinstance(array_like, (int, float, bool, numpy.ndarray, _TorchTensor)):
         raise TypeError(f"Invalid type for an ein Array: {type(array_like).__name__}")
-    expr = calculus.Const(Value(array_like))
+    expr = phi.Const(Value(array_like))
     return _phi_to_yarr(expr)

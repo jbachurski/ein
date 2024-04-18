@@ -2,8 +2,8 @@ import inspect
 from typing import Any, Callable, Protocol, TypeAlias, TypeVar, cast, overload
 
 from ein.midend.size_classes import _dim_of, _with_indices_at_zero
-from ein.phi import calculus
-from ein.phi.calculus import Expr
+from ein.phi import phi
+from ein.phi.phi import Expr
 from ein.phi.type_system import scalar_type
 from ein.symbols import Index, Symbol, Variable
 
@@ -65,7 +65,7 @@ def _infer_sizes(
         if sub in visited:
             return sub
         match sub:
-            case calculus.Get(target, calculus.Store(symbol)):
+            case phi.Get(target, phi.Store(symbol)):
                 direct_indices.setdefault(symbol, {})[target] = captured
         sub.map(lambda sub1: go(sub1, captured | sub.captured_symbols))
         return sub
@@ -90,7 +90,7 @@ def _infer_sizes(
             shape_expr: Expr
             shape_expr, *_ = candidates
             size_of[index] = (
-                calculus.AssertEq(shape_expr, tuple(candidates))
+                phi.AssertEq(shape_expr, tuple(candidates))
                 if len(candidates) > 1
                 else shape_expr
             )
@@ -137,13 +137,13 @@ def array(constructor, *, size=None):
         size = (size,)
     n = len(inspect.signature(constructor).parameters) if size is None else len(size)
     indices = [Index() for _ in range(n)]
-    wrapped_indices = [cast(Idx, _phi_to_yarr(calculus.at(index))) for index in indices]
+    wrapped_indices = [cast(Idx, _phi_to_yarr(phi.at(index))) for index in indices]
     cons = constructor(*wrapped_indices)
     layout = build_layout(cons, lambda a: wrap(a).layout)
     body: Expr = _layout_struct_to_expr(layout, cons)
     size_of = _infer_sizes(body, tuple(indices), set(), size)
     for index in reversed(indices):
-        body = calculus.Vec(index, size_of[index], body)
+        body = phi.Vec(index, size_of[index], body)
         layout = VecLayout(layout)
     return _phi_to_yarr(body, layout)
 
@@ -151,9 +151,9 @@ def array(constructor, *, size=None):
 def fold(init: T, step: _WithIndex[T], count: Size | None = None) -> T:
     layout = build_layout(init, lambda a: wrap(a).layout)
     init_expr: Expr = _layout_struct_to_expr(layout, init)
-    counter = calculus.variable(Variable(), scalar_type(int))
+    counter = phi.variable(Variable(), scalar_type(int))
     arg_index = _phi_to_yarr(counter)
-    acc = calculus.variable(Variable(), init_expr.type)
+    acc = phi.variable(Variable(), init_expr.type)
     arg_acc = _phi_to_yarr(acc, layout)
     body = step(arg_index, arg_acc)
     layout_ = build_layout(init, lambda a: wrap(a).layout)
@@ -166,7 +166,5 @@ def fold(init: T, step: _WithIndex[T], count: Size | None = None) -> T:
     size_of = _infer_sizes(
         body_expr, (counter.var,), {acc.var}, (count,) if count is not None else None
     )
-    expr = calculus.Fold(
-        counter.var, size_of[counter.var], acc.var, init_expr, body_expr
-    )
+    expr = phi.Fold(counter.var, size_of[counter.var], acc.var, init_expr, body_expr)
     return _phi_to_yarr(expr, layout)

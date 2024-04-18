@@ -1,8 +1,8 @@
 import functools
 from typing import TypeVar, assert_never, cast
 
-from ein.phi import calculus
-from ein.phi.calculus import (
+from ein.phi import phi
+from ein.phi.phi import (
     Concat,
     Cons,
     Dim,
@@ -71,9 +71,7 @@ def struct_of_arrays_transform(program: Expr):
                     return (Dim(sub, axis),)
 
                 dims = tuple_dim(arr)
-                return (
-                    calculus.AssertEq(dims[0], dims[1:]) if len(dims) > 1 else dims[0]
-                )
+                return phi.AssertEq(dims[0], dims[1:]) if len(dims) > 1 else dims[0]
 
             case Get(arr, it):
                 arr, it = go(arr), go(it)
@@ -114,16 +112,16 @@ def struct_of_arrays_transform(program: Expr):
                 vecs = tuple(go(vec) for vec in vecs)
                 pre_type = xy.type
 
-                def in_tuple(sub: calculus.Expr) -> tuple[calculus.Expr, ...]:
+                def in_tuple(sub: phi.Expr) -> tuple[phi.Expr, ...]:
                     match sub.type:
                         case Pair():
                             return in_tuple(First(sub)) + in_tuple(Second(sub))
                     return (sub,)
 
-                def into_tuple(*args: calculus.Expr) -> calculus.Expr:
+                def into_tuple(*args: phi.Expr) -> phi.Expr:
                     return functools.reduce(Cons, args)
 
-                def into_tuple_like(typ0: Type, *args: calculus.Expr) -> calculus.Expr:
+                def into_tuple_like(typ0: Type, *args: phi.Expr) -> phi.Expr:
                     i = 0
 
                     def rec(typ: Type):

@@ -11,7 +11,7 @@ import pandas
 import seaborn
 
 import ein
-from ein.phi.calculus import Expr
+from ein.phi.phi import Expr
 from ein.symbols import Variable
 from tests.suite.deep import GAT, Attention
 from tests.suite.misc import FunWithSemirings as Semirings
