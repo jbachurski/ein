@@ -102,6 +102,10 @@ class Const(AbstractExpr):
     def subterms(self) -> tuple[Expr, ...]:
         return ()
 
+    @property
+    def is_atom(self):
+        return isinstance(self.value.value, numpy.ndarray) and not self.value.value.ndim
+
     def map(self, f: Callable[[Expr], Expr]) -> Expr:
         return self
 
