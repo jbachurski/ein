@@ -186,7 +186,7 @@ def transform(
                         counter,
                         size.normal,
                         acc,
-                        init.aligned(acc_axes),
+                        init.aligned(acc_axes, repeats=index_sizes),
                         body.aligned(acc_axes),
                     ),
                 )
