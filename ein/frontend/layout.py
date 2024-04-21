@@ -103,6 +103,7 @@ def fold_layout(layout, args, atom, vec, merge):
     def reduce(xs):
         return xs[0] if len(xs) == 1 else merge(xs[0], reduce(xs[1:]))
 
+    print(layout, args)
     match layout:
         case AtomLayout():
             return atom(*args)
@@ -118,7 +119,7 @@ def fold_layout(layout, args, atom, vec, merge):
         case LabelledLayout(subs):
             return reduce(
                 [
-                    fold_layout(sub, map(get(name), args), atom, vec, merge)
+                    fold_layout(sub, list(map(get(name), args)), atom, vec, merge)
                     for name, sub in subs
                 ]
             )
@@ -146,7 +147,7 @@ def map_layout(layout, args, atom, vec):
             return tag(*ret_args) if tag is not None else ret_args
         case LabelledLayout(subs, tag):
             ret_kwargs = {
-                name: map_layout(sub, map(get(name), args), atom, vec)
+                name: map_layout(sub, list(map(get(name), args)), atom, vec)
                 for name, sub in subs
             }
             return tag(**ret_kwargs) if tag is not None else ret_kwargs
