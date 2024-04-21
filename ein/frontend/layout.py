@@ -103,7 +103,6 @@ def fold_layout(layout, args, atom, vec, merge):
     def reduce(xs):
         return xs[0] if len(xs) == 1 else merge(xs[0], reduce(xs[1:]))
 
-    print(layout, args)
     match layout:
         case AtomLayout():
             return atom(*args)
