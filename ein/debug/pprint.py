@@ -111,6 +111,21 @@ def _pretty_phi(expr: phi.Expr, par: bool) -> Repr:
             return Concat(
                 (_pretty_phi(vec, True), Line("["), _pretty_phi(item, False), Line("]"))
             )
+        case phi.Dim(target_, axis):
+            return Concat(
+                (Line(f"size[{axis}]("), _pretty_phi(target_, False), Line(")"))
+            )
+        case phi.AssertEq(target_, targets_):
+            targets_ = (target_, *targets_)
+            targets = [_pretty_phi(t, False) for t in targets_]
+            ret: list[Repr] = [Line("{")]
+            for target in targets:
+                ret.append(target)
+                ret.append(Line(", "))
+            if targets:
+                ret.pop()
+            ret.append(Line("}"))
+            return Concat(tuple(ret))
         case phi.Fold(counter, size, acc, init, body):
             return pars(
                 Nest(
