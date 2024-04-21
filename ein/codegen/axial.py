@@ -85,11 +85,14 @@ class Axial:
     def cons(self, other: "Axial") -> "Axial":
         n = len(self.expr.type.elems)
         m = len(other.expr.type.elems)
+        axes = _alignment(self._axes, other._axes)
+        self_expr = self.aligned(axes)
+        other_expr = other.aligned(axes)
         return Axial(
-            self._axes,
+            axes,
             tuple_maybe_singleton(
-                *(untuple_maybe_singleton(self.expr, i) for i in range(n)),
-                *(untuple_maybe_singleton(other.expr, i) for i in range(m)),
+                *(untuple_maybe_singleton(self_expr, i) for i in range(n)),
+                *(untuple_maybe_singleton(other_expr, i) for i in range(m)),
             ),
         )
 
