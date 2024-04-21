@@ -1,9 +1,13 @@
-from typing import Iterable, TypeAlias
+from typing import TYPE_CHECKING, Iterable, TypeAlias, overload
 
 import networkx
 
 from ein.symbols import Symbol, Variable
 from ein.term import Term
+
+if TYPE_CHECKING:
+    from ein.codegen import yarr
+    from ein.phi import phi
 
 Insertions: TypeAlias = dict[Term, dict[Variable, Term]]
 BinderStack: TypeAlias = dict[Term, set[Symbol]]
@@ -86,6 +90,21 @@ def _reduce_loop_strength(program: Term) -> Insertions:
     return insertions
 
 
+@overload
+def outline(program: "phi.Expr") -> "phi.Expr":
+    ...
+
+
+@overload
+def outline(program: "yarr.Expr") -> "yarr.Expr":
+    ...
+
+
+@overload
+def outline(program: Term) -> Term:
+    ...
+
+
 def outline(program: Term) -> Term:
     free_symbols = program.free_symbols
 
@@ -117,6 +136,21 @@ def outline(program: Term) -> Term:
     program = inline(program, only_renames=True)
     check(program, tree=True)
     return program
+
+
+@overload
+def inline(program: "phi.Expr", *, only_renames: bool = False) -> "phi.Expr":
+    ...
+
+
+@overload
+def inline(program: "yarr.Expr", *, only_renames: bool = False) -> "yarr.Expr":
+    ...
+
+
+@overload
+def inline(program: Term, *, only_renames: bool = False) -> Term:
+    ...
 
 
 def inline(program: Term, *, only_renames: bool = False) -> Term:
