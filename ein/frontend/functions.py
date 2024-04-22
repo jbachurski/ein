@@ -7,14 +7,14 @@ from ein.phi.phi import Expr, variable
 from ein.phi.type_system import Type, type_from_ndarray
 from ein.symbols import Variable
 
-from .ndarray import ArrayLike, _phi_to_yarr, _TorchTensor, wrap
+from .ndarray import ArrayLike, _to_array, _TorchTensor, wrap
 
 
 def with_varargs(
     types: Sequence[Type], fun: Callable[..., ArrayLike]
 ) -> tuple[tuple[Variable, ...], Expr]:
     arg_vars = [variable(Variable(), type_) for type_ in types]
-    args = [_phi_to_yarr(var) for var in arg_vars]
+    args = [_to_array(var) for var in arg_vars]
     return tuple(var.var for var in arg_vars), wrap(fun(*args)).expr
 
 

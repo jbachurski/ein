@@ -58,7 +58,7 @@ def _layout_struct_to_expr(layout: Layout, struct) -> Expr:
     )
 
 
-def _phi_to_yarr(expr: Expr, layout: Layout | None = None):
+def _to_array(expr: Expr, layout: Layout | None = None):
     if layout is None:
         layout = unambiguous_layout(expr.type)
     match layout:
@@ -68,13 +68,13 @@ def _phi_to_yarr(expr: Expr, layout: Layout | None = None):
             return Vec(expr, layout)
         case PositionalLayout(subs, tag):
             args = tuple(
-                _phi_to_yarr(_project_tuple(expr, i, len(subs)), sub)
+                _to_array(_project_tuple(expr, i, len(subs)), sub)
                 for i, sub in enumerate(subs)
             )
             return tag(*args) if tag is not None else args
         case LabelledLayout(subs, tag):
             kwargs = {
-                name: _phi_to_yarr(_project_tuple(expr, i, len(subs)), sub)
+                name: _to_array(_project_tuple(expr, i, len(subs)), sub)
                 for i, (name, sub) in enumerate(subs)
             }
             return tag(**kwargs) if tag is not None else kwargs
@@ -200,12 +200,12 @@ class Vec(_Array, Generic[T]):
             case _:
                 sub_expr = phi.Get(self.expr, wrap(curr).expr)
                 sub_layout = self.layout.sub
-                sub = _phi_to_yarr(sub_expr, sub_layout)
+                sub = _to_array(sub_expr, sub_layout)
         return maybe_rest(sub)
 
     def concat(self, other: "Vec[T]") -> "Vec[T]":
         assert self.layout == other.layout
-        return _phi_to_yarr(phi.Concat(self.expr, other.expr), self.layout)
+        return _to_array(phi.Concat(self.expr, other.expr), self.layout)
 
     def size(self, axis: int = 0) -> "Scalar":
         return Scalar(phi.Dim(self.expr, axis))
@@ -220,7 +220,7 @@ class Vec(_Array, Generic[T]):
         type_ = self.expr.type
         assert isinstance(type_, VectorType)
         x_, y_ = (
-            _phi_to_yarr(phi.variable(v, type_.elem), self.layout.sub) for v in (x, y)
+            _to_array(phi.variable(v, type_.elem), self.layout.sub) for v in (x, y)
         )
         xy_ = f(x_, y_)
         layout = build_layout(xy_, lambda a: wrap(a).layout)
@@ -237,7 +237,7 @@ class Vec(_Array, Generic[T]):
         init_expr = _layout_struct_to_expr(layout, init)
         xy = _layout_struct_to_expr(layout, xy_)
         expr = phi.Reduce(init_expr, x, y, xy, (self.expr,))
-        return _phi_to_yarr(expr, self.layout.sub)
+        return _to_array(expr, self.layout.sub)
 
 
 class Scalar(_Array):
@@ -379,7 +379,7 @@ def ext(
                     raise TypeError(
                         f"Expected {exp} in argument {i} of {extrinsic.__name__}, got {op.type}"
                     )
-        return _phi_to_yarr(phi.Extrinsic(output_signature, fun, operands))
+        return _to_array(phi.Extrinsic(output_signature, fun, operands))
 
     if hasattr(fun, "__name__"):
         extrinsic.__name__ = f"{extrinsic}_{fun.__name__}"
@@ -392,4 +392,4 @@ def wrap(array_like: ArrayLike) -> Array:
     if not isinstance(array_like, (int, float, bool, numpy.ndarray, _TorchTensor)):
         raise TypeError(f"Invalid type for an ein Array: {type(array_like).__name__}")
     expr = phi.Const(Value(array_like))
-    return _phi_to_yarr(expr)
+    return _to_array(expr)

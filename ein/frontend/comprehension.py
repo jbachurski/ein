@@ -14,7 +14,7 @@ from .ndarray import (
     Scalar,
     Vec,
     _layout_struct_to_expr,
-    _phi_to_yarr,
+    _to_array,
     wrap,
 )
 
@@ -137,7 +137,7 @@ def array(constructor, *, size=None):
         size = (size,)
     n = len(inspect.signature(constructor).parameters) if size is None else len(size)
     indices = [Index() for _ in range(n)]
-    wrapped_indices = [cast(Idx, _phi_to_yarr(phi.at(index))) for index in indices]
+    wrapped_indices = [cast(Idx, _to_array(phi.at(index))) for index in indices]
     cons = constructor(*wrapped_indices)
     layout = build_layout(cons, lambda a: wrap(a).layout)
     body: Expr = _layout_struct_to_expr(layout, cons)
@@ -145,16 +145,16 @@ def array(constructor, *, size=None):
     for index in reversed(indices):
         body = phi.Vec(index, size_of[index], body)
         layout = VecLayout(layout)
-    return _phi_to_yarr(body, layout)
+    return _to_array(body, layout)
 
 
 def fold(init: T, step: _WithIndex[T], count: Size | None = None) -> T:
     layout = build_layout(init, lambda a: wrap(a).layout)
     init_expr: Expr = _layout_struct_to_expr(layout, init)
     counter = phi.variable(Variable(), scalar_type(int))
-    arg_index = _phi_to_yarr(counter)
+    arg_index = _to_array(counter)
     acc = phi.variable(Variable(), init_expr.type)
-    arg_acc = _phi_to_yarr(acc, layout)
+    arg_acc = _to_array(acc, layout)
     body = step(arg_index, arg_acc)
     layout_ = build_layout(init, lambda a: wrap(a).layout)
     if layout != layout_:
@@ -167,4 +167,4 @@ def fold(init: T, step: _WithIndex[T], count: Size | None = None) -> T:
         body_expr, (counter.var,), {acc.var}, (count,) if count is not None else None
     )
     expr = phi.Fold(counter.var, size_of[counter.var], acc.var, init_expr, body_expr)
-    return _phi_to_yarr(expr, layout)
+    return _to_array(expr, layout)
