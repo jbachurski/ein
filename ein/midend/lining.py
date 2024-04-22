@@ -63,10 +63,12 @@ def _bind_common_subexpressions(program: Term) -> Insertions:
     return insertions
 
 
-def _reduce_loop_strength(program: Term) -> Insertions:
+def _loop_invariant_code_motion(program: Term) -> Insertions:
     insertions: dict[Term, dict[Variable, Term]] = {}
 
-    def visit(expr: Term, binders: BinderStack) -> None:
+    def visit(
+        expr: Term, binders: BinderStack, parent_site: Term | None = None
+    ) -> None:
         binders_in_sub: BinderStack = binders | ({expr: set()} if expr.is_loop else {})
         if binders_in_sub:
             last_site = next(reversed(binders_in_sub))
@@ -74,17 +76,20 @@ def _reduce_loop_strength(program: Term) -> Insertions:
                 binders_in_sub[last_site] | expr.captured_symbols
             )
 
-        for sub in expr.subterms:
-            visit(sub, binders_in_sub)
-
+        prev_site = None
         if not expr.is_atom:
-            prev_site = None
             for site, bound in reversed(binders.items()):
                 if bound & expr.free_symbols:
                     break
                 prev_site = site
-            if prev_site is not None:
-                insertions.setdefault(prev_site, {})[Variable()] = expr
+
+        for sub in expr.subterms:
+            visit(sub, binders_in_sub, prev_site)
+
+        # If parent is outlined at the same site, there is no point moving behind it as
+        #  this subtree will already be moved there with it.
+        if prev_site is not None and prev_site is not parent_site:
+            insertions.setdefault(prev_site, {})[Variable()] = expr
 
     visit(program, {})
     return insertions
@@ -131,7 +136,7 @@ def outline(program: Term) -> Term:
     program = _apply_insertions(program, _bind_common_subexpressions(program))
     check(program, tree=True)
     # Extract loop-independent expressions out of containing loops into a wrapping binding
-    program = _apply_insertions(program, _reduce_loop_strength(program))
+    program = _apply_insertions(program, _loop_invariant_code_motion(program))
     check(program, tree=True)
     program = inline(program, only_renames=True)
     check(program, tree=True)
