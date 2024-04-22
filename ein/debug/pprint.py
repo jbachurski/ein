@@ -346,10 +346,10 @@ if __name__ == "__main__":
     import numpy
 
     from ein import Float, Vec, array, wrap
-    from ein.frontend.std import reduce_sum
+    from ein.frontend.std import fold_sum
 
     def mean(xs: Vec[Float]) -> Float:
-        return reduce_sum(lambda i: xs[i]) / xs.size().float()
+        return fold_sum(lambda i: xs[i]) / xs.size().float()
 
     a0, b0 = numpy.random.randn(5), numpy.random.randn(7)
     a: Vec[Float] = wrap(a0)
