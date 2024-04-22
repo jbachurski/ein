@@ -237,13 +237,14 @@ def _pretty_phi(expr: phi.Expr, par: bool) -> Repr:
             )
         case phi.AbstractScalarOperator(ops_):
             ops = [_pretty_phi(op, True) for op in ops_]
-            sign = OPS.get(expr.ufunc, type(expr).__name__.lower())
-            match ops:
-                case (op0,):
-                    return pars(Concat((Line(sign), op0)), par)
-                case (op1, op2):
-                    return pars(Concat((op1, Line(f" {sign} "), op2)), par)
-            return _pretty_call(sign, *ops)
+            sign = OPS.get(expr.ufunc)
+            if sign is not None:
+                match ops:
+                    case (op0,):
+                        return pars(Concat((Line(sign), op0)), par)
+                    case (op1, op2):
+                        return pars(Concat((op1, Line(f" {sign} "), op2)), par)
+            return _pretty_call(type(expr).__name__.lower(), *ops)
     return Line(str(expr))
 
 
