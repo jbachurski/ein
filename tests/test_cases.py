@@ -58,15 +58,15 @@ def test_mandelbrot(interpret):
         Mandelbrot.in_python(*args),
     )
 
+    numpy.testing.assert_allclose(
+        Mandelbrot.in_ein_function(interpret_with_naive, *args),
+        Mandelbrot.in_numpy(*args),
+    )
+
     # from ein.codegen import phi_to_yarr
     # from ein.debug import pretty_phi, pretty_yarr
     # print(pretty_phi(Mandelbrot.ein_function()[1]))
     # print(pretty_yarr(phi_to_yarr.transform(Mandelbrot.ein_function()[1])))
-    #
-    # numpy.testing.assert_allclose(
-    #     Mandelbrot.in_ein_function(interpret_with_naive, *args),
-    #     Mandelbrot.in_python(*args),
-    # )
 
 
 @with_interpret

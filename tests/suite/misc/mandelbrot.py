@@ -25,10 +25,10 @@ class Mandelbrot(Case):
                 return Complex(self.x + other.x, self.y + other.y)
 
             def square(self) -> "Complex":
-                return Complex(self.x * self.x - self.y * self.y, 2.0 * self.x * self.y)
+                return Complex(self.x**2 - self.y**2, 2.0 * self.x * self.y)
 
             def magnitude(self) -> Float:
-                return self.x * self.x + self.y * self.y
+                return self.x**2 + self.y**2
 
         def lerp(x: Float, a: Float, b: Float) -> Float:
             return x * b + (1.0 - x) * a
@@ -55,7 +55,26 @@ class Mandelbrot(Case):
     @staticmethod
     def in_numpy(w, h, t) -> numpy.ndarray:
         w, h, t = int(w), int(h), int(t)
-        return numpy.zeros((w, h))
+
+        def lerp(x, a, b):
+            return x * b + (1.0 - x) * a
+
+        xs0 = lerp(numpy.arange(h) / (h - 1), -2, 0.47)[:, None]
+        ys0 = lerp(numpy.arange(w) / (w - 1), -1.12, 1.12)[None, :]
+        xs0, ys0 = numpy.broadcast_arrays(xs0, ys0)
+
+        xs = numpy.zeros((h, w), float)
+        ys = numpy.zeros((h, w), float)
+        ks = numpy.zeros((h, w), int)
+        for k in range(t):
+            cond = xs**2 + ys**2 <= 4
+            xs, ys = (
+                numpy.where(cond, xs**2 - ys**2 + xs0, xs),
+                numpy.where(cond, 2 * xs * ys + ys0, ys),
+            )
+            ks = numpy.where(cond, k + 1, ks)
+
+        return ks
 
     @staticmethod
     def in_python(w, h, t) -> numpy.ndarray:
