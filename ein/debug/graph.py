@@ -43,11 +43,7 @@ def graph(program):
         label = (
             "<"
             + f"<b>{type(expr).__name__}</b><br/>"
-            + (
-                f"<i>{getattr(expr, 'type').pretty}</i><br/>"
-                if hasattr(expr, "type")
-                else ""
-            )
+            + (f"<i>{getattr(expr, 'type')}</i><br/>" if hasattr(expr, "type") else "")
             + "<br/>".join(
                 f"{key}={_meta_value_repr(value)}" for key, value in meta.items()
             )

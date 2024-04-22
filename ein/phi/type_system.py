@@ -51,8 +51,7 @@ class Scalar(AbstractType):
             return scalar_type(float)
         raise TypeError(f"Datatype {dtype} cannot be converted to a legal Scalar type.")
 
-    @property
-    def pretty(self) -> str:
+    def __str__(self) -> str:
         return self.kind.__name__
 
     @property
@@ -67,9 +66,8 @@ class Vector(AbstractType):
     def __post_init__(self):
         assert isinstance(self.elem, AbstractType)
 
-    @property
-    def pretty(self) -> str:
-        return f"[]{self.elem.pretty}"
+    def __str__(self) -> str:
+        return f"[]{self.elem}"
 
     @property
     def primitive_type(self) -> "PrimitiveType":
@@ -85,9 +83,8 @@ class Pair(AbstractType):
         assert isinstance(self.first, AbstractType)
         assert isinstance(self.second, AbstractType)
 
-    @property
-    def pretty(self) -> str:
-        return f"({self.first.pretty}, {self.second.pretty})"
+    def __str__(self) -> str:
+        return f"({self.first}, {self.second})"
 
     @property
     def primitive_type(self) -> "PrimitiveType":
@@ -127,7 +124,7 @@ class PrimitiveArrayType:
 
     @property
     def pretty(self) -> str:
-        return self.type.pretty
+        return str(self.type)
 
     @property
     def type(self) -> Type:
@@ -153,7 +150,7 @@ class PrimitiveType:
 
     @property
     def pretty(self) -> str:
-        return " * ".join(elem.pretty for elem in self.elems)
+        return "(" + ", ".join(str(elem) for elem in self.elems) + ")"
 
     @property
     def single(self) -> PrimitiveArrayType:

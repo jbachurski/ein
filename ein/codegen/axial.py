@@ -20,7 +20,7 @@ class AxialType:
         free = ", ".join(
             map(str, sorted(self.free_indices, key=lambda x: int(str(x)[1:])))
         )
-        return f"{{{free}}}:{self.type.pretty}"
+        return f"{{{free}}}:{self.type}"
 
 
 def tuple_maybe_singleton(*args: yarr.Expr) -> yarr.Expr:
