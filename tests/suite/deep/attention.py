@@ -2,7 +2,7 @@ import numpy
 import scipy
 
 from ein import Array, array, matrix_type, vector_type
-from ein.frontend.std import reduce_sum
+from ein.frontend.std import fold_sum
 from ein.phi.type_system import Vector as VectorType
 
 from ..case import Case
@@ -22,22 +22,22 @@ class Attention(Case):
     @staticmethod
     def ein_single(Wh, Wr, WY, Wt, bM, w, br, Y, ht, rt1):
         def softmax(v):
-            return array(lambda i: v[i].exp() / reduce_sum(lambda j: v[j].exp()))
+            return array(lambda i: v[i].exp() / fold_sum(lambda j: v[j].exp()))
 
         Mt = array(
             lambda s, l: (
-                reduce_sum(lambda k: Y[s, k] * WY[k, l])
-                + reduce_sum(lambda k: ht[k] * Wh[k, l])
-                + reduce_sum(lambda k: rt1[k] * Wr[k, l])
+                fold_sum(lambda k: Y[s, k] * WY[k, l])
+                + fold_sum(lambda k: ht[k] * Wh[k, l])
+                + fold_sum(lambda k: rt1[k] * Wr[k, l])
                 + bM[l]
             ).tanh()
         )
-        at = softmax(array(lambda s: reduce_sum(lambda l: Mt[s, l] * w[l])))
+        at = softmax(array(lambda s: fold_sum(lambda l: Mt[s, l] * w[l])))
 
         rt = array(
             lambda l: (
-                reduce_sum(lambda s: Y[s, l] * at[s])
-                + (reduce_sum(lambda k: rt1[k] * Wt[k, l]) + br[l]).tanh()
+                fold_sum(lambda s: Y[s, l] * at[s])
+                + (fold_sum(lambda k: rt1[k] * Wt[k, l]) + br[l]).tanh()
             )
         )
 

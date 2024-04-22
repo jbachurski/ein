@@ -122,8 +122,7 @@ class PrimitiveArrayType:
         assert self.rank >= 0
         assert self.kind in SCALAR_TYPES
 
-    @property
-    def pretty(self) -> str:
+    def __str__(self) -> str:
         return str(self.type)
 
     @property
@@ -148,9 +147,9 @@ class PrimitiveArrayType:
 class PrimitiveType:
     elems: tuple[PrimitiveArrayType, ...]
 
-    @property
-    def pretty(self) -> str:
-        return "(" + ", ".join(str(elem) for elem in self.elems) + ")"
+    def __str__(self) -> str:
+        t = ", ".join(str(elem) for elem in self.elems)
+        return "(" + t + ")" if len(self.elems) != 1 else t
 
     @property
     def single(self) -> PrimitiveArrayType:

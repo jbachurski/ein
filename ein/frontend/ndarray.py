@@ -207,7 +207,7 @@ class Vec(_Array, Generic[T]):
         assert self.layout == other.layout
         return _phi_to_yarr(phi.Concat(self.expr, other.expr), self.layout)
 
-    def size(self, axis: int) -> "Scalar":
+    def size(self, axis: int = 0) -> "Scalar":
         return Scalar(phi.Dim(self.expr, axis))
 
     def or_empty(self, item, empty: T) -> T:

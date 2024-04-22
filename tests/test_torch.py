@@ -2,7 +2,7 @@ import numpy
 import torch
 
 from ein import Scalar, Vec, array, ext, function, scalar_type, wrap
-from ein.frontend.std import reduce_sum
+from ein.frontend.std import fold_sum
 
 
 def test_backend_call():
@@ -51,7 +51,7 @@ def test_wrap():
 
 def test_grad():
     a, b = torch.randn(3).requires_grad_(True), torch.randn(3).requires_grad_(True)
-    c: torch.Tensor = reduce_sum(
+    c: torch.Tensor = fold_sum(
         lambda j: array(lambda i: wrap(a)[i] * wrap(b)[i])[j]
     ).torch()
     torch.testing.assert_close(c, torch.dot(a, b).to(torch.float64))

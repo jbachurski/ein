@@ -214,6 +214,9 @@ class Dim(AbstractExpr):
 
     @cached_property
     def type(self) -> Type:
+        assert (
+            self.axis >= 0
+        ), "Phi does not allow introspecting types from the inside and hence negative-indexed axes"
         return scalar_type(int)
 
     @cached_property

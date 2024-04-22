@@ -31,13 +31,19 @@ class Monoid(Generic[T]):
     identity: T
     concat: Callable[[T, T], T]
 
-    def reduce(self, f: Callable[[Idx], T], count: Size | None = None) -> T:
+    def fold(self, f: Callable[[Idx], T], count: Size | None = None) -> T:
         return fold(self.identity, lambda i, acc: self.concat(acc, f(i)), count=count)
+
+    def reduce(self, f: Callable[[Idx], T], count: Size | None = None) -> T:
+        return array(f, size=count).reduce(self.identity, self.concat)
 
 
 sum_monoid = Monoid(wrap(0.0), lambda a, b: a + b)
 min_monoid = Monoid(wrap(float("+inf")), lambda a, b: a.min(b))
 max_monoid = Monoid(wrap(float("-inf")), lambda a, b: a.max(b))
+argmin_monoid = Monoid(
+    (wrap(float("+inf")), wrap(0)), lambda a, b: where(a[0] <= b[0], a, b)
+)
 
 
 def min(*args: ArrayLike) -> Array:
@@ -46,6 +52,22 @@ def min(*args: ArrayLike) -> Array:
 
 def max(*args: ArrayLike) -> Array:
     return functools.reduce(max_monoid.concat, map(wrap, args))
+
+
+def fold_sum(f: _FromIndex, count: Size | None = None) -> Array:
+    return sum_monoid.fold(f, count)
+
+
+def fold_min(f: _FromIndex, count: Size | None = None) -> Array:
+    return min_monoid.fold(f, count)
+
+
+def fold_max(f: _FromIndex, count: Size | None = None) -> Array:
+    return max_monoid.fold(f, count)
+
+
+def fold_argmin(f: _FromIndex, count: Size | None = None) -> Array:
+    return argmin_monoid.fold(lambda i: (f(i), i), count)[1]
 
 
 def reduce_sum(f: _FromIndex, count: Size | None = None) -> Array:
@@ -61,9 +83,4 @@ def reduce_max(f: _FromIndex, count: Size | None = None) -> Array:
 
 
 def reduce_argmin(f: _FromIndex, count: Size | None = None) -> Array:
-    def concat(a: tuple[Array, Array], b: tuple[Array, Array]) -> tuple[Array, Array]:
-        return where(a[0] <= b[0], a, b)
-
-    return Monoid((wrap(float("+inf")), wrap(0)), concat).reduce(
-        lambda i: (f(i), i), count
-    )[1]
+    return argmin_monoid.reduce(lambda i: (f(i), i), count)[1]

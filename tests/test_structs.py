@@ -5,7 +5,7 @@ import numpy.testing
 import pytest
 
 from ein import Array, Scalar, array, fold, wrap
-from ein.frontend.std import reduce_sum, where
+from ein.frontend.std import fold_sum, where
 
 with_backend = pytest.mark.parametrize("backend", ["naive", "numpy", "torch"])
 
@@ -79,7 +79,7 @@ class Matrix:
 
     def __matmul__(self, other: "Matrix") -> "Matrix":
         return Matrix(
-            array(lambda i, j: reduce_sum(lambda k: self.elem[i, k] * other.elem[k, j]))
+            array(lambda i, j: fold_sum(lambda k: self.elem[i, k] * other.elem[k, j]))
         )
 
 

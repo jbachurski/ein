@@ -4,7 +4,7 @@ import numpy
 import scipy
 
 from ein import Array, Scalar, Vec, array, ndarray_type
-from ein.frontend.std import reduce_max, reduce_sum, where
+from ein.frontend.std import fold_max, fold_sum, where
 
 from ..case import Case
 
@@ -25,9 +25,9 @@ class GAT(Case):
         adj, vals, s, t, e, g = args
 
         def softmax(x: Vec[T]) -> Vec[T]:
-            x_max = reduce_max(lambda i: x[i])
+            x_max = fold_max(lambda i: x[i])
             x1 = array(lambda i: (x[i] - x_max).exp())
-            x1_sum = reduce_sum(lambda i: x1[i])
+            x1_sum = fold_sum(lambda i: x1[i])
             return array(lambda i: x1[i] / x1_sum)
 
         def leaky_relu(x: Scalar) -> Scalar:
@@ -43,9 +43,7 @@ class GAT(Case):
             )
         )
         return array(
-            lambda b, u, h, f: reduce_sum(
-                lambda v: coefs[b, h, u, v] * vals[b, v, h, f]
-            )
+            lambda b, u, h, f: fold_sum(lambda v: coefs[b, h, u, v] * vals[b, v, h, f])
         )
 
     @staticmethod

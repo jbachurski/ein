@@ -1,7 +1,7 @@
 import numpy
 
 from ein import Array, array, fold, matrix_type, scalar_type
-from ein.frontend.std import reduce_argmin, reduce_sum, where
+from ein.frontend.std import fold_argmin, fold_sum, where
 
 from ..case import Case
 
@@ -14,22 +14,22 @@ class KMeans(Case):
         points, k, it = args
 
         def dist(p1: Array, p2: Array) -> Array:
-            return reduce_sum(lambda d: (p1[d] - p2[d]) ** 2)
+            return fold_sum(lambda d: (p1[d] - p2[d]) ** 2)
 
         def fold_centres(_i: Array, centres: Array) -> Array:
             ks, ds = centres.size(0), centres.size(1)
             members = array(
-                lambda i: reduce_argmin(lambda j: dist(points[i], centres[j]))
+                lambda i: fold_argmin(lambda j: dist(points[i], centres[j]))
             )
 
             sum_in_cluster = array(
-                lambda c, d: reduce_sum(
+                lambda c, d: fold_sum(
                     lambda i: where(members[i] == c, points[i, d], 0.0)
                 ),
                 size=(ks, ds),
             )
             count_in_cluster = array(
-                lambda c: reduce_sum(lambda i: where(members[i] == c, 1.0, 0.0)),
+                lambda c: fold_sum(lambda i: where(members[i] == c, 1.0, 0.0)),
                 size=ks,
             )
 
