@@ -1,5 +1,6 @@
 from typing import Callable, Sequence
 
+import numpy
 from numpy import ndarray
 
 from ein.backend import STAGE_BACKENDS, Backend
@@ -7,7 +8,7 @@ from ein.phi.phi import Expr, variable
 from ein.phi.type_system import Type, type_from_ndarray
 from ein.symbols import Variable
 
-from .ndarray import ArrayLike, _to_array, _TorchTensor, wrap
+from .ndarray import ArrayLike, _JaxArray, _to_array, _TorchTensor, wrap
 
 
 def with_varargs(
@@ -63,13 +64,16 @@ class Function:
         )
         return self._interpret(args, backend="torch")
 
-    # @overload
-    # def __call__(self, *args: ndarray | float | int) -> ndarray:
-    #     ...
-    #
-    # @overload
-    # def __call__(self, *args: _TorchTensor | ndarray | float | int) -> _TorchTensor:
-    #     ...
+    def jax(self, *args: ndarray | _JaxArray) -> _JaxArray:
+        import jax.numpy as jnp
+
+        args = tuple(
+            arg
+            if isinstance(arg, _JaxArray)
+            else jnp.asarray(arg, dtype=numpy.asarray(arg).dtype)
+            for arg in args
+        )
+        return self._interpret(args, backend="jax")
 
     def __call__(self, *args):
         if any(isinstance(arg, _TorchTensor) for arg in args):

@@ -22,7 +22,7 @@ from ein.phi.type_system import Scalar as ScalarType
 from ein.phi.type_system import Type
 from ein.phi.type_system import Vector as VectorType
 from ein.symbols import Variable
-from ein.value import Value, _TorchTensor
+from ein.value import _ARRAY_TYPES, Value, _JaxArray, _TorchTensor
 
 from .layout import (
     AtomLayout,
@@ -122,6 +122,9 @@ class _Array:
                 f"Cannot evaluate array, as it depends on free variables: {self.expr.free_symbols}"
             )
         return BACKENDS[backend](self.expr, env)
+
+    def jax(self, *, env: dict[Variable, numpy.ndarray | _JaxArray] | None = None):
+        return self.eval(env=env, backend="jax")
 
     def torch(self, *, env: dict[Variable, numpy.ndarray | _TorchTensor] | None = None):
         return self.eval(env=env, backend="torch")
@@ -389,7 +392,7 @@ def ext(
 def wrap(array_like: ArrayLike) -> Array:
     if isinstance(array_like, (Scalar, Vec)):
         return cast(Array, array_like)
-    if not isinstance(array_like, (int, float, bool, numpy.ndarray, _TorchTensor)):
+    if not isinstance(array_like, (int, float, bool, *_ARRAY_TYPES)):
         raise TypeError(f"Invalid type for an ein Array: {type(array_like).__name__}")
     expr = phi.Const(Value(array_like))
     return _to_array(expr)
