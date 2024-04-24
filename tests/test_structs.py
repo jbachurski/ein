@@ -2,12 +2,11 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import numpy.testing
-import pytest
 
 from ein import Array, Scalar, array, fold, wrap
 from ein.frontend.std import fold_sum, where
 
-with_backend = pytest.mark.parametrize("backend", ["naive", "numpy", "torch"])
+from . import with_backend, with_backend_for_dynamic_sizes
 
 
 @with_backend
@@ -102,7 +101,8 @@ def test_matrix_batches(backend):
     numpy.testing.assert_allclose(got, exp)
 
 
-@with_backend
+# FIXME: Why does this fail in Jax due to dynamic sizes?ł
+@with_backend_for_dynamic_sizes
 def test_fold_over_record_array(backend):
     x0, y0 = numpy.random.randn(5), numpy.random.randn(5)
     x, y = wrap(x0), wrap(y0)

@@ -11,8 +11,14 @@ try:
 except ImportError:
     _TorchTensor = type("_TorchTensor", (object,), {})  # noqa
 
+try:
+    from jax.numpy import ndarray as _JaxArray
+except ImportError:
+    _JaxArray = type("_JaxArray", (object,), {})  # noqa
 
-_ArrayType: TypeAlias = numpy.ndarray | _TorchTensor
+
+_ARRAY_TYPES: tuple[type, ...] = (numpy.ndarray, _TorchTensor, _JaxArray)
+_ArrayType: TypeAlias = numpy.ndarray | _TorchTensor | _JaxArray
 
 
 class Value:
@@ -27,13 +33,11 @@ class Value:
         elif isinstance(value, tuple):
             first, second = value
             self.value = (Value(first), Value(second))
-        elif isinstance(value, numpy.ndarray):
+        elif isinstance(value, _ARRAY_TYPES):
             self.value = value
         elif numpy.isscalar(value):
             self.value = numpy.array(value)
             self.value.flags.writeable = False
-        elif isinstance(value, _TorchTensor):
-            self.value = value
         else:
             raise ValueError(f"Invalid type for Ein value: {type(value).__name__}")
 
@@ -50,14 +54,15 @@ class Value:
             if len(self.value.data) < BIG_DATA_SIZE:
                 return self.value.data == other.value.data
             return self is other
-        return self.value == other.value
+        return self.value is other.value
 
     def __hash__(self) -> int:
-        if isinstance(self.value, numpy.ndarray):
-            if len(self.value.data) < BIG_DATA_SIZE:
-                return hash((self.value.dtype, self.value.data.tobytes()))
-            return hash(id(self.value))
-        elif isinstance(self.value, _TorchTensor):
+        if (
+            isinstance(self.value, numpy.ndarray)
+            and len(self.value.data) < BIG_DATA_SIZE
+        ):
+            return hash((self.value.dtype, self.value.data.tobytes()))
+        if isinstance(self.value, _ARRAY_TYPES):
             return hash(id(self.value))
         return hash(self.value)
 
@@ -74,7 +79,7 @@ class Value:
 
     @property
     def any_array(self) -> _ArrayType:
-        if not isinstance(self.value, (numpy.ndarray, _TorchTensor)):
+        if not isinstance(self.value, _ARRAY_TYPES):
             raise TypeError(f"Value is not an array but one was expected: {self.value}")
         return self.value
 
@@ -87,7 +92,7 @@ class Value:
 
     @property
     def type(self) -> Type:
-        if isinstance(self.value, (numpy.ndarray, _TorchTensor)):
+        if isinstance(self.value, _ARRAY_TYPES):
             return type_from_ndarray(self.any_array)
         elif isinstance(self.value, tuple):
             first, second = self.value

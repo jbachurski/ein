@@ -85,3 +85,7 @@ class Term(abc.ABC):
     @cached_property
     def free_indices(self) -> set[Index]:
         return {index for index in self.free_symbols if isinstance(index, Index)}
+
+    @cached_property
+    def free_variables(self) -> set[Variable]:
+        return {index for index in self.free_variables if isinstance(index, Variable)}

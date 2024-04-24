@@ -6,8 +6,10 @@ import pytest
 from ein import Array, array, ext, scalar_type, vector_type, wrap
 from ein.frontend.std import concat
 
+with_backend_for_numpy_compat = pytest.mark.parametrize("backend", ["naive", "numpy"])
 
-@pytest.mark.parametrize("backend", ["naive", "numpy"])
+
+@with_backend_for_numpy_compat
 def test_basic_extrinsic(backend):
     a = numpy.array([1, 2, 3])
 
@@ -18,7 +20,7 @@ def test_basic_extrinsic(backend):
     numpy.testing.assert_allclose(b, 6)
 
 
-@pytest.mark.parametrize("backend", ["naive", "numpy"])
+@with_backend_for_numpy_compat
 def test_extrinsic_broadcast(backend):
     def logaddexp(x, y) -> Array:
         return ext(numpy.logaddexp, scalar_type(float))(x, y)
@@ -31,7 +33,7 @@ def test_extrinsic_broadcast(backend):
     numpy.testing.assert_allclose(c, exp)
 
 
-@pytest.mark.parametrize("backend", ["naive", "numpy"])
+@with_backend_for_numpy_compat
 def test_extrinsic_batched_reduction(backend):
     def argmin(x) -> Array:
         return ext(partial(numpy.argmin, axis=-1), vector_type(float))(x)
@@ -47,7 +49,7 @@ def test_extrinsic_batched_reduction(backend):
     )
 
 
-@pytest.mark.parametrize("backend", ["naive", "numpy"])
+@with_backend_for_numpy_compat
 def test_reduce_sort(backend):
     def sort(x) -> Array:
         return ext(partial(numpy.sort, axis=-1), vector_type(float))(x)

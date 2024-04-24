@@ -186,7 +186,7 @@ def _pretty_phi(expr: phi.Expr, par: bool) -> Repr:
             ret: list[Repr] = [Line("{")]
             for target in targets:
                 ret.append(target)
-                ret.append(Line(", "))
+                ret.append(Line(" = "))
             if targets:
                 ret.pop()
             ret.append(Line("}"))
@@ -318,6 +318,32 @@ def _pretty_yarr(expr: yarr.Expr, par: bool) -> Repr:
                 Line(str(axis)),
                 _pretty_yarr(count, False),
                 _pretty_yarr(target, False),
+            )
+        case yarr.Slice(target, starts_, stops_):
+            return _pretty_call(
+                "slice",
+                _pretty_yarr(target, False),
+                *(
+                    _pretty_yarr(x, False) if x is not None else Line("None")
+                    for x in starts_
+                ),
+                *(
+                    _pretty_yarr(x, False) if x is not None else Line("None")
+                    for x in stops_
+                ),
+            )
+        case yarr.Pad(target, lefts_, rights_):
+            return _pretty_call(
+                "pad",
+                _pretty_yarr(target, False),
+                *(
+                    _pretty_yarr(x, False) if x is not None else Line("None")
+                    for x in lefts_
+                ),
+                *(
+                    _pretty_yarr(x, False) if x is not None else Line("None")
+                    for x in rights_
+                ),
             )
         case yarr.Cast(dtype, target):
             return _pretty_call(f"cast[{dtype.__name__}]", _pretty_yarr(target, False))

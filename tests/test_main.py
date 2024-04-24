@@ -11,9 +11,6 @@ from ein import (
     array,
     fold,
     function,
-    interpret_with_naive,
-    interpret_with_numpy,
-    interpret_with_torch,
     matrix_type,
     scalar_type,
     vector_type,
@@ -23,11 +20,11 @@ from ein import (
 from ein.frontend import std
 from ein.frontend.std import concat, fold_max, fold_min, fold_sum, where
 
-with_backend = pytest.mark.parametrize("backend", ["naive", "numpy", "torch"])
-with_interpret = pytest.mark.parametrize(
-    "interpret",
-    [interpret_with_naive, interpret_with_numpy, interpret_with_torch],
-    ids=["naive", "numpy", "torch"],
+from . import (
+    with_backend,
+    with_backend_for_dynamic_sizes,
+    with_interpret,
+    with_interpret_for_dynamic_sizes,
 )
 
 
@@ -47,7 +44,7 @@ def test_function():
     numpy.testing.assert_allclose(outer(a, b), a[:, None] * b[None, :])
 
 
-@with_interpret
+@with_interpret_for_dynamic_sizes
 def test_mul_grid(interpret):
     (n0,), grid_expr = with_varargs(
         [scalar_type(int)],
@@ -169,7 +166,7 @@ def test_reuse(interpret):
     )
 
 
-@with_interpret
+@with_interpret_for_dynamic_sizes
 def test_fibonacci_fold(interpret):
     def fib(n: Array) -> Array:
         return fold(
@@ -205,7 +202,7 @@ def _primes(n) -> list[bool]:
     return [i > 1 and all(i % d for d in range(2, i)) for i in range(n)]
 
 
-@with_interpret
+@with_interpret_for_dynamic_sizes
 def test_trial_division_primes(interpret):
     def trial_division(n: Array) -> Array:
         return array(
@@ -227,7 +224,7 @@ def test_trial_division_primes(interpret):
     )
 
 
-@with_interpret
+@with_interpret_for_dynamic_sizes
 def test_sieve_primes(interpret):
     def sieve(n: Array) -> Array:
         return fold(
@@ -269,7 +266,7 @@ def test_symmetric_sum(interpret):
     numpy.testing.assert_allclose(interpret(expr, {a0: arr}), f1(f1(f1(arr))))
 
 
-@with_interpret
+@with_interpret_for_dynamic_sizes
 def test_argmin(interpret):
     def argmin_trig(n: Array, a: Array) -> Array:
         def step(i: Array, j: Array, acc: tuple[Array, Array]) -> tuple[Array, Array]:
@@ -352,7 +349,7 @@ def test_diagonal(interpret):
     numpy.testing.assert_allclose(interpret(expr, {a0: sample_a}), numpy.diag(sample_a))
 
 
-@with_backend
+@with_backend_for_dynamic_sizes
 def test_clipped_shift(backend):
     n = 3
     a0 = list(range(n))
@@ -541,18 +538,22 @@ def test_reduce_sum_matrix_axes(backend):
 def test_reduce_works_with_axials(backend):
     a0 = numpy.random.randn(15, 17)
     a = wrap(a0)
+    # This just introduces an axis (unless we do algebraic simplification, uhh)
+    #  since it's not obvious to make up a monoid with a different identity.
     numpy.testing.assert_allclose(
-        array(lambda i: a[:, i].reduce(i.float(), lambda x, y: x + y)).eval(
+        array(lambda i: a[:, i].reduce(0.0 * i.float(), lambda x, y: x + y)).eval(
             backend=backend
         ),
-        numpy.arange(a0.shape[1]) + a0.sum(axis=0),
+        numpy.zeros(a0.shape[1]) + a0.sum(axis=0),
     )
     numpy.testing.assert_allclose(
         array(
-            lambda k: array(lambda i: a[:, i].reduce(k.float(), lambda x, y: x + y)),
+            lambda k: array(
+                lambda i: a[:, i].reduce(0.0 * k.float(), lambda x, y: x + y)
+            ),
             size=5,
         ).eval(backend=backend),
-        numpy.arange(5)[:, None] + a0.sum(axis=0),
+        numpy.zeros(5)[:, None] + a0.sum(axis=0),
     )
 
 

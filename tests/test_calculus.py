@@ -1,14 +1,6 @@
 import numpy
-import pytest
 
-from ein import (
-    interpret_with_naive,
-    interpret_with_numpy,
-    interpret_with_torch,
-    matrix_type,
-    scalar_type,
-    vector_type,
-)
+from ein import matrix_type, scalar_type, vector_type
 from ein.phi.phi import (
     Add,
     CastToFloat,
@@ -39,11 +31,7 @@ from ein.phi.phi import (
 from ein.phi.type_system import Scalar
 from ein.value import Value
 
-with_interpret = pytest.mark.parametrize(
-    "interpret",
-    [interpret_with_naive, interpret_with_numpy, interpret_with_torch],
-    ids=["naive", "numpy", "torch"],
-)
+from . import with_interpret, with_interpret_for_dynamic_sizes
 
 
 def fold_sum(counter: Variable, size: Expr, body: Expr):
@@ -222,7 +210,7 @@ def test_power_fold(interpret):
     )
 
 
-@with_interpret
+@with_interpret_for_dynamic_sizes
 def test_fibonacci_vector_fold(interpret):
     fib0, n0 = Variable(), Variable()
     i = variable(Variable(), scalar_type(int))
@@ -265,7 +253,7 @@ def test_fibonacci_vector_fold(interpret):
     )
 
 
-@with_interpret
+@with_interpret_for_dynamic_sizes
 def test_argmin(interpret):
     i = variable(Variable(), scalar_type(int))
     j = Index()

@@ -26,60 +26,50 @@ except ImportError:
         def __getattr__(self, item) -> Any:
             return None
 
-    torch = MagicGetter  # type: ignore
+    torch = MagicGetter()  # type: ignore
 
 
 Env: TypeAlias = dict[Variable, torch.Tensor | tuple[torch.Tensor, ...]]
 
 
 class TorchBackend(AbstractArrayBackend[torch.Tensor]):
-    @classmethod
-    def constant(cls, value: Value) -> torch.Tensor:
+    def constant(self, value: Value) -> torch.Tensor:
         if isinstance(value.value, torch.Tensor):
             return value.value
         array = value.array
         ret = torch.from_numpy(array)
         return ret
 
-    @classmethod
-    def preprocess_bound(cls, target: torch.Tensor) -> torch.Tensor:
+    def preprocess_bound(self, target: torch.Tensor) -> torch.Tensor:
         return target
 
-    @classmethod
-    def dim(cls, target: torch.Tensor, axis: int) -> torch.Tensor:
+    def dim(self, target: torch.Tensor, axis: int) -> torch.Tensor:
         return torch.scalar_tensor(target.shape[axis], dtype=torch.int64)
 
-    @classmethod
-    def range(cls, size: torch.Tensor) -> torch.Tensor:
+    def range(self, size: torch.Tensor) -> torch.Tensor:
         return torch.arange(int(size))
 
-    @classmethod
-    def concat(cls, *args: torch.Tensor, axis: int) -> torch.Tensor:
+    def concat(self, *args: torch.Tensor, axis: int) -> torch.Tensor:
         return torch.concat(args, dim=axis)
 
-    @classmethod
     def transpose(
-        cls, target: torch.Tensor, permutation: tuple[int, ...]
+        self, target: torch.Tensor, permutation: tuple[int, ...]
     ) -> torch.Tensor:
         return target.permute(*permutation)
 
-    @classmethod
-    def squeeze(cls, target: torch.Tensor, axes: tuple[int, ...]) -> torch.Tensor:
+    def squeeze(self, target: torch.Tensor, axes: tuple[int, ...]) -> torch.Tensor:
         return squeeze_axes(target, axes)
 
-    @classmethod
-    def unsqueeze(cls, target: torch.Tensor, axes: tuple[int, ...]) -> torch.Tensor:
+    def unsqueeze(self, target: torch.Tensor, axes: tuple[int, ...]) -> torch.Tensor:
         return unsqueeze_axes(target, axes)
 
-    @classmethod
     def gather(
-        cls, target: torch.Tensor, item: torch.Tensor, axis: int
+        self, target: torch.Tensor, item: torch.Tensor, axis: int
     ) -> torch.Tensor:
         return torch.gather(target, axis, torch.clip(item, 0, target.shape[axis] - 1))
 
-    @classmethod
     def take(
-        cls, target: torch.Tensor, items: Sequence[torch.Tensor | None]
+        self, target: torch.Tensor, items: Sequence[torch.Tensor | None]
     ) -> torch.Tensor:
         SLICE_NONE = slice(None)
         it = (
@@ -88,12 +78,12 @@ class TorchBackend(AbstractArrayBackend[torch.Tensor]):
         )
         return target[*it]
 
-    @classmethod
-    def slice(cls, target: torch.Tensor, slices: Sequence[slice]) -> torch.Tensor:
+    def slice(self, target: torch.Tensor, slices: Sequence[slice]) -> torch.Tensor:
         return target[*slices]
 
-    @classmethod
-    def pad(cls, target: torch.Tensor, pads: Sequence[tuple[int, int]]) -> torch.Tensor:
+    def pad(
+        self, target: torch.Tensor, pads: Sequence[tuple[int, int]]
+    ) -> torch.Tensor:
         return (
             torch.nn.functional.pad(
                 target.unsqueeze(0).unsqueeze(0),
@@ -104,14 +94,12 @@ class TorchBackend(AbstractArrayBackend[torch.Tensor]):
             .squeeze(0)
         )
 
-    @classmethod
     def repeat(
-        cls, target: torch.Tensor, count: torch.Tensor, axis: int
+        self, target: torch.Tensor, count: torch.Tensor, axis: int
     ) -> torch.Tensor:
         return torch.repeat_interleave(target, int(count), axis)
 
-    @classmethod
-    def prepare_einsum(cls, subs: str) -> Callable[..., torch.Tensor]:
+    def prepare_einsum(self, subs: str) -> Callable[..., torch.Tensor]:
         return lambda *args: torch.einsum(subs, *args)
 
 

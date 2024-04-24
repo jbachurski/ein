@@ -15,12 +15,10 @@ Env: TypeAlias = dict[Variable, numpy.ndarray | tuple[numpy.ndarray, ...]]
 
 
 class NumpyBackend(AbstractArrayBackend[numpy.ndarray]):
-    @classmethod
-    def constant(cls, value: Value) -> numpy.ndarray:
+    def constant(self, value: Value) -> numpy.ndarray:
         return value.array
 
-    @classmethod
-    def preprocess_bound(cls, target: numpy.ndarray) -> numpy.ndarray:
+    def preprocess_bound(self, target: numpy.ndarray) -> numpy.ndarray:
         if target.base is not None:
             base = target.base.strides
             # Memory order non-monotonic
@@ -28,43 +26,35 @@ class NumpyBackend(AbstractArrayBackend[numpy.ndarray]):
                 return target.copy()
         return target
 
-    @classmethod
-    def dim(cls, target: numpy.ndarray, axis: int) -> numpy.ndarray:
+    def dim(self, target: numpy.ndarray, axis: int) -> numpy.ndarray:
         return numpy.array(target.shape[axis])
 
-    @classmethod
-    def range(cls, size: numpy.ndarray) -> numpy.ndarray:
+    def range(self, size: numpy.ndarray) -> numpy.ndarray:
         return numpy.arange(int(size))
 
-    @classmethod
-    def concat(cls, *args: numpy.ndarray, axis: int) -> numpy.ndarray:
+    def concat(self, *args: numpy.ndarray, axis: int) -> numpy.ndarray:
         return numpy.concatenate(args, axis=axis)
 
-    @classmethod
     def transpose(
-        cls, target: numpy.ndarray, permutation: tuple[int, ...]
+        self, target: numpy.ndarray, permutation: tuple[int, ...]
     ) -> numpy.ndarray:
         return numpy.transpose(target, permutation)
 
-    @classmethod
-    def squeeze(cls, target: numpy.ndarray, axes: tuple[int, ...]) -> numpy.ndarray:
+    def squeeze(self, target: numpy.ndarray, axes: tuple[int, ...]) -> numpy.ndarray:
         return numpy.squeeze(target, axes)
 
-    @classmethod
-    def unsqueeze(cls, target: numpy.ndarray, axes: tuple[int, ...]) -> numpy.ndarray:
+    def unsqueeze(self, target: numpy.ndarray, axes: tuple[int, ...]) -> numpy.ndarray:
         return numpy.expand_dims(target, axes)
 
-    @classmethod
     def gather(
-        cls, target: numpy.ndarray, item: numpy.ndarray, axis: int
+        self, target: numpy.ndarray, item: numpy.ndarray, axis: int
     ) -> numpy.ndarray:
         return numpy.take_along_axis(
             target, numpy.clip(item, 0, target.shape[axis] - 1), axis
         )
 
-    @classmethod
     def take(
-        cls, target: numpy.ndarray, items: Sequence[numpy.ndarray | None]
+        self, target: numpy.ndarray, items: Sequence[numpy.ndarray | None]
     ) -> numpy.ndarray:
         SLICE_NONE = slice(None)
         it: Any = (
@@ -73,24 +63,20 @@ class NumpyBackend(AbstractArrayBackend[numpy.ndarray]):
         )
         return target[*it]
 
-    @classmethod
-    def slice(cls, target: numpy.ndarray, slices: Sequence[slice]) -> numpy.ndarray:
+    def slice(self, target: numpy.ndarray, slices: Sequence[slice]) -> numpy.ndarray:
         return target[*slices]
 
-    @classmethod
     def pad(
-        cls, target: numpy.ndarray, pads: Sequence[tuple[int, int]]
+        self, target: numpy.ndarray, pads: Sequence[tuple[int, int]]
     ) -> numpy.ndarray:
         return fast_edge_pad(target, tuple(pads))
 
-    @classmethod
     def repeat(
-        cls, target: numpy.ndarray, count: numpy.ndarray, axis: int
+        self, target: numpy.ndarray, count: numpy.ndarray, axis: int
     ) -> numpy.ndarray:
         return numpy.repeat(target, int(count), axis=axis)
 
-    @classmethod
-    def prepare_einsum(cls, subs: str) -> Callable[..., numpy.ndarray]:
+    def prepare_einsum(self, subs: str) -> Callable[..., numpy.ndarray]:
         op_subs, res_subs = subs.split("->")
         ops_subs = op_subs.split(",")
         dummy_ops = [numpy.empty((4,) * len(curr_subs)) for curr_subs in ops_subs]

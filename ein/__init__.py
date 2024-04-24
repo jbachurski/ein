@@ -2,6 +2,7 @@ from typing import TypeAlias
 
 from ein.phi.type_system import matrix_type, ndarray_type, scalar_type, vector_type
 
+from .backend.jax_backend import interpret as interpret_with_jax
 from .backend.naive import interpret as interpret_with_naive
 from .backend.numpy_backend import interpret as interpret_with_numpy
 from .backend.torch_backend import interpret as interpret_with_torch
@@ -33,4 +34,5 @@ __all__ = [
     "interpret_with_naive",
     "interpret_with_numpy",
     "interpret_with_torch",
+    "interpret_with_jax",
 ]

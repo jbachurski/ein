@@ -24,6 +24,8 @@ line-profiler = { extras = ["ipython"], version = "^4.1.2" }
 numba = "^0.58.1"
 torch = "^2.1.2"
 pyarrow = "^15.0.0"
+jax = "^0.4.26"
+jaxlib = "^0.4.26"
 
 [build-system]
 requires = ["poetry-core"]
