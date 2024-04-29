@@ -3,6 +3,7 @@ from typing import (
     Any,
     Callable,
     Generic,
+    Never,
     Self,
     Sequence,
     TypeAlias,
@@ -152,9 +153,7 @@ class Vec(_Array, Generic[T]):
         return self._layout
 
     @overload
-    def __getitem__(
-        self: "Vec[Vec[Vec[Vec[Vec[S]]]]]", item_like: tuple[ScalarLike, ...]
-    ) -> Array:
+    def __getitem__(self, item_like: Never) -> Array:
         ...
 
     @overload
@@ -175,7 +174,17 @@ class Vec(_Array, Generic[T]):
         ...
 
     @overload
-    def __getitem__(self, item_like: ScalarLike) -> T:
+    def __getitem__(self: "Vec[S]", item_like: tuple[ScalarLike]) -> S:
+        ...
+
+    @overload
+    def __getitem__(self: "Vec[S]", item_like: ScalarLike) -> S:
+        ...
+
+    @overload
+    def __getitem__(
+        self: "Vec[Vec[Vec[Vec[Vec[S]]]]]", item_like: tuple[ScalarLike, ...]
+    ) -> Array:
         ...
 
     def __getitem__(self, item_like):

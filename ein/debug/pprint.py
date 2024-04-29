@@ -319,6 +319,15 @@ def _pretty_yarr(expr: yarr.Expr, par: bool) -> Repr:
                 _pretty_yarr(count, False),
                 _pretty_yarr(target, False),
             )
+        case yarr.Take(target, items):
+            return _pretty_call(
+                "take",
+                _pretty_yarr(target, False),
+                *(
+                    _pretty_yarr(x, False) if x is not None else Line("None")
+                    for x in items
+                ),
+            )
         case yarr.Slice(target, starts_, stops_):
             return _pretty_call(
                 "slice",
@@ -370,9 +379,11 @@ def pretty_yarr_of_phi(expr: phi.Expr, width: int = 60, indent: int = 2) -> str:
 
 
 if __name__ == "__main__":
+    from typing import Callable
+
     import numpy
 
-    from ein import Float, Vec, array, wrap
+    from ein import Float, Int, Vec, array, fold, function, ndarray_type, wrap
     from ein.frontend.std import fold_sum
 
     def mean(xs: Vec[Float]) -> Float:
@@ -382,5 +393,21 @@ if __name__ == "__main__":
     a: Vec[Float] = wrap(a0)
     b: Vec[Float] = wrap(b0)
     cov = array(lambda i, j: (a[i] - mean(a)) * (b[j] - mean(b)))
-    print(pretty_phi(cov.expr))
-    print(pretty_yarr_of_phi(cov.expr))
+    # print(pretty_phi(cov.expr))
+    # print(pretty_yarr_of_phi(cov.expr))
+
+    def fold_sum_(f: Callable[[Int], Float]) -> Float:
+        return fold(wrap(0.0), lambda i, acc: acc + f(i))
+
+    def L1(u: Vec[Float], v: Vec[Float]) -> Float:
+        return fold_sum_(lambda i: abs(u[i] - v[i]))
+
+    def pairwiseL1(A: Vec[Vec[Float]]) -> Vec[Vec[Float]]:
+        return array(lambda i, j: L1(A[i], A[j]))
+
+    inps, expr = function(pairwiseL1).phi(ndarray_type(2, float))
+    print("===")
+    print("arguments:", inps)
+    print(pretty_phi(expr))
+    print(pretty_yarr_of_phi(expr))
+    function(pairwiseL1).jax(numpy.random.randn(101, 99))

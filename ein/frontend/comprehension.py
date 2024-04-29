@@ -132,7 +132,7 @@ def array(
 def array(
     constructor: Callable[[Idx, Idx, Idx, Idx], T],
     *,
-    size: tuple[Size, Size, Size] | None = None,
+    size: tuple[Size, Size, Size, Size] | None = None,
 ) -> Vec[Vec[Vec[Vec[T]]]]:
     ...
 

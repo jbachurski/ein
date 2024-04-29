@@ -12,7 +12,7 @@ class Symbol:
 
 
 class Variable(Symbol):
-    _pref = "$"
+    _pref = "&"
     _ids = {}
 
 
