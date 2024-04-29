@@ -89,6 +89,11 @@ def _infer_sizes(
             # TODO: Handle the ignored cases here by requiring equivalence.
             shape_expr: Expr
             shape_expr, *_ = candidates
+            re_candidates = []
+            for candy in candidates:
+                if candy not in re_candidates:
+                    re_candidates.append(candy)
+            candidates = re_candidates
             size_of[index] = (
                 phi.AssertEq(shape_expr, tuple(candidates))
                 if len(candidates) > 1
