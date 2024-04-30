@@ -64,11 +64,6 @@ def test_mandelbrot(interpret):
         Mandelbrot.in_numpy(*args),
     )
 
-    # from ein.codegen import phi_to_yarr
-    # from ein.debug import pretty_phi, pretty_yarr
-    # print(pretty_phi(Mandelbrot.ein_function()[1]))
-    # print(pretty_yarr(phi_to_yarr.transform(Mandelbrot.ein_function()[1])))
-
 
 @with_interpret
 def test_mri_q(interpret):
