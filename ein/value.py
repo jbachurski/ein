@@ -4,8 +4,6 @@ import numpy
 
 from ein.phi.type_system import Pair, Type, type_from_ndarray
 
-BIG_DATA_SIZE: int = 1024
-
 try:
     from torch import Tensor as _TorchTensor
 except ImportError:
@@ -19,6 +17,14 @@ except ImportError:
 
 _ARRAY_TYPES: tuple[type, ...] = (numpy.ndarray, _TorchTensor, _JaxArray)
 _ArrayType: TypeAlias = numpy.ndarray | _TorchTensor | _JaxArray
+
+
+# We have a simple heuristic here to stop the compiler from comparing arrays which are too long.
+BIG_DATA_SIZE: int = 1024
+
+
+def _data_is_small(value: numpy.ndarray) -> bool:
+    return not value.ndim or len(value.data) < BIG_DATA_SIZE
 
 
 class Value:
@@ -47,20 +53,18 @@ class Value:
         if isinstance(self.value, numpy.ndarray):
             if not isinstance(other.value, numpy.ndarray):
                 return False
-            if len(self.value.data) != len(other.value.data):
+            if (self.value.size, self.value.dtype) != (
+                other.value.size,
+                other.value.dtype,
+            ):
                 return False
-            if self.value.dtype != other.value.dtype:
-                return False
-            if len(self.value.data) < BIG_DATA_SIZE:
-                return self.value.data == other.value.data
+            if _data_is_small(self.value):
+                return numpy.array_equal(self.value, other.value, equal_nan=True)
             return self is other
         return self.value is other.value
 
     def __hash__(self) -> int:
-        if (
-            isinstance(self.value, numpy.ndarray)
-            and len(self.value.data) < BIG_DATA_SIZE
-        ):
+        if isinstance(self.value, numpy.ndarray) and _data_is_small(self.value):
             return hash((self.value.dtype, self.value.data.tobytes()))
         if isinstance(self.value, _ARRAY_TYPES):
             return hash(id(self.value))

@@ -28,6 +28,10 @@ from . import (
 )
 
 
+def test_basic_range():
+    assert list(array(lambda i: i, size=5).eval()) == [0, 1, 2, 3, 4]
+
+
 def test_type_checks():
     with pytest.raises(TypeError):
         _ = with_varargs([scalar_type(int)], lambda n: 1 + array(lambda i: 0, size=n))  # type: ignore
