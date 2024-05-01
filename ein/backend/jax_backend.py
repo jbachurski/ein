@@ -1,5 +1,5 @@
 from functools import cache
-from typing import Any, Callable, Sequence, TypeAlias, cast
+from typing import Any, Callable, Optional, Sequence, TypeAlias, cast
 
 import numpy
 
@@ -73,7 +73,7 @@ class JaxBackend(AbstractArrayBackend[jnp.ndarray]):
         )
 
     def take(
-        self, target: jnp.ndarray, items: Sequence[jnp.ndarray | None]
+        self, target: jnp.ndarray, items: Sequence[Optional[jnp.ndarray]]
     ) -> jnp.ndarray:
         SLICE_NONE = slice(None)
         it: Any = (

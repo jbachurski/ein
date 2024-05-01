@@ -1,6 +1,6 @@
 import itertools
 from functools import cache
-from typing import Any, Callable, Sequence, TypeAlias, cast
+from typing import Any, Callable, Optional, Sequence, TypeAlias, cast
 
 import numpy
 
@@ -69,7 +69,7 @@ class TorchBackend(AbstractArrayBackend[torch.Tensor]):
         return torch.gather(target, axis, torch.clip(item, 0, target.shape[axis] - 1))
 
     def take(
-        self, target: torch.Tensor, items: Sequence[torch.Tensor | None]
+        self, target: torch.Tensor, items: Sequence[Optional[torch.Tensor]]
     ) -> torch.Tensor:
         SLICE_NONE = slice(None)
         it = (
