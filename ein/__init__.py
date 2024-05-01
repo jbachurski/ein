@@ -9,6 +9,7 @@ from .backend.torch_backend import interpret as interpret_with_torch
 from .frontend.comprehension import array, fold
 from .frontend.functions import function, with_varargs
 from .frontend.ndarray import Array, Scalar, Vec, ext, wrap
+from .frontend.std import where
 
 Bool: TypeAlias = Scalar
 Int: TypeAlias = Scalar
@@ -21,6 +22,7 @@ __all__ = [
     "wrap",
     "function",
     "with_varargs",
+    "where",
     "Array",
     "Scalar",
     "Bool",
