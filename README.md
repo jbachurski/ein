@@ -7,6 +7,18 @@ The `ein` library forms Ein's frontend in Python, with a lean API focused on arr
 ## Setup
 
 **Installation**. To simply install the `ein` package into `pip` (which should work without poetry), use `pip install .` (where `.` is assumed to be the repository's root directory).
+Alternatively, use `pip install git+https://github.com/jbachurski/ein.git` (once the repository is public).
+Ein might also be published on PyPI in the future.
+
+To check the basics work, in your Python REPL of choice try:
+
+```py
+from ein import array
+array(lambda i: i, size=5).eval()
+# -> array([0, 1, 2, 3, 4])
+```
+
+### Development
 
 **Environment.** Ein uses [Poetry](https://python-poetry.org) for project configuration and managing environments. To set up your development environment, use `poetry install`, at which point you can use `poetry shell` to activate the virtual environment. For reproducibility, a `poetry.lock` file was used to keep track of dependencies - but this can be adapted accordingly.
 
