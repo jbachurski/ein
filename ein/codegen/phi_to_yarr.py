@@ -5,8 +5,6 @@ from functools import cache
 from string import ascii_lowercase
 from typing import Callable, Iterable, assert_never, cast
 
-from term import Term
-
 from ein.codegen import yarr
 from ein.midend.size_classes import (
     SizeEquivalence,
@@ -18,6 +16,7 @@ from ein.midend.substitution import substitute
 from ein.phi import phi
 from ein.phi.type_system import Pair, Scalar, to_float
 from ein.symbols import Index, Symbol, Variable
+from ein.term import Term
 
 from . import array_indexing, axial
 from .axial import Axial
