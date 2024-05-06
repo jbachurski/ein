@@ -204,18 +204,20 @@ def stage_in_array(
 def stage(
     program: phi.Expr,
 ) -> Callable[[dict[Variable, jnp.ndarray]], jnp.ndarray | tuple[jnp.ndarray, ...]]:
+    array_program = phi_to_yarr.transform(program)
     with jax.ensure_compile_time_eval():
-        staged = stage_in_array(phi_to_yarr.transform(program))
+        staged = stage_in_array(array_program)
+    free_vars = list(array_program.free_variables)
+
+    def wrapped_staged(*args):
+        with jax.ensure_compile_time_eval():
+            return staged({v: arg for v, arg in zip(free_vars, args)})
 
     # Some tinkering so Jax is happy to get a simple sequence of arguments
     def wrapper(
         env: dict[Variable, jnp.ndarray]
     ) -> jnp.ndarray | tuple[jnp.ndarray, ...]:
-        def wrapped_staged(*args):
-            with jax.ensure_compile_time_eval():
-                return staged({v: arg for v, arg in zip(env.keys(), args)})
-
-        return jax.jit(wrapped_staged)(*env.values())
+        return jax.jit(wrapped_staged)(*(env[var] for var in free_vars))
 
     return wrapper
 

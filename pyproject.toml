@@ -26,6 +26,8 @@ torch = "^2.1.2"
 pyarrow = "^15.0.0"
 jax = "^0.4.26"
 jaxlib = "^0.4.26"
+tikzplotlib = "^0.10.1"
+matplotlib = "==3.6.*"
 
 [build-system]
 requires = ["poetry-core"]

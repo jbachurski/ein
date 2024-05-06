@@ -23,6 +23,20 @@ MIN_CAPPED_RUNS = 20
 CAP_RUNNING_SECONDS = 1.0
 
 
+def geometric_stdev(xs: Sequence[float]) -> float:
+    mu = statistics.geometric_mean(xs)
+    return (
+        math.exp(
+            math.sqrt(
+                len(xs)
+                / (len(xs) - 1)
+                * statistics.mean([math.log(r / mu) ** 2 for r in xs])
+            )
+        )
+        ** 1.5
+    )
+
+
 def benchmark(
     run: Callable[..., numpy.ndarray], sample: tuple, do_profile: bool = False
 ) -> list[float]:
@@ -45,10 +59,6 @@ def benchmark(
     return times
 
 
-def mean_stdev(ts: Sequence[float]) -> float:
-    return statistics.stdev(ts) / numpy.sqrt(len(ts))
-
-
 def precompile(varargs: tuple[Variable, ...], program: Expr) -> Callable:
     staged = ein.backend.numpy_backend.stage(program)
     return lambda *args: staged({var: arg for var, arg in zip(varargs, args)})
@@ -63,11 +73,21 @@ def precompile_torch(varargs: tuple[Variable, ...], program: Expr) -> Callable:
     )
 
 
+def precompile_jax(varargs: tuple[Variable, ...], program: Expr) -> Callable:
+    import jax
+
+    staged = ein.backend.jax_backend.stage(program)
+    return lambda *args: staged(
+        {var: jax.numpy.asarray(arg) for var, arg in zip(varargs, args)}
+    )
+
+
 Executor: TypeAlias = tuple[str, Callable, Callable[[int], bool]]
 Executors: TypeAlias = list[Executor]
 Benchmark: TypeAlias = tuple[Callable[[int], tuple], list[int], Executors]
 
 BASELINE_EXECUTOR = "NumPy"
+
 DEEP_ATTENTION = "Deep: Attention"
 DEEP_GAT = "Deep: GAT"
 MISC_SEMIRINGS = "Misc: Fun with Semirings"
@@ -84,12 +104,17 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(50, 200, 20).astype(int)),
         [
             ("Ein", precompile(*Attention.ein_function()), lambda n: 2 <= n <= 200),
+            ("NumPy", Attention.in_numpy, lambda n: 2 <= n <= 200),
             (
                 "Ein-Torch",
                 precompile_torch(*Attention.ein_function()),
                 lambda n: 2 <= n <= 200,
             ),
-            ("NumPy", Attention.in_numpy, lambda n: 2 <= n <= 200),
+            (
+                "Ein-JAX",
+                precompile_jax(*Attention.ein_function()),
+                lambda n: 2 <= n <= 200,
+            ),
         ],
     ),
     DEEP_GAT: (
@@ -97,12 +122,17 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(50, 150, 20).astype(int)),
         [
             ("Ein", precompile(*GAT.ein_function()), lambda n: 2 <= n <= 150),
+            ("NumPy", GAT.in_numpy, lambda n: 2 <= n <= 150),
             (
                 "Ein-Torch",
                 precompile_torch(*GAT.ein_function()),
                 lambda n: 2 <= n <= 150,
             ),
-            ("NumPy", GAT.in_numpy, lambda n: 2 <= n <= 150),
+            (
+                "Ein-JAX",
+                precompile_jax(*GAT.ein_function()),
+                lambda n: 2 <= n <= 150,
+            ),
         ],
     ),
     MISC_SEMIRINGS: (
@@ -118,11 +148,11 @@ BENCHMARKS: dict[str, Benchmark] = {
         list(numpy.geomspace(50, 1e5, 20).astype(int)),
         [
             ("Ein", precompile(*MriQ.ein_function()), lambda n: 100 <= n < 5e4),
-            (
-                "Ein-Torch",
-                precompile_torch(*MriQ.ein_function()),
-                lambda n: 100 <= n < 5e4,
-            ),
+            # (
+            #     "Ein-Torch",
+            #     precompile_torch(*MriQ.ein_function()),
+            #     lambda n: 100 <= n < 5e4,
+            # ),
             # Uses over 40 GB RAM at 5e4
             ("NumPy", MriQ.in_numpy_einsum, lambda n: 100 <= n < 5e4),
             # Saves memory by a non-idiomatic Python loop
@@ -199,28 +229,45 @@ def perform(
         result[name] = {}
         for n, ts in ((n, benchmark(fun, get_sample(n))) for n in params if pred(n)):
             print(
-                f"n = {n} -> {min(ts)}  ({statistics.mean(ts)} ± {mean_stdev(ts)} across {len(ts)} runs)"
+                f"n = {n} -> {min(ts)}  ({statistics.mean(ts)} ± {statistics.pstdev(ts)} across {len(ts)} runs)"
             )
             result[name][n] = ts
 
     print("Summary at tail vs baseline:")
-    ratio_samples = 3
-    base_tail = list(result[BASELINE_EXECUTOR])[-ratio_samples:]
+    size_samples = 1
+    samples_each = 3
+
+    base_tail = list(result[BASELINE_EXECUTOR])[-size_samples:]
     base_all = result[BASELINE_EXECUTOR]
-    for name, _, _ in executors:
-        curr_tail = list(result[name])[-ratio_samples:]
+    (base_fun,) = {fun for name, fun, _ in executors if name == BASELINE_EXECUTOR}
+    for name, fun, _ in executors:
+        curr_tail = list(result[name])[-size_samples:]
         sample_ns = sorted(
             (set(curr_tail) | set(base_tail)) & (set(result[name]) & set(base_all))
         )
         if not sample_ns:
             print(f"{name: >7}: (no samples)")
             continue
-        sampled_executor = [min(result[name][n]) for n in sample_ns]
-        sampled_baseline = [min(result[BASELINE_EXECUTOR][n]) for n in sample_ns]
+
+        def resample(fn):
+            return [
+                r
+                for m in sample_ns
+                for _ in range(samples_each)
+                for r in benchmark(fn, get_sample(m))
+            ]
+
+        sampled_executor = resample(fun)
+        sampled_baseline = resample(base_fun)
         sampled_ratios = [t / t0 for t, t0 in zip(sampled_executor, sampled_baseline)]
-        print(sampled_executor, sampled_baseline)
-        est_ratio = math.prod(sampled_ratios) ** (1 / ratio_samples)
-        print(f"{name: >7}: {est_ratio:.3f}x")
+        print(sampled_executor, sampled_baseline, "->", sampled_ratios)
+        est = min(sampled_executor) / min(sampled_baseline)
+        mu = statistics.geometric_mean(sampled_ratios)
+        std_factor = geometric_stdev(sampled_ratios)
+        lo, hi = est / std_factor, est * std_factor
+        print(
+            f"{name: >7}: {est} - mean {mu:.3f} in [{lo:.3f}, {hi:.3f}] ([{lo-mu:.3f}, {hi-mu:.3f}])"
+        )
 
     return result
 
@@ -231,11 +278,13 @@ def plots(name: str, results: dict[str, dict[int, list[float]]]) -> None:
     seaborn.set(rc={"text.usetex": True})
 
     for exec_name, exec_result in results.items():
+        x_axis = "problem size $[n]$"
+        y_axis = r"runtime $[\mathrm{s}]$"
         ax = seaborn.lineplot(
-            x="$n$",
-            y="runtime",
+            x=x_axis,
+            y=y_axis,
             data=pandas.DataFrame.from_records(
-                [{"$n$": n, "runtime": t} for n, ts in exec_result.items() for t in ts]
+                [{x_axis: n, y_axis: t} for n, ts in exec_result.items() for t in ts]
             ),
             label=exec_name,
         )
@@ -243,6 +292,19 @@ def plots(name: str, results: dict[str, dict[int, list[float]]]) -> None:
         ax.set_yscale("log")
     plt.legend()
     plt.title(name)
+
+    def tikzplotlib_fix_ncols(obj):
+        """
+        workaround for matplotlib 3.6 renamed legend's _ncol to _ncols, which breaks tikzplotlib
+        """
+        if hasattr(obj, "_ncols"):
+            obj._ncol = obj._ncols
+        for child in obj.get_children():
+            tikzplotlib_fix_ncols(child)
+
+    # import tikzplotlib
+    # tikzplotlib_fix_ncols(plt.gcf())
+    # tikzplotlib.save(f"../../../Desktop/plots/{name.split(': ')[1]}.tex")
     plt.show()
 
 
