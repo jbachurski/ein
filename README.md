@@ -176,3 +176,19 @@ value, index = array(
 print(value.eval(), index.eval())
 # -> -1.0 2  as min(a) == -1.0 / argmin(a) == 2
 ```
+
+## Citing
+
+Ein was developed as part of my Bachelor's Thesis research at the University of Cambridge. It resulted in a publication in the ARRAY 2024 proceedings: [_"Points for Free: Embedding Pointful Array Programming in Python"_](https://dl.acm.org/doi/abs/10.1145/3652586.3663312). Ein was also recognised in the POPL 2024 SRC and the [2024 ACM SRC Grand Finals](https://src.acm.org/grand-finalists/2024).
+
+If you use Ein or the techniques developed in it, use this citation:
+
+```bib
+@inproceedings{bachurski2024points,
+  title={Points for Free: Embedding Pointful Array Programming in Python},
+  author={Bachurski, Jakub and Mycroft, Alan},
+  booktitle={Proceedings of the 10th ACM SIGPLAN International Workshop on Libraries, Languages and Compilers for Array Programming},
+  pages={1--12},
+  year={2024}
+}
+```
